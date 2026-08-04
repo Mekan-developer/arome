@@ -52,10 +52,14 @@ COPY --from=vendor /app/vendor ./vendor
 COPY --from=frontend /app/public/build ./public/build
 COPY . .
 
+COPY docker/php/entrypoint.sh /usr/local/bin/entrypoint.sh
+
 RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html/storage
+    && chmod -R 755 /var/www/html/storage \
+    && chmod +x /usr/local/bin/entrypoint.sh
 
 USER www-data
 
 EXPOSE 9000
+ENTRYPOINT ["entrypoint.sh"]
 CMD ["php-fpm"]

@@ -1,58 +1,189 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# ARÔME Admin
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Админ-панель для управления каталогом парфюмерии: товары, цены и скидки, остатки по точкам,
+сотрудники и права, импорт прайса из Excel, синхронизация устройств продавцов и журнал действий.
 
-## About Laravel
+Приложение построено как SPA на Inertia.js: серверная маршрутизация Laravel + Vue 3 на клиенте,
+без vue-router и без сторонних UI-китов — все компоненты собственные (см. [Дизайн-система](#дизайн-система)).
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+> **Статус:** каркас проекта. Настроены Laravel 13, Inertia v3, Vue 3, Vite, окружение Docker.
+> Разделы панели реализуются по спецификации [AROMA-ADMIN-PROMPT.md](AROMA-ADMIN-PROMPT.md) —
+> это основной документ с точными требованиями к вёрстке, данным и поведению экранов.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+---
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Стек
 
-## Learning Laravel
+| Слой | Технологии |
+|---|---|
+| Backend | PHP 8.3, Laravel 13, Inertia Laravel v3 |
+| Frontend | Vue 3, `@inertiajs/vue3` v3, Vite 8, Tailwind CSS v4 (утилиты; основа — CSS-переменные) |
+| БД | PostgreSQL 16 (Docker) / SQLite (локально по умолчанию) |
+| Кэш, очереди | Redis (Docker), драйверы `database` по умолчанию |
+| Инструменты | Laravel Boost, Pail, Pint, PHPUnit 12 |
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+---
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Требования
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+- PHP 8.3+, Composer 2
+- Node.js 20+, npm
+- Docker и Docker Compose — если поднимаете окружение в контейнерах
 
-## Agentic Development
+---
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Быстрый старт
+
+### Вариант 1 — Docker (PostgreSQL + Redis + Nginx)
 
 ```bash
-composer require laravel/boost --dev
+cp .env.example .env
+# в .env укажите параметры БД, совпадающие с docker-compose.yml:
+# DB_CONNECTION=pgsql, DB_HOST=db, DB_PORT=5432,
+# DB_DATABASE=aroma_db, DB_USERNAME=admin, DB_PASSWORD=secret
+# COMPOSE_PROJECT_NAME=aroma
 
-php artisan boost:install
+docker compose up -d --build
+docker compose exec app php artisan key:generate
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Панель — http://localhost:8000
 
-## Contributing
+Контейнер `app` на каждом старте сам прогоняет `migrate --force` и `db:seed --force`,
+поэтому база готова к первому входу без ручных команд. Сидер создаёт единственную
+учётку — главного администратора по `ADMIN_LOGIN` / `ADMIN_PASSWORD` из `.env`
+(по умолчанию `admin` / `admin12345`), и при перезапуске освежает её пароль из `.env`.
+Доступ к служебной консоли `/su` — `docker compose exec app php artisan aroma:superadmin`.
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Сервисы: `app` (PHP-FPM 8.3), `nginx` (порт 8000), `db` (PostgreSQL 16, порт 5432),
+`redis` (порт 6379). Фронтенд собирается на этапе сборки образа (`npm run build`).
 
-## Code of Conduct
+### Вариант 2 — локально
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+composer setup     # install + .env + key:generate + migrate + npm install + npm run build
+composer run dev   # сервер, обработчик очереди, логи (pail) и Vite одной командой
+```
 
-## Security Vulnerabilities
+`composer setup` использует настройки БД из `.env`; по умолчанию это SQLite
+(`database/database.sqlite`). Приложение будет доступно на http://localhost:8000.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+---
 
-## License
+## Полезные команды
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```bash
+composer run dev                 # server + queue + pail + vite (concurrently)
+npm run dev                      # только Vite с HMR
+npm run build                    # production-сборка фронтенда
+
+php artisan migrate:fresh --seed # пересобрать пустую БД и создать администратора
+php artisan aroma:superadmin     # выдать доступ к служебной консоли /su
+php artisan route:list           # список маршрутов
+php artisan pail                 # живой просмотр логов
+
+composer test                    # config:clear + весь набор тестов
+php artisan test --compact       # то же, компактный вывод
+php artisan test --filter=ProductTest
+
+vendor/bin/pint                  # форматирование PHP по стилю проекта
+```
+
+Если изменения фронтенда не видны в браузере — не запущен `npm run dev`
+или не выполнен `npm run build`.
+
+---
+
+## Структура
+
+```
+app/
+  Http/Controllers/     тонкие контроллеры: Form Request → сервис → Inertia::render
+  Http/Middleware/      HandleInertiaRequests — общие props (в т.ч. состояние модулей)
+  Http/Requests/        валидация форм
+  Services/             бизнес-логика: цены и скидки, разбор Excel, пароли, EAN-13
+  Repositories/         запросы к БД
+  Models/
+database/
+  migrations/  factories/  seeders/     AdminSeeder — учётка администратора, и только
+resources/
+  js/app.js             createInertiaApp + resolvePageComponent
+  js/Layouts/           AdminLayout, AuthLayout, SuLayout
+  js/Pages/             экраны, резолвятся по имени из Inertia::render
+  js/Components/        общие компоненты (AppButton, DataTable, Modal, SideDrawer, …)
+  css/app.css           токены дизайн-системы
+  views/                единственный blade-шаблон приложения
+routes/web.php
+docker/                 php/Dockerfile (multi-stage), nginx/conf.d/aroma.conf
+tests/                  Feature и Unit (PHPUnit)
+```
+
+---
+
+## Разделы панели
+
+| Раздел | Маршрут | Модуль |
+|---|---|---|
+| Вход | `/login` | — |
+| Товары | `/products` | — |
+| Импорт из Excel | `/import` | `import` |
+| Пользователи | `/users` | только главный администратор |
+| Матрица прав | `/rights` | — |
+| Точки и склады | `/points` | `points` |
+| Синхронизация устройств | `/devices` | `devices` |
+| Журнал действий | `/audit` | `audit` |
+| Служебная консоль | `/su` | только суперадмин |
+
+### Модули (feature flags)
+
+Таблица `modules` включает и выключает функциональность целиком: раздел, связанные
+фильтры, колонки таблиц и поля форм. Данные при выключении остаются в БД.
+
+- `points` — торговые точки (выкл. по умолчанию)
+- `warehouses` — склады, зависит от `points` (выкл. по умолчанию)
+- `productPoints` — остатки товара по точкам, зависит от `points` (выкл. по умолчанию)
+- `import`, `devices`, `audit` — включены по умолчанию
+
+Модуль считается включённым, только если включён он сам и рекурсивно все его зависимости.
+Эффективное состояние отдаётся во все страницы через `HandleInertiaRequests::share()`
+как `modules: { points: bool, … }`. Скрытый раздел недоступен и по прямому URL — контроллер
+возвращает 404. Управление флагами — только из служебной консоли `/su`.
+
+---
+
+## Дизайн-система
+
+Оформление задано CSS-переменными в `resources/css/app.css`. Ключевые правила:
+
+- Шрифты: Playfair Display (заголовки), IBM Plex Sans (интерфейс), IBM Plex Mono (все числа
+  и микро-заголовки, с `font-variant-numeric: tabular-nums`).
+- `border-radius` — только `2px` у инпутов, селектов и кнопок; всё остальное с прямыми углами.
+- Тени — только у модалок и выезжающей панели.
+- Разделители — волосяные линии: `--rule-soft` внутри таблиц, `--rule-strong` между зонами.
+- Статус — подчёркнутый текст, а не «пилюля».
+- Деньги — формат `1 415,88`, валюта `TMT`.
+- `body` не скроллится: приложение `height: 100vh; overflow: hidden`, скроллятся только
+  тела таблиц.
+
+Полная палитра, ограничения и чек-лист приёмки — в
+[AROMA-ADMIN-PROMPT.md](AROMA-ADMIN-PROMPT.md) (§2 и §15).
+
+---
+
+## Тесты
+
+```bash
+php artisan test --compact
+```
+
+Покрытие по спецификации: фильтрация и сортировка товаров, расчёт цены со скидкой,
+правила валидации товара, контрольная цифра EAN-13, каскадное выключение модулей,
+матрица прав (роль `admin` неизменяема, скрытые поля не попадают в API) и генератор паролей.
+
+---
+
+## Соглашения
+
+Правила для разработчиков и агентов собраны в [CLAUDE.md](CLAUDE.md): структура кода,
+использование Artisan-команд, форматирование через Pint, тесты на PHPUnit.
+Перед финализацией изменений в PHP выполняйте `vendor/bin/pint --dirty`.

@@ -1,0 +1,134 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Product;
+use App\Models\RoleFieldRight;
+use App\Models\User;
+use App\Services\RightsService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Tests\TestCase;
+
+class RightsTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private RightsService $rights;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seedModules();
+        $this->rights = app(RightsService::class);
+    }
+
+    private function seller(): User
+    {
+        return User::factory()->create(['role' => 'seller']);
+    }
+
+    public function test_the_administrator_role_is_immutable(): void
+    {
+        RoleFieldRight::create(['role' => 'admin', 'field' => 'retail', 'visible' => false]);
+        Cache::flush();
+
+        $this->assertTrue(
+            $this->rights->matrix()['admin']['retail'],
+            'Every field stays visible for the administrator even if a row says otherwise.',
+        );
+    }
+
+    public function test_saving_the_policy_ignores_the_administrator_row(): void
+    {
+        $this->actingAs($this->admin())
+            ->put('/rights', ['fields' => ['mainCode' => false, 'retail' => false]])
+            ->assertSessionHasNoErrors();
+
+        $matrix = $this->rights->matrix();
+
+        $this->assertFalse($matrix['seller']['mainCode']);
+        $this->assertFalse($matrix['seller']['retail']);
+        $this->assertTrue($matrix['admin']['retail']);
+    }
+
+    public function test_a_hidden_field_never_reaches_the_products_endpoint(): void
+    {
+        Product::factory()->create([
+            'name' => 'LATTAFA KHAMRAH EDP 100ML',
+            'main_code' => 'AA1001',
+            'sku' => '510028',
+            'barcode' => '8011003993802',
+            'price' => 420,
+        ]);
+
+        RoleFieldRight::updateOrCreate(['role' => 'seller', 'field' => 'mainCode'], ['visible' => false]);
+        RoleFieldRight::updateOrCreate(['role' => 'seller', 'field' => 'barcode'], ['visible' => true]);
+        Cache::flush();
+
+        $row = $this->asDevice($this->seller())->getJson('/api/v1/products')->assertOk()->json('data.0');
+
+        $this->assertArrayNotHasKey('main_code', $row, 'A hidden field must be absent, not blanked.');
+        $this->assertArrayHasKey('barcode', $row);
+        $this->assertSame('8011003993802', $row['barcode']);
+    }
+
+    public function test_hiding_the_price_removes_both_the_retail_and_the_final_price(): void
+    {
+        Product::factory()->discounted()->create();
+
+        RoleFieldRight::updateOrCreate(['role' => 'seller', 'field' => 'retail'], ['visible' => false]);
+        RoleFieldRight::updateOrCreate(['role' => 'seller', 'field' => 'discount'], ['visible' => false]);
+        Cache::flush();
+
+        $row = $this->asDevice($this->seller())->getJson('/api/v1/products')->assertOk()->json('data.0');
+
+        $this->assertArrayNotHasKey('retail', $row);
+        $this->assertArrayNotHasKey('discount', $row);
+        $this->assertArrayNotHasKey('final', $row);
+    }
+
+    public function test_the_endpoint_answers_in_the_agreed_envelope(): void
+    {
+        Product::factory()->count(3)->create();
+
+        $this->asDevice($this->seller())->getJson('/api/v1/products')
+            ->assertOk()
+            ->assertJsonStructure([
+                'data' => [['id', 'status']],
+                'meta' => ['per_page', 'current_page', 'has_more', 'server_time'],
+            ]);
+    }
+
+    public function test_money_is_an_integer_in_minor_units(): void
+    {
+        Product::factory()->create(['price' => 1415.88, 'discount' => 0.5]);
+        Cache::flush();
+
+        $row = $this->asDevice($this->seller())->getJson('/api/v1/products')->assertOk()->json('data.0');
+
+        $this->assertSame(141588, $row['retail']['amount']);
+        $this->assertSame('TMT', $row['retail']['currency']);
+        $this->assertSame(70794, $row['final']['amount']);
+    }
+
+    /**
+     * The field policy decides which columns a role receives, which means nothing
+     * unless the caller is known. An anonymous request must not get the catalogue.
+     */
+    public function test_the_catalogue_is_not_public(): void
+    {
+        Product::factory()->count(3)->create();
+
+        $this->getJson('/api/v1/products')->assertUnauthorized();
+    }
+
+    public function test_the_page_size_is_capped(): void
+    {
+        Product::factory()->count(5)->create();
+
+        $this->asDevice($this->seller())->getJson('/api/v1/products?per_page=5000')
+            ->assertOk()
+            ->assertJsonPath('meta.per_page', 100);
+    }
+}

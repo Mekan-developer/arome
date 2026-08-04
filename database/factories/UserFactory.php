@@ -26,20 +26,37 @@ class UserFactory extends Factory
     {
         return [
             'name' => fake()->name(),
-            'email' => fake()->unique()->safeEmail(),
-            'email_verified_at' => now(),
+            'login' => fake()->unique()->userName(),
+            'role' => 'seller',
             'password' => static::$password ??= Hash::make('password'),
+            'is_active' => true,
+            'last_login_at' => now(),
+            'device' => 'Веб',
             'remember_token' => Str::random(10),
         ];
     }
 
-    /**
-     * Indicate that the model's email address should be unverified.
-     */
-    public function unverified(): static
+    public function admin(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'email_verified_at' => null,
-        ]);
+        return $this->state(fn (array $attributes) => ['role' => 'admin', 'device' => 'Веб']);
+    }
+
+    /**
+     * Корневой администратор — учётка из ADMIN_LOGIN, единственная с разделом
+     * «Пользователи».
+     */
+    public function root(): static
+    {
+        return $this->admin()->state(fn (array $attributes) => ['is_root' => true]);
+    }
+
+    public function superadmin(): static
+    {
+        return $this->state(fn (array $attributes) => ['role' => 'superadmin', 'login' => 'root']);
+    }
+
+    public function blocked(): static
+    {
+        return $this->state(fn (array $attributes) => ['is_active' => false]);
     }
 }

@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root{
+  --ink:#1B1512; --ink-2:#3E3229; --ink-3:#7A6A5B; --ink-inv:#F6F1E6;
+  --paper:#E9E1D3; --sheet:#FAF6ED; --sheet-alt:#F4EEE1; --sheet-hi:#F0E6D2;
+  --rule:#D5C9B4; --rule-soft:#E5DBC8; --rule-strong:#B9A98C;
+  --brass:#A2751E; --brass-dark:#6E4E10; --brass-tint:#EFE2C4;
+  --danger:#93251C; --danger-tint:#F3DDD8; --ok:#4E6A46; --warn:#B07A16;
+  --c-parfum:#5A2A0E; --c-edp:#8A3B12; --c-edt:#B4761F; --c-edc:#C9A96A;
+  --f-display:'Playfair Display',Georgia,serif;
+  --f-body:'IBM Plex Sans',system-ui,sans-serif;
+  --f-data:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);-webkit-font-smoothing:antialiased}
+input,select,button{font-family:inherit;font-size:inherit;color:inherit}
+a{color:var(--brass-dark);text-decoration:none;border-bottom:1px solid var(--rule)}
+a:hover{color:var(--ink);border-bottom-color:var(--brass)}
+@keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/*
+ * Тёмные поверхности §2 — шапка, тёмная колонка входа, шапки модалок, служебная
+ * консоль. Вынесены в токены, чтобы в компонентах не было ни одного голого хекса.
+ */
+:root{
+  --white:#FFFFFF;           /* фон текстового поля */
+  --dark-field:#241D18;      /* фон поля поиска в шапке */
+  --dark-rule:#3E3229;       /* границы на тёмном */
+  --dark-ink-2:#A99A88;      /* вторичный текст на тёмном */
+  --dark-ink-3:#8C7B69;      /* третичный текст на тёмном */
+  --su-head:#150E0C;         /* шапка служебной консоли */
+  --impersonate-bg:#2A1613;  /* полоса «просмотр глазами администратора» */
+  --impersonate-rule:#D08C7E;
+  --impersonate-ink:#E6BFA6;
+  --overlay:rgba(27,21,18,.42);
+  --overlay-confirm:rgba(27,21,18,.46);
+  --shadow-modal:0 26px 60px rgba(27,21,18,.34);
+  --shadow-drawer:-14px 0 34px rgba(27,21,18,.13);
+  --tint-ok:rgba(78,106,70,.12);
+  --tint-warn:rgba(176,122,22,.09);
+  --tint-warn-soft:rgba(176,122,22,.07);
+  --tint-fixed:rgba(78,106,70,.10);
+}

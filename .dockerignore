@@ -1,0 +1,16 @@
+.env
+.env.*
+node_modules
+vendor
+.git
+public/build
+
+# Загрузки и рантайм-мусор в образ не едут: каталоги создаёт сам контейнер, а часть
+# из них лежит под uid www-data и хосту недоступна на чтение.
+storage/app/private
+storage/app/public
+storage/logs
+storage/framework/cache
+storage/framework/sessions
+storage/framework/views
+storage/framework/testing

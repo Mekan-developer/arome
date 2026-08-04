@@ -1,16 +1,64 @@
 # Промпт для Claude Code — «ARÔME Admin»
 
 > Как пользоваться: создай пустой проект `laravel new my-app`, положи этот файл в корень как `AROMA-ADMIN-PROMPT.md`, положи логотип в `public/img/arome-logo.png` и запусти Claude Code с сообщением:
-> **«Прочитай AROMA-ADMIN-PROMPT.md и реализуй всё, что там описано, полностью. Не упрощай, не заменяй компоненты на UI-библиотеки.»**
+> **«Используй скилл crm-builder. Прочитай AROMA-ADMIN-PROMPT.md и реализуй всё, что там описано, полностью. Не упрощай, не заменяй компоненты на UI-библиотеки.»**
 
 ---
 
-## 0. Роль и жёсткие запреты
+## 0. ПЕРВОЕ ДЕЙСТВИЕ — подключить скилл `crm-builder`
+
+**Прежде чем написать хоть одну строку кода, активируй скилл `crm-builder` и прочитай его референсы:**
+
+```
+references/architecture.md      — слои, Form Request, Policy, Pest
+references/data-and-api.md      — серверные операции над данными
+references/performance.md       — индексы, pg_trgm, курсорная пагинация
+references/api.md               — версионирование /api/v1
+references/frontend-vue.md      — структура каталогов, фильтры через URL, useForm
+references/craft-baseline.md    — планка ремесла, чек-лист перед сдачей
+references/ui-directions.md     — антипаттерны (прогнать токены из §2)
+assets/design-log.md            — журнал направлений
+```
+
+Это CRM/админ-панель — скилл `crm-builder` применяется обязательно и в полном объёме. Дальше — как этот файл ложится на его шаги.
+
+### Соответствие шагам скилла
+
+| Шаг скилла | Статус |
+|---|---|
+| **Шаг 1. Бриф** | **Выполнен, вопросы не задавать.** Домен: розничная сеть парфюмерии в Туркменистане (ARÔME). За системой сидит администратор сети за большим монитором; продавцы в системе не работают — только мобильное приложение со сканером, получающее данные по API. Сценарии: (1) найти товар по штрихкоду/артикулу, (2) поправить цену и скидку — точечно и массово, (3) залить прайс из Excel и разобрать ошибки строк, (4) выдать/забрать доступ сотруднику, (5) настроить, какие поля карточки уходят продавцу. Главная сущность — **товар (SKU)**. Объём: 5 000 SKU, прайсы по 1 800–1 900 строк. |
+| **Шаг 2. Дизайн-направление** | **Выполнен, направление зафиксировано — не выбирать своё, не «улучшать».** Токены выписаны ниже. |
+| **Шаг 3. Проверка на шаблонность** | Прогони токены §2 по разделу «Антипаттерны» из `ui-directions.md`. Расхождения — только в мою сторону: спецификация побеждает. Отчитайся списком, что проверил. |
+| **Шаг 4. Backend** | По скиллу целиком: Route → Controller → Service → Repository, Form Request, Enum, Policy, индексы, Pest. Детали домена — §3, §14. |
+| **Шаг 5. Frontend** | По `frontend-vue.md` + `craft-baseline.md`, но визуал — строго §2–§13 этого файла. |
+| **Шаг 6. Журнал** | Допиши строку в `assets/design-log.md` (готовый текст — §16). |
+
+### Токены направления (Шаг 2 скилла, заполнено)
+
+```
+Домен:        розничная сеть парфюмерии, каталог и цены за прилавком
+Направление:  «прайс-лист на бумаге» — тёплая бумага, волосяные линейки,
+              моноширинные цифры, никаких карточек и теней
+Палитра:      #1B1512 чернила, #E9E1D3 бумага, #FAF6ED лист, #A2751E латунь,
+              #93251C тревога, #4E6A46 норма
+Шрифты:       display — Playfair Display, body — IBM Plex Sans, data — IBM Plex Mono
+Сетка:        без сайдбара — горизонтальные табы 40px под шапкой 56px;
+              таблица во всю ширину + модалка карточки 660px
+Радиусы:      2px только у полей и кнопок, всё остальное — прямые углы
+Сигнатура:    строка товара как строка накладной — цветная полоса категории
+              8px слева на всю высоту, цена перечёркнута при скидке,
+              статус подчёркнут снизу 2px вместо «пилюли»
+```
+
+---
+
+## 0.1 Роль и жёсткие запреты
 
 Ты — фронтенд-инженер и дизайн-инженер. Задача: собрать админ-панель **ARÔME Admin** на Laravel + Inertia + Vue 3 **пиксель-в-пиксель** по спецификации ниже.
 
 **ЗАПРЕЩЕНО:**
-- Tailwind, Bootstrap, Vuetify, PrimeVue, shadcn, Element, Naive UI и любые UI-киты. Только собственные компоненты и CSS-переменные из §2.
+- Bootstrap, Vuetify, PrimeVue, shadcn, Element, Naive UI и любые готовые UI-киты. Только собственные компоненты.
+- **Дефолтная палитра Tailwind.** Tailwind разрешён (стек скилла), но исключительно как утилиты раскладки и через токены. `bg-slate-*`, `text-gray-*`, `bg-blue-500`, `rounded-lg`, `shadow-md`, любой `#hex` в шаблоне — ошибка. Цвета, шрифты и радиусы приходят только из `resources/css/tokens.css` (§2), подключённого в `tailwind.config.js` через `theme.extend`.
 - Скруглённые карточки, «мягкие» тени, градиенты, «стеклянные» панели, эмодзи, иконочные шрифты, SVG-иллюстрации.
 - Менять цвета, шрифты, размеры шрифтов, отступы и grid-шаблоны из спецификации. Все числа ниже — точные.
 - Иконки-картинки. Все «иконки» в интерфейсе — это типографика: `‖|‖`, `→`, `←`, `✓`, `·`, `↑`, `↓`, `!`.
@@ -35,17 +83,24 @@
 
 ## 1. Стек и установка
 
+Стек фиксирован скиллом: **Laravel + Inertia + Vue 3 `<script setup>` + Tailwind.** Не предлагать Nuxt, отдельное SPA или API-клиент на фронте.
+
 ```bash
 composer require inertiajs/inertia-laravel
 php artisan inertia:middleware        # зарегистрировать HandleInertiaRequests в web
-npm i @inertiajs/vue3 vue @vitejs/plugin-vue
+npm i @inertiajs/vue3 vue @vitejs/plugin-vue tailwindcss @tailwindcss/vite
 ```
 
 - `resources/views/app.blade.php` — единственный blade-шаблон, в нём `@inertia`, `@vite`, подключение шрифтов Google и `<link rel="preconnect">`.
 - `resources/js/app.js` — `createInertiaApp` + `createApp` + `resolvePageComponent`.
 - `vite.config.js` — плагин `vue()` c `template.transformAssetUrls.base = null`.
 - Никакого TypeScript, никакого Pinia, никакого vue-router. Навигация — только Inertia `router.get` / `<Link>`.
-- Состояние экрана — локальный `ref`/`computed` в SFC + props от Inertia.
+- На клиенте живёт только состояние интерфейса (что открыто, что выделено, что набрано). Всё остальное — с сервера.
+
+### Два правила скилла, которые не обсуждаются
+
+1. **Операции над данными — только на сервере.** Поиск по штрихкоду/артикулу/названию, фильтры «Точка» и «Статус», сортировка, пагинация по 25, счётчики в мастере импорта — всё запросом на сервер. `props.products.filter(...)` в `computed` — ошибка: в каталоге 5 000 SKU. Фильтры живут в URL, подгрузка — частичная (`router.get(..., { only: ['products'], preserveState: true })`). Поля, скрытые матрицей прав, не должны вообще приходить в ответе, а не прятаться на экране.
+2. **API версионируется с первого дня.** У системы есть второй потребитель — мобильное приложение продавца со сканером. Значит `routes/api/v1.php`, `app/Http/Controllers/Api/V1/`, `app/Http/Resources/V1/` сразу. Сервисы общие для веба и API. Эндпоинты: `GET /api/v1/products` (с учётом матрицы прав роли), `GET /api/v1/products/{barcode}`, `POST /api/v1/sync`.
 
 ### Структура
 
@@ -53,24 +108,34 @@ npm i @inertiajs/vue3 vue @vitejs/plugin-vue
 app/Http/Controllers/  AuthController, ProductController, ImportController,
                        UserController, RightsController, PointController,
                        DeviceController, AuditController, SuperadminController
-app/Services/          ProductService, ImportService, PasswordService, ModuleService
-app/Repositories/      ProductRepository, UserRepository
-app/Http/Requests/     StoreProductRequest, UpdateProductRequest, StoreUserRequest, ChangePasswordRequest
+app/Http/Controllers/Api/V1/  ProductApiController, SyncApiController
+app/Http/Resources/V1/        ProductResource (уважает role_field_rights)
+app/Services/          ProductService, ImportService, PasswordService, ModuleService, RightsService
+app/Repositories/      ProductRepository, UserRepository, DeviceRepository, AuditRepository
+app/Http/Requests/     StoreProductRequest, UpdateProductRequest, BulkPriceRequest,
+                       StoreUserRequest, ChangePasswordRequest, UpdateRightsRequest
+app/Enums/             ProductStatus, UserRole, AuditKind, ImportIssueKind, ModuleKey
+app/Policies/          ProductPolicy, UserPolicy, ModulePolicy (только superadmin)
+resources/css/tokens.css  — все цвета/шрифты проекта (§2), больше нигде
+resources/css/app.css     — @import tokens.css + @tailwind + базовые сбросы
 resources/js/Layouts/  AdminLayout.vue, AuthLayout.vue, SuLayout.vue
 resources/js/Pages/    Login.vue, Products/Index.vue, Import/Index.vue, Users/Index.vue,
                        Rights/Index.vue, Points/Index.vue, Devices/Index.vue,
                        Audit/Index.vue, Su/Index.vue
 resources/js/Components/  (список в §5)
-resources/css/app.css  (токены из §2)
 ```
 
-Каждый контроллер — тонкий: валидация через Form Request → вызов сервиса → `Inertia::render`. Бизнес-логика (расчёт цены со скидкой, разбор Excel, генерация пароля, EAN-13) — в сервисах. Запросы к БД — в репозиториях.
+Компоненты именуются под домен, а не абстрактно: `ProductRow`, `PriceCell`, `ImportIssueRow`, `StaffAccessButton` — не `DataTableRow` и не `TableCell`.
+
+Каждый контроллер — тонкий: валидация через Form Request → вызов сервиса → `Inertia::render` с DTO/Resource (не голые модели). Бизнес-логика (расчёт цены со скидкой, разбор Excel, генерация пароля, EAN-13, каскад модулей) — в сервисах. Запросы к БД — в репозиториях. Статусы — Enum, не строки. Права — Policy, не проверки в контроллере.
+
+**Скорость — требование, а не оптимизация под конец.** Сидер наполняет каталог до 50 000 строк для проверки (214 демо-товаров из §3 — видимая часть, остальное — нагрузочный факторинг в отдельном сидере). Индексы на `sku`, `barcode`, `main_code`, `status`, `name` (триграммный через `pg_trgm`), на все внешние ключи и на `product_stocks(product_id, point_id)`. Поиск по названию — через `pg_trgm`, не `LIKE '%…%'`. Разбор Excel — в очереди.
 
 ---
 
 ## 2. Дизайн-система
 
-`resources/css/app.css` — скопируй дословно:
+`resources/css/tokens.css` — единственный источник цвета и шрифта в проекте, скопируй дословно:
 
 ```css
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -93,6 +158,24 @@ a{color:var(--brass-dark);text-decoration:none;border-bottom:1px solid var(--rul
 a:hover{color:var(--ink);border-bottom-color:var(--brass)}
 @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:translateX(0);opacity:1}}
 ```
+
+`tailwind.config.js` — пробрось токены в тему, чтобы в шаблонах писали `bg-ink`, `text-ink-3`, `border-rule-strong`, `font-data`, а не дефолтную палитру:
+
+```js
+theme: { extend: {
+  colors: {
+    ink:{DEFAULT:'var(--ink)',2:'var(--ink-2)',3:'var(--ink-3)',inv:'var(--ink-inv)'},
+    paper:'var(--paper)', sheet:{DEFAULT:'var(--sheet)',alt:'var(--sheet-alt)',hi:'var(--sheet-hi)'},
+    rule:{DEFAULT:'var(--rule)',soft:'var(--rule-soft)',strong:'var(--rule-strong)'},
+    brass:{DEFAULT:'var(--brass)',dark:'var(--brass-dark)',tint:'var(--brass-tint)'},
+    danger:{DEFAULT:'var(--danger)',tint:'var(--danger-tint)'}, ok:'var(--ok)', warn:'var(--warn)',
+  },
+  fontFamily:{display:'var(--f-display)', body:'var(--f-body)', data:'var(--f-data)'},
+  borderRadius:{DEFAULT:'2px'},
+}}
+```
+
+Граница между Tailwind и `style`: раскладка, отступы, цвет, типографика — классами Tailwind по токенам. Точные `grid-template-columns` из этого файла и дробные размеры шрифта (12.5px, 9.5px, 13.5px) — через `style` или арбитрарные значения `text-[12.5px]`. Главное — ни одного цвета мимо токенов.
 
 **Тёмные поверхности** (шапка, тёмная колонка логина, шапки модалок) используют дополнительно:
 `#241D18` (фон поля поиска), `#3E3229` (границы на тёмном), `#A99A88` (вторичный текст), `#8C7B69` (третичный), `#150E0C` (шапка служебной консоли), `#2A1613` + `#D08C7E` + `#E6BFA6` (полоса «просмотр глазами администратора»).
@@ -605,6 +688,8 @@ Grid без шапки: `minmax(150px,.9fr) minmax(130px,.8fr) minmax(180px,1.1f
 
 ## 14. Тесты (Pest)
 
+На каждый сервис — happy path + минимум один отказ. На каждый маршрут, меняющий данные, — фичевый тест.
+
 - `ProductTest`: фильтр по статусу и поиску, сортировка по имени/артикулу/цене, пагинация по 25, расчёт `final = round(price * (1 - discount), 2)`.
 - `ProductValidationTest`: все пять правил из §8.6, включая уникальность артикула и штрихкода.
 - `Ean13Test`: контрольная цифра для `801100399` + суффиксов.
@@ -616,7 +701,17 @@ Grid без шапки: `minmax(150px,.9fr) minmax(130px,.8fr) minmax(180px,1.1f
 
 ## 15. Чек-лист приёмки
 
-Проверь каждый пункт перед сдачей:
+Сначала пройди чек-лист из последнего раздела `references/craft-baseline.md`, потом этот:
+
+**Скилл:**
+- [ ] Ни одной операции над данными на клиенте: поиск, фильтры, сортировка, пагинация — запросом на сервер, фильтры в URL.
+- [ ] Ни одного цвета мимо `tokens.css` — поиск по `#`, `slate-`, `gray-`, `blue-` в `resources/js` ничего не находит.
+- [ ] `/api/v1` существует с первого коммита, сервисы общие с вебом.
+- [ ] Ни одного `$request->validate()` в контроллере; статусы — Enum; права — Policy.
+- [ ] Компоненты названы под домен (`ProductRow`, а не `DataTableRow`).
+- [ ] Строка дописана в `assets/design-log.md` (§16).
+
+**Визуал:**
 
 - [ ] Ни одного скругления больше 2px, ни одной тени вне модалок и выезжающей панели.
 - [ ] Все числа моноширинные и с `tabular-nums`; деньги в формате `1 415,88`.
@@ -632,3 +727,21 @@ Grid без шапки: `minmax(150px,.9fr) minmax(130px,.8fr) minmax(180px,1.1f
 - [ ] Матрица прав: строка администратора не кликается, изменённые ячейки латунные до нажатия «Сохранить политику».
 - [ ] Мастер импорта: исправление строки перекрашивает её в зелёный, счётчики «Готовы / Предупреждения / Ошибки» и текст кнопки пересчитываются.
 - [ ] Тексты не переписаны — совпадают со спецификацией дословно.
+
+---
+
+## 16. Запись в журнал (Шаг 6 скилла)
+
+После сдачи допиши в `assets/design-log.md`:
+
+```
+Проект:       ARÔME Admin
+Домен:        розничная сеть парфюмерии (Туркменистан), каталог и цены
+Направление:  «прайс-лист на бумаге» — тёплая бумага, волосяные линейки,
+              Playfair Display + IBM Plex Sans/Mono, нулевые радиусы, без теней
+Палитра:      #1B1512 / #E9E1D3 / #FAF6ED / #A2751E / #93251C / #4E6A46
+Сигнатура:    строка товара как строка накладной: цветная полоса категории
+              на всю высоту слева, перечёркнутая цена при скидке,
+              статус подчёркнут снизу вместо «пилюли»
+Занято:       тёплая бумажная палитра + Playfair — в следующих проектах не брать
+```
