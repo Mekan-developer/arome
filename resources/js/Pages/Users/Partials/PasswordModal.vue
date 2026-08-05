@@ -23,7 +23,6 @@ const done = ref(false)
 
 const form = useForm({
     password: generated.value,
-    require_change: true,
     end_sessions: true,
 })
 
@@ -51,7 +50,6 @@ const submit = () =>
 
 const happened = computed(() => {
     const lines = []
-    if (form.require_change) lines.push('· при первом входе сотрудник задаст свой пароль')
     if (form.end_sessions) lines.push(`· устройство ${props.staff.device} вышло на экран входа`)
     lines.push('· запись о смене пароля ушла в журнал действий')
 
@@ -81,8 +79,8 @@ const happened = computed(() => {
                 v-model="mode"
                 stretch
                 :options="[
-                    { value: 'generate', label: 'Сгенерировать' },
                     { value: 'manual', label: 'Задать вручную' },
+                    { value: 'generate', label: 'Сгенерировать' },
                 ]"
             />
 
@@ -108,14 +106,6 @@ const happened = computed(() => {
 
             <div class="box">
                 <div class="box__title">ПОСЛЕ СОХРАНЕНИЯ</div>
-
-                <button type="button" class="switch" @click="form.require_change = !form.require_change">
-                    <CheckBox :model-value="form.require_change" :size="16" />
-                    <span>
-                        <span class="switch__title">Потребовать смену при первом входе</span>
-                        <span class="switch__note">Сотрудник задаст свой пароль сам сразу после входа.</span>
-                    </span>
-                </button>
 
                 <button type="button" class="switch" @click="form.end_sessions = !form.end_sessions">
                     <CheckBox :model-value="form.end_sessions" :size="16" />
@@ -266,10 +256,6 @@ const happened = computed(() => {
     cursor: pointer;
 }
 
-.switch + .switch {
-    border-top: 1px solid var(--rule-soft);
-}
-
 .switch__title {
     display: block;
     font-size: 12.5px;
@@ -308,5 +294,28 @@ const happened = computed(() => {
 .save:disabled {
     background: var(--rule-strong);
     cursor: not-allowed;
+}
+
+@media (max-width: 767px) {
+    .generated__value,
+    .final {
+        font-size: 21px;
+    }
+
+    .generated__acts :deep(.btn) {
+        flex: 1;
+        min-height: 40px;
+    }
+
+    .foot {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .foot :deep(.btn),
+    .foot .save {
+        flex: 1;
+        min-height: 44px;
+    }
 }
 </style>

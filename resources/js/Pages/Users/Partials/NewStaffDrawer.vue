@@ -19,7 +19,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close'])
 
-const mode = ref('generate')
+const mode = ref('manual')
 const generated = ref(props.suggested || generatePassword())
 const manual = ref('')
 
@@ -27,7 +27,7 @@ const form = useForm({
     name: '',
     login: '',
     role: 'seller',
-    password: generated.value,
+    password: manual.value,
     points: [],
 })
 
@@ -115,8 +115,8 @@ const submit = () =>
                 v-model="mode"
                 stretch
                 :options="[
-                    { value: 'generate', label: 'Сгенерировать' },
                     { value: 'manual', label: 'Задать вручную' },
+                    { value: 'generate', label: 'Сгенерировать' },
                 ]"
             />
 
@@ -259,5 +259,15 @@ const submit = () =>
 
 .manual {
     margin-top: 12px;
+}
+
+@media (max-width: 767px) {
+    .generated__value {
+        font-size: 21px;
+    }
+
+    .points__row {
+        min-height: 52px;
+    }
 }
 </style>

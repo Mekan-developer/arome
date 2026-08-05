@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\Device;
 use App\Models\Point;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 class UserTest extends TestCase
@@ -91,6 +93,26 @@ class UserTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'Изменены данные сотрудника', 'kind' => 'user']);
     }
 
+    /**
+     * Свою роль не понижают: администратор, ушедший в продавцы, закрыл бы раздел
+     * «Пользователи» для всех сразу.
+     */
+    public function test_an_admin_cannot_change_their_own_role(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->put("/users/{$admin->id}", [
+                'name' => 'Новое Имя',
+                'login' => $admin->login,
+                'role' => 'seller',
+            ])
+            ->assertSessionHasErrors('role');
+
+        $this->assertSame('admin', $admin->refresh()->role->value);
+        $this->assertNotSame('Новое Имя', $admin->name);
+    }
+
     public function test_the_login_must_stay_unique_but_may_be_kept_unchanged(): void
     {
         $target = User::factory()->create(['login' => 'gozel']);
@@ -157,6 +179,51 @@ class UserTest extends TestCase
         $this->actingAs($target->refresh())
             ->get('/products')
             ->assertOk();
+    }
+
+    /**
+     * «Завершить активные сессии»: старый токен продавца перестаёт работать сразу, а его
+     * устройство приходит за каталогом заново.
+     */
+    public function test_changing_a_password_with_end_sessions_revokes_the_sellers_token(): void
+    {
+        $target = User::factory()->create(['login' => 'gozel']);
+        $token = $target->createToken('seller')->plainTextToken;
+        $device = Device::factory()->for($target)->create();
+
+        $this->actingAs($this->admin())
+            ->put("/users/{$target->id}/password", ['password' => 'parol123', 'end_sessions' => true])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $this->assertTrue(Hash::check('parol123', $target->refresh()->password));
+        $this->assertSame(0, $target->tokens()->count());
+        $this->assertSame(0, $device->refresh()->data_version);
+
+        $this->flushSession();
+        $this->app['auth']->forgetGuards();
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/v1/products')
+            ->assertUnauthorized();
+
+        $this->assertDatabaseHas('audit_logs', ['action' => 'Смена пароля', 'kind' => 'user']);
+    }
+
+    public function test_changing_a_password_without_end_sessions_leaves_the_seller_logged_in(): void
+    {
+        $target = User::factory()->create(['login' => 'gozel']);
+        $device = Device::factory()->for($target)->create();
+        $target->createToken('seller');
+
+        $this->actingAs($this->admin())
+            ->put("/users/{$target->id}/password", ['password' => 'parol123', 'end_sessions' => false])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $this->assertTrue(Hash::check('parol123', $target->refresh()->password));
+        $this->assertSame(1, $target->tokens()->count());
+        $this->assertNotSame(0, $device->refresh()->data_version);
     }
 
     /**

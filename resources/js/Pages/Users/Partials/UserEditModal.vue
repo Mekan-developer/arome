@@ -63,7 +63,7 @@ const submit = () =>
             <p v-if="form.errors.login" class="error">{{ form.errors.login }}</p>
         </div>
 
-        <div class="form-block">
+        <div v-if="!staff.isSelf" class="form-block">
             <FieldLabel>Роль</FieldLabel>
             <SelectField v-model="form.role" class="wide">
                 <option value="seller">Продавец</option>
@@ -221,5 +221,18 @@ const submit = () =>
 .save:disabled {
     background: var(--rule-strong);
     cursor: not-allowed;
+}
+
+@media (max-width: 767px) {
+    .foot {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .foot :deep(.btn),
+    .foot .save {
+        flex: 1;
+        min-height: 44px;
+    }
 }
 </style>

@@ -81,11 +81,16 @@ const editTarget = ref(null)
                 </span>
 
                 <span class="cell">
+                    <span class="cell__label">Последний вход</span>
                     <span class="cell__when">{{ person.lastLogin }}</span>
                     <span class="cell__device">{{ person.device }}</span>
                 </span>
 
                 <span class="cell cell__acts">
+                    <!-- Двойного клика на телефоне нет — правка выносится отдельной кнопкой. -->
+                    <AppButton variant="ghost" size="sm" class="cell__edit" @click="editTarget = person">
+                        Изменить
+                    </AppButton>
                     <AppButton variant="ghost" size="sm" @click="passwordTarget = person">Пароль</AppButton>
                     <StaffAccessButton
                         v-if="!person.isSelf"
@@ -232,4 +237,71 @@ const editTarget = ref(null)
     white-space: nowrap;
 }
 
+/* Подпись поля и кнопка правки нужны только в карточке — за монитором их место в шапке. */
+.cell__label,
+.cell__edit {
+    display: none;
+}
+
+/*
+ * Телефон: сотрудник становится карточкой в один столбец — имя и логин, роль, точки,
+ * последний вход и ряд действий во всю ширину.
+ */
+@media (max-width: 767px) {
+    .head {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        padding: 16px 14px 12px;
+    }
+
+    .head__title {
+        font-size: 20px;
+    }
+
+    .head :deep(.btn) {
+        min-height: 44px;
+    }
+
+    .row {
+        grid-template-columns: 1fr !important;
+        gap: 8px;
+        padding: 12px 14px;
+    }
+
+    .cell {
+        padding: 0;
+    }
+
+    .cell__label {
+        display: block;
+        font-family: var(--f-data);
+        font-size: 9px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+    }
+
+    .cell__name {
+        font-size: 15px;
+        white-space: normal;
+    }
+
+    .cell__acts {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: 8px;
+        margin-top: 2px;
+    }
+
+    .cell__edit {
+        display: inline-flex;
+    }
+
+    .cell__acts :deep(.btn),
+    .cell__acts :deep(.access) {
+        min-height: 40px;
+    }
+}
 </style>

@@ -134,4 +134,22 @@ const confirm = () =>
 .confirm:hover {
     background: var(--brass-dark);
 }
+
+@media (max-width: 767px) {
+    .foot {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .foot :deep(.btn),
+    .foot .confirm {
+        flex: 1;
+        min-height: 44px;
+    }
+
+    /* «Заблокировать и завершить сессию» в одну строку на 390px не встаёт. */
+    .confirm {
+        white-space: normal;
+    }
+}
 </style>

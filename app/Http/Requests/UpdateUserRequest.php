@@ -23,9 +23,9 @@ class UpdateUserRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'login' => ['required', 'string', 'max:64', 'regex:/^[a-z0-9_]+$/', Rule::unique('users', 'login')->ignore($target->id)],
-            // Корневой администратор остаётся администратором: понизив себя, он
-            // закрыл бы раздел «Пользователи» для всех сразу.
-            'role' => ['required', Rule::in($target->isRootAdmin() ? ['admin'] : ['admin', 'seller'])],
+            // Свою роль не меняют: понизив себя, администратор закрыл бы раздел
+            // «Пользователи» для всех сразу — вернуть его было бы уже некому.
+            'role' => ['required', Rule::in($this->roleIsLocked() ? [$target->role->value] : ['admin', 'seller'])],
             'points' => ['nullable', 'array'],
             'points.*' => ['integer', 'exists:points,id'],
         ];
@@ -41,13 +41,26 @@ class UpdateUserRequest extends FormRequest
             'login.required' => 'Не заполнен логин — под ним сотрудник входит в приложение.',
             'login.regex' => 'Логин — латинские строчные буквы, цифры и подчёркивание, без пробелов.',
             'login.unique' => 'Логин '.$this->input('login').' уже занят другим сотрудником.',
-            'role.in' => 'Роль главного администратора менять нельзя.',
+            'role.in' => $this->isSelf() ? 'Свою роль изменить нельзя.' : 'Роль главного администратора менять нельзя.',
         ];
     }
 
     private function target(): User
     {
         return $this->route('user');
+    }
+
+    /**
+     * Роль заблокирована у самого себя и у корневого администратора.
+     */
+    private function roleIsLocked(): bool
+    {
+        return $this->isSelf() || $this->target()->isRootAdmin();
+    }
+
+    private function isSelf(): bool
+    {
+        return (bool) $this->user()?->is($this->target());
     }
 
     /**

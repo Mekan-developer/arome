@@ -21,7 +21,6 @@ class ChangePasswordRequest extends FormRequest
     {
         return [
             'password' => ['required', 'string', 'min:8', 'regex:/^\S+$/', 'regex:/[a-zA-Z]/', 'regex:/\d/'],
-            'require_change' => ['boolean'],
             'end_sessions' => ['boolean'],
         ];
     }
