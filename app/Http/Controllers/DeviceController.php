@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Enums\ModuleKey;
 use App\Models\Device;
+use App\Models\ProductScan;
 use App\Repositories\DeviceRepository;
+use App\Repositories\ProductScanRepository;
 use App\Services\ModuleService;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -14,6 +17,7 @@ class DeviceController extends Controller
     public function __construct(
         private readonly ModuleService $modules,
         private readonly DeviceRepository $devices,
+        private readonly ProductScanRepository $scans,
     ) {}
 
     public function index(): Response
@@ -22,8 +26,14 @@ class DeviceController extends Controller
 
         return Inertia::render('Devices/Index', [
             'catalogVersion' => config('aroma.catalog_version'),
-            'devices' => fn () => $this->devices->all($withPoints)
-                ->map(fn (Device $device): array => [
+            'devices' => function () use ($withPoints): Collection {
+                $devices = $this->devices->all($withPoints);
+                $history = $this->scans->forUsers(
+                    $devices->pluck('user_id')->filter()->unique()->values()->all(),
+                    (int) config('aroma.scan_history.limit'),
+                );
+
+                return $devices->map(fn (Device $device): array => [
                     'id' => $device->id,
                     'user' => $device->user?->name,
                     'point' => $withPoints ? $device->point?->name : null,
@@ -36,8 +46,31 @@ class DeviceController extends Controller
                     'lagLabel' => $device->lag === 0 ? 'нет' : '−'.$device->lag.' ревизий',
                     'level' => $device->level(),
                     'note' => $this->note($device),
-                ]),
+                    'scans' => $this->scanRows($history->get($device->user_id)),
+                ]);
+            },
         ]);
+    }
+
+    /**
+     * Последние товары, которые сотрудник смотрел сканером. Пусто — значит продавец
+     * ещё ни разу не подносил телефон к ценнику.
+     *
+     * @param  iterable<int, ProductScan>|null  $scans
+     * @return list<array{name: string, sku: string, at: string, time: string, times: int}>
+     */
+    private function scanRows(?iterable $scans): array
+    {
+        return collect($scans ?? [])
+            ->map(fn (ProductScan $scan): array => [
+                'name' => (string) $scan->product?->name,
+                'sku' => (string) $scan->product?->sku,
+                'at' => $scan->scanned_at->format('d.m.Y H:i'),
+                'time' => $scan->scanned_at->format('H:i'),
+                'times' => (int) $scan->times,
+            ])
+            ->values()
+            ->all();
     }
 
     /**
