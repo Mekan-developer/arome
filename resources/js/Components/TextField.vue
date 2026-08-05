@@ -6,6 +6,7 @@ defineProps({
     mono: { type: Boolean, default: false },
     align: { type: String, default: 'left' },
     type: { type: String, default: 'text' },
+    invalid: { type: Boolean, default: false },
 })
 
 defineEmits(['update:modelValue'])
@@ -15,8 +16,9 @@ defineEmits(['update:modelValue'])
     <input
         :type="type"
         :value="modelValue"
-        :class="['field', { 'field--mono': mono }]"
+        :class="['field', { 'field--mono': mono, 'field--invalid': invalid }]"
         :style="{ textAlign: align }"
+        :aria-invalid="invalid || undefined"
         v-bind="$attrs"
         @input="$emit('update:modelValue', $event.target.value)"
     />
@@ -36,6 +38,11 @@ defineEmits(['update:modelValue'])
 
 .field:hover {
     border-color: var(--brass);
+}
+
+.field--invalid,
+.field--invalid:hover {
+    border-color: var(--danger);
 }
 
 .field--mono {

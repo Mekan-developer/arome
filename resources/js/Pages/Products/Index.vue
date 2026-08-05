@@ -528,4 +528,75 @@ const to = computed(() => meta.value.to ?? 0)
     font-size: 11.5px;
     white-space: nowrap;
 }
+
+/*
+ * Телефон: фильтры и действия каталога встают в столбец во всю ширину, а из подвала
+ * уходит строка SQL — она для отладки за монитором, на 390px её место нужно пагинации.
+ */
+@media (max-width: 767px) {
+    .filters {
+        padding: 12px 14px 10px;
+        gap: 10px;
+    }
+
+    .filters__left,
+    .filters__right {
+        width: 100%;
+        gap: 10px;
+    }
+
+    .filters__left > div {
+        flex: 1;
+        min-width: 140px;
+    }
+
+    .filters__left :deep(.select) {
+        width: 100%;
+    }
+
+    .filters__right :deep(.btn) {
+        flex: 1 1 auto;
+        min-height: 44px;
+    }
+
+    .toast {
+        margin: 0 14px 10px;
+    }
+
+    .selected {
+        padding: 10px 14px;
+    }
+
+    .selected__right {
+        width: 100%;
+    }
+
+    .selected__act {
+        flex: 1 1 auto;
+        min-height: 40px;
+        white-space: normal;
+    }
+
+    .querying {
+        padding: 8px 14px;
+    }
+
+    .empty {
+        padding: 44px 18px;
+    }
+
+    .foot {
+        padding: 9px max(14px, env(safe-area-inset-right)) calc(9px + env(safe-area-inset-bottom))
+            max(14px, env(safe-area-inset-left));
+        gap: 10px;
+    }
+
+    .foot__query {
+        display: none;
+    }
+
+    .foot__pager :deep(.btn) {
+        min-height: 40px;
+    }
+}
 </style>

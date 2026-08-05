@@ -178,4 +178,25 @@ const preview = computed(() =>
     gap: 10px;
     margin-left: auto;
 }
+
+@media (max-width: 767px) {
+    .preview__row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+    }
+
+    .preview__name {
+        max-width: 100%;
+    }
+
+    .foot__actions {
+        width: 100%;
+    }
+
+    .foot__actions :deep(.btn) {
+        flex: 1;
+        min-height: 44px;
+    }
+}
 </style>

@@ -1,29 +1,50 @@
 <script setup>
+import { computed, useAttrs } from 'vue'
+
 /**
  * `partial` draws the third state of a header checkbox — a dash, not a tick.
+ *
+ * Bound with `@update:model-value` the box is a real checkbox button. Without a listener it is
+ * only the indicator of a row that is itself clickable, so it renders as a span and lets the
+ * click through to that row.
  */
-defineProps({
+const props = defineProps({
     modelValue: { type: Boolean, default: false },
     partial: { type: Boolean, default: false },
     size: { type: Number, default: 15 },
 })
 
-defineEmits(['update:modelValue'])
+const attrs = useAttrs()
+
+const toggle = computed(() => attrs['onUpdate:modelValue'])
+
+const style = computed(() => ({
+    width: `${props.size}px`,
+    height: `${props.size}px`,
+    fontSize: `${props.size >= 16 ? 11 : 10}px`,
+}))
+
+const onClick = (event) => {
+    event.stopPropagation()
+    toggle.value(!props.modelValue)
+}
 </script>
 
 <template>
-    <button
-        type="button"
-        role="checkbox"
-        :aria-checked="partial ? 'mixed' : modelValue"
+    <component
+        :is="toggle ? 'button' : 'span'"
+        :type="toggle ? 'button' : null"
+        :role="toggle ? 'checkbox' : null"
+        :aria-checked="toggle ? (partial ? 'mixed' : modelValue) : null"
+        :aria-hidden="toggle ? null : 'true'"
         class="box"
-        :class="{ 'box--on': modelValue || partial }"
-        :style="{ width: `${size}px`, height: `${size}px`, fontSize: `${size >= 16 ? 11 : 10}px` }"
-        @click.stop="$emit('update:modelValue', !modelValue)"
+        :class="{ 'box--on': modelValue || partial, 'box--static': !toggle }"
+        :style="style"
+        :onClick="toggle ? onClick : null"
     >
         <span v-if="partial">·</span>
         <span v-else-if="modelValue">✓</span>
-    </button>
+    </component>
 </template>
 
 <style scoped>
@@ -52,5 +73,9 @@ defineEmits(['update:modelValue'])
     background: var(--ink);
     border-color: var(--ink);
     color: var(--ink-inv);
+}
+
+.box--static {
+    pointer-events: none;
 }
 </style>

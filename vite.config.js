@@ -25,6 +25,15 @@ export default defineConfig({
         }),
         tailwindcss(),
     ],
+    build: {
+        /*
+         * По умолчанию сборщик сворачивает `max-width: 767px` в диапазонный синтаксис
+         * `(width <= 767px)`, который Safari понимает только с 16.4. Панель смотрят с
+         * телефонов, поэтому нижняя граница опущена до Safari 15 — медиазапросы
+         * выходят в классическом виде и мобильная вёрстка применяется везде.
+         */
+        cssTarget: ['safari15', 'chrome100', 'firefox100', 'edge100'],
+    },
     server: {
         watch: {
             ignored: ['**/storage/framework/views/**'],

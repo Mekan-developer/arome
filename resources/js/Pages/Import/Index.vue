@@ -741,4 +741,130 @@ const ROW_COLUMNS =
     display: flex;
     gap: 10px;
 }
+
+/*
+ * Телефон: шаги и сводка проверки перестают быть строками — счётчики встают плиткой
+ * 2×2, шапка таблицы строк уходит (её подписи переехали внутрь карточек), кнопка
+ * импорта занимает всю ширину и не прячется под домашней полосой.
+ */
+@media (max-width: 767px) {
+    .steps {
+        padding: 0 max(8px, env(safe-area-inset-left));
+    }
+
+    .steps__item {
+        min-height: 46px;
+        padding: 10px 12px;
+        font-size: 12.5px;
+    }
+
+    .toast {
+        margin: 10px 14px 0;
+    }
+
+    .wrap {
+        padding: 22px 14px;
+    }
+
+    .title {
+        font-size: 22px;
+    }
+
+    .drop {
+        padding: 30px 16px;
+    }
+
+    .drop__title {
+        font-size: 17px;
+    }
+
+    .cards {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .check {
+        padding: 12px 14px;
+        gap: 12px;
+    }
+
+    .check__file {
+        flex-basis: 100%;
+        min-width: 0;
+    }
+
+    .check__title {
+        font-size: 19px;
+    }
+
+    .check__name {
+        word-break: break-all;
+    }
+
+    .tally {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .tally__cell {
+        padding: 8px 12px;
+        border-top: 1px solid var(--rule-strong);
+    }
+
+    .tally__cell:nth-child(-n + 2) {
+        border-top: 0;
+    }
+
+    .tally__cell + .tally__cell {
+        border-left: 0;
+    }
+
+    .tally__cell:nth-child(2n) {
+        border-left: 1px solid var(--rule-strong);
+    }
+
+    .tally__value {
+        font-size: 17px;
+        text-align: left;
+    }
+
+    .filter-bar {
+        padding: 12px 14px;
+        gap: 10px;
+    }
+
+    .filter-bar :deep(.tabs) {
+        width: 100%;
+    }
+
+    .filter-bar :deep(.tabs__item) {
+        flex: 1;
+        min-height: 42px;
+    }
+
+    .filter-bar__note {
+        min-width: 0;
+        flex-basis: 100%;
+    }
+
+    .rows__head {
+        display: none;
+    }
+
+    .foot {
+        padding: 12px max(14px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom))
+            max(14px, env(safe-area-inset-left));
+    }
+
+    .foot__actions {
+        width: 100%;
+    }
+
+    .foot__actions :deep(.btn) {
+        flex: 1;
+        min-height: 46px;
+        white-space: normal;
+    }
+}
 </style>

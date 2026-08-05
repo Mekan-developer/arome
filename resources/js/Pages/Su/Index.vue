@@ -362,4 +362,54 @@ const openPanel = () => router.post('/su/impersonate')
     font-size: 12.5px;
     text-wrap: pretty;
 }
+
+/* Телефон: карточка модуля отдаёт кнопку под заголовок, боковые панели уходят вниз. */
+@media (max-width: 767px) {
+    .main {
+        padding: 18px 14px 24px;
+    }
+
+    .title {
+        font-size: 22px;
+    }
+
+    .card {
+        padding: 14px;
+    }
+
+    .card__head {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .card__title {
+        font-size: 17px;
+    }
+
+    .card__head :deep(.btn) {
+        min-height: 42px;
+    }
+
+    .access {
+        padding: 14px;
+    }
+
+    .side {
+        border-left: 0;
+        border-top: 1px solid var(--rule-strong);
+    }
+
+    .panel {
+        padding: 16px 14px;
+    }
+
+    .panel--last {
+        padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    }
+
+    .panel__open {
+        min-height: 46px;
+    }
+}
 </style>

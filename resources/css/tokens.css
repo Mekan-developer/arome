@@ -11,12 +11,14 @@
   --f-body:'IBM Plex Sans',system-ui,sans-serif;
   --f-data:'IBM Plex Mono',ui-monospace,monospace;
 }
-*{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-body);-webkit-font-smoothing:antialiased;overscroll-behavior-y:none}
 input,select,button{font-family:inherit;font-size:inherit;color:inherit}
 a{color:var(--brass-dark);text-decoration:none;border-bottom:1px solid var(--rule)}
 a:hover{color:var(--ink);border-bottom-color:var(--brass)}
 @keyframes slidein{from{transform:translateX(24px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes slideup{from{transform:translateY(28px);opacity:0}to{transform:translateY(0);opacity:1}}
 
 /*
  * Тёмные поверхности §2 — шапка, тёмная колонка входа, шапки модалок, служебная

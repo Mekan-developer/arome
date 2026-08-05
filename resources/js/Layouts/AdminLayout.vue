@@ -75,6 +75,7 @@ onBeforeUnmount(() => {
                     ref="searchField"
                     v-model="search"
                     class="top__input"
+                    type="search"
                     placeholder="Штрихкод, артикул или название"
                     aria-label="Поиск по каталогу"
                     @input="runSearch"
@@ -117,6 +118,8 @@ onBeforeUnmount(() => {
 <style scoped>
 .shell {
     height: 100vh;
+    /* dvh — иначе на iOS нижний край панели уезжает под адресную строку Safari. */
+    height: 100dvh;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -127,7 +130,7 @@ onBeforeUnmount(() => {
     flex: none;
     background: var(--impersonate-bg);
     color: var(--impersonate-ink);
-    padding: 6px 20px;
+    padding: 6px max(20px, env(safe-area-inset-right)) 6px max(20px, env(safe-area-inset-left));
     border-bottom: 1px solid var(--danger);
     display: flex;
     align-items: center;
@@ -164,7 +167,7 @@ onBeforeUnmount(() => {
     background: var(--ink);
     color: var(--ink-inv);
     height: 56px;
-    padding: 0 20px;
+    padding: 0 max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left));
     display: flex;
     align-items: center;
     gap: 22px;
@@ -214,6 +217,8 @@ onBeforeUnmount(() => {
     border-radius: 2px;
     color: var(--ink-inv);
     font-size: 13px;
+    -webkit-appearance: none;
+    appearance: none;
 }
 
 .top__input::placeholder {
@@ -292,7 +297,7 @@ onBeforeUnmount(() => {
     background: var(--sheet-hi);
     border-bottom: 1px solid var(--rule-strong);
     height: 40px;
-    padding: 0 14px;
+    padding: 0 max(14px, env(safe-area-inset-right)) 0 max(14px, env(safe-area-inset-left));
     display: flex;
     gap: 2px;
     overflow-x: auto;
@@ -329,5 +334,78 @@ onBeforeUnmount(() => {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+/*
+ * Телефон. Шапка разворачивается в две строки: сверху марка и учётная запись, снизу
+ * во всю ширину поле сканера — оно здесь главное, за прилавком в него бьют штрихкод.
+ * Часы, подпись роли и кикер «КАТАЛОГ» уходят: на 390px их место дороже их пользы.
+ */
+@media (max-width: 767px) {
+    .top {
+        height: auto;
+        min-height: 52px;
+        padding: 8px max(14px, env(safe-area-inset-right)) 10px max(14px, env(safe-area-inset-left));
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .top__brand {
+        margin-right: auto;
+    }
+
+    .top__kicker,
+    .top__spacer,
+    .top__clock,
+    .top__role {
+        display: none;
+    }
+
+    .top__search {
+        order: 1;
+        flex-basis: 100%;
+        max-width: none;
+    }
+
+    .top__user {
+        padding-left: 10px;
+        gap: 8px;
+    }
+
+    .top__name {
+        max-width: 12ch;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .top__exit {
+        padding: 9px 12px;
+    }
+
+    .impersonate {
+        padding: 8px max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left));
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    /* Разделов больше, чем влезает в строку: полоса скроллится пальцем, без полосы прокрутки. */
+    .tabs {
+        height: auto;
+        padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
+        scrollbar-width: none;
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .tabs::-webkit-scrollbar {
+        display: none;
+    }
+
+    .tabs__item {
+        min-height: 44px;
+        padding: 0 13px;
+        scroll-snap-align: start;
+    }
 }
 </style>

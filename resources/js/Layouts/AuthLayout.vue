@@ -20,6 +20,7 @@
 <style scoped>
 .gate {
     min-height: 100vh;
+    min-height: 100dvh;
     display: grid;
     grid-template-columns: minmax(420px, 1fr) minmax(520px, 720px);
     font-size: 14px;
@@ -52,6 +53,23 @@
 
     .gate__sheet {
         padding: 24px;
+    }
+}
+
+/*
+ * Телефон: тёмная колонка становится шапкой в одну ширину экрана и отдаёт высоту
+ * форме — вход должен быть виден без прокрутки. Отступы считаются от вырезов.
+ */
+@media (max-width: 767px) {
+    .gate__dark {
+        gap: 22px;
+        padding: max(22px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) 24px
+            max(18px, env(safe-area-inset-left));
+    }
+
+    .gate__sheet {
+        padding: 18px max(18px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom))
+            max(18px, env(safe-area-inset-left));
     }
 }
 </style>

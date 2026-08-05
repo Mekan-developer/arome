@@ -38,6 +38,7 @@ const user = computed(() => page.props.auth?.user ?? {})
 <style scoped>
 .shell {
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -47,7 +48,7 @@ const user = computed(() => page.props.auth?.user ?? {})
 .top {
     flex: none;
     height: 56px;
-    padding: 0 20px;
+    padding: 0 max(20px, env(safe-area-inset-right)) 0 max(20px, env(safe-area-inset-left));
     background: var(--su-head);
     border-bottom: 2px solid var(--danger);
     color: var(--ink-inv);
@@ -154,6 +155,35 @@ const user = computed(() => page.props.auth?.user ?? {})
     .body {
         grid-template-columns: 1fr;
         overflow: auto;
+    }
+}
+
+@media (max-width: 767px) {
+    .top {
+        height: auto;
+        padding: 9px max(14px, env(safe-area-inset-right)) 9px max(14px, env(safe-area-inset-left));
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .top__brand {
+        margin-right: auto;
+    }
+
+    .top__kicker,
+    .top__spacer,
+    .top__clock,
+    .top__role {
+        display: none;
+    }
+
+    .top__user {
+        padding-left: 10px;
+        gap: 8px;
+    }
+
+    .top__exit {
+        padding: 9px 12px;
     }
 }
 </style>

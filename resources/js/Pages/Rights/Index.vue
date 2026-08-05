@@ -114,6 +114,34 @@ const previewNote = computed(() =>
                     </template>
                 </div>
 
+                <!--
+                    Телефон: матрица 2×7 в 390px не читается, поэтому те же переключатели
+                    выкладываются списком. Строка администратора не повторяется — ему поля
+                    видны всегда, и переключать там нечего.
+                -->
+                <div class="stack">
+                    <p class="stack__note">
+                        Переключатели ниже задают, что видит продавец. Администратору поля карточки видны всегда.
+                    </p>
+
+                    <button
+                        v-for="field in fields"
+                        :key="field.key"
+                        type="button"
+                        class="stack__row"
+                        :class="{ 'stack__row--dirty': changed(field.key) }"
+                        @click="toggle('seller', field.key)"
+                    >
+                        <span class="stack__text">
+                            <span class="stack__name">{{ field.title }}</span>
+                            <span class="stack__sample">{{ field.sample }}</span>
+                        </span>
+                        <span class="stack__flag" :class="{ 'stack__flag--on': draft[field.key] }">
+                            {{ draft[field.key] ? 'видно' : 'скрыто' }}
+                        </span>
+                    </button>
+                </div>
+
                 <div class="legend">
                     <span class="legend__item"><span class="legend__box legend__box--on" />видно</span>
                     <span class="legend__item">
@@ -481,10 +509,136 @@ const previewNote = computed(() =>
     text-wrap: pretty;
 }
 
+/* Список-замена матрицы живёт только на телефоне. */
+.stack {
+    display: none;
+}
+
 @media (max-width: 1100px) {
     .page {
         grid-template-columns: 1fr;
         overflow: auto;
+    }
+}
+
+@media (max-width: 767px) {
+    .head {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 16px 14px 12px;
+    }
+
+    .head__title {
+        font-size: 20px;
+    }
+
+    .scroll {
+        padding: 0 14px 18px;
+    }
+
+    .matrix,
+    .legend {
+        display: none;
+    }
+
+    .stack {
+        display: block;
+        border: 1px solid var(--rule-strong);
+        background: var(--sheet);
+    }
+
+    .stack__note {
+        margin: 0;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--rule-soft);
+        font-size: 12px;
+        color: var(--ink-3);
+        text-wrap: pretty;
+    }
+
+    .stack__row {
+        width: 100%;
+        min-height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 11px 14px;
+        background: transparent;
+        border: 0;
+        border-bottom: 1px solid var(--rule-soft);
+        border-radius: 0;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .stack__row:last-child {
+        border-bottom: 0;
+    }
+
+    .stack__row--dirty {
+        background: var(--brass-tint);
+    }
+
+    .stack__text {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        min-width: 0;
+    }
+
+    .stack__name {
+        font-size: 13.5px;
+        text-wrap: pretty;
+    }
+
+    .stack__sample {
+        font-family: var(--f-data);
+        font-variant-numeric: tabular-nums;
+        font-size: 11px;
+        color: var(--ink-3);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .stack__flag {
+        flex: none;
+        padding: 7px 11px;
+        border: 1px solid var(--rule-strong);
+        font-family: var(--f-data);
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+    }
+
+    .stack__flag--on {
+        background: var(--ink);
+        border-color: var(--ink);
+        color: var(--ink-inv);
+    }
+
+    .foot {
+        padding: 12px max(14px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom))
+            max(14px, env(safe-area-inset-left));
+        gap: 12px;
+    }
+
+    .foot__acts {
+        width: 100%;
+    }
+
+    .foot__acts :deep(.btn) {
+        flex: 1 1 auto;
+        min-height: 44px;
+    }
+
+    .side {
+        border-left: 0;
+        border-top: 1px solid var(--rule-strong);
+        padding: 16px 14px calc(16px + env(safe-area-inset-bottom));
     }
 }
 </style>

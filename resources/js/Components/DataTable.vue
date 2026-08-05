@@ -47,4 +47,18 @@ defineProps({
     display: flex;
     align-items: center;
 }
+
+/*
+ * Телефон: строки раскладываются в карточки, и общая шапка колонок над ними уже
+ * ничего не подписывает — подписи переезжают внутрь самих карточек.
+ */
+@media (max-width: 767px) {
+    .data-table {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .data-table__head {
+        display: none;
+    }
+}
 </style>

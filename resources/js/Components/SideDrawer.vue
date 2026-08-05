@@ -80,4 +80,29 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
     justify-content: flex-end;
     gap: 10px;
 }
+
+/* Телефон: панель занимает экран целиком — узкой боковой полосе здесь места нет. */
+@media (max-width: 767px) {
+    .drawer {
+        width: 100%;
+        border-left: 0;
+        animation: slideup 0.18s ease-out;
+    }
+
+    .drawer__head {
+        padding: 13px max(15px, env(safe-area-inset-right)) 13px max(15px, env(safe-area-inset-left));
+    }
+
+    .drawer__body {
+        padding: 16px max(15px, env(safe-area-inset-right)) 18px max(15px, env(safe-area-inset-left));
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+
+    .drawer__foot {
+        flex-wrap: wrap;
+        padding: 12px max(15px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom))
+            max(15px, env(safe-area-inset-left));
+    }
+}
 </style>

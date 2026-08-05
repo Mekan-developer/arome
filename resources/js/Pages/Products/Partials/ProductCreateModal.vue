@@ -223,4 +223,35 @@ const submit = () =>
     gap: 10px;
     flex: none;
 }
+
+/* Телефон: артикул и штрихкод в столбец, результат цены — отдельной строкой под полями. */
+@media (max-width: 767px) {
+    .codes {
+        grid-template-columns: 1fr;
+    }
+
+    .price {
+        grid-template-columns: minmax(0, 1fr) 96px;
+    }
+
+    .result {
+        grid-column: 1 / -1;
+    }
+
+    .foot__status,
+    .foot__actions {
+        width: 100%;
+    }
+
+    .foot__status :deep(.select) {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .foot__actions :deep(.btn) {
+        flex: 1;
+        min-height: 44px;
+        white-space: normal;
+    }
+}
 </style>

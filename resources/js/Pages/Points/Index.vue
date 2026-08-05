@@ -44,8 +44,8 @@ const COLUMNS =
                 <span class="cell code">{{ point.code }}</span>
                 <span class="cell name">{{ point.name }}</span>
                 <span class="cell ellipsis" :title="point.address">{{ point.address }}</span>
-                <span class="cell mono right">{{ formatInt(point.sku) }}</span>
-                <span class="cell mono right">{{ point.staff }}</span>
+                <span class="cell mono right"><span class="label">SKU в наличии</span>{{ formatInt(point.sku) }}</span>
+                <span class="cell mono right"><span class="label">Сотрудников</span>{{ point.staff }}</span>
                 <span class="cell">
                     <StatusTag
                         :label="point.isWarehouse ? 'СКЛАД' : 'АКТИВНА'"
@@ -128,5 +128,78 @@ const COLUMNS =
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Подпись числа нужна только в карточке: за монитором его подписывает шапка колонки. */
+.label {
+    display: none;
+}
+
+/*
+ * Телефон: точка становится карточкой — код и название, адрес целиком, две цифры с
+ * подписями в строку и статус.
+ */
+@media (max-width: 767px) {
+    .head {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        padding: 16px 14px 12px;
+    }
+
+    .head__title {
+        font-size: 20px;
+    }
+
+    .head :deep(.btn) {
+        min-height: 44px;
+    }
+
+    .row {
+        grid-template-columns: 1fr 1fr !important;
+        gap: 6px 12px;
+        padding: 12px 14px;
+    }
+
+    .cell {
+        padding: 0;
+    }
+
+    .code,
+    .name,
+    .ellipsis {
+        grid-column: 1 / -1;
+    }
+
+    .name {
+        font-size: 15px;
+    }
+
+    .ellipsis {
+        white-space: normal;
+        color: var(--ink-3);
+        font-size: 12px;
+        text-wrap: pretty;
+    }
+
+    .right {
+        text-align: left;
+        margin-top: 4px;
+    }
+
+    .label {
+        display: block;
+        font-family: var(--f-data);
+        font-size: 9px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+        margin-bottom: 2px;
+    }
+
+    .cell:last-child {
+        grid-column: 1 / -1;
+        margin-top: 4px;
+    }
 }
 </style>

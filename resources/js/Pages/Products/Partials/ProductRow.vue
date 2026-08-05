@@ -33,7 +33,7 @@ const discounted = computed(() => Number(props.product.discount) > 0)
 <template>
     <div
         class="row"
-        :class="{ 'row--on': selected || active }"
+        :class="{ 'row--on': selected || active, 'row--sale': discounted }"
         :style="{ gridTemplateColumns: columns }"
         role="button"
         tabindex="0"
@@ -47,30 +47,30 @@ const discounted = computed(() => Number(props.product.discount) > 0)
             <CheckBox :model-value="selected" @update:model-value="$emit('toggle', product.id)" />
         </span>
 
-        <span class="row__cell row__cell--stack">
+        <span class="row__cell row__cell--stack row__cell--name">
             <span class="row__name" :title="product.name">{{ product.name }}</span>
             <span class="row__sub">{{ product.mainCode }}</span>
         </span>
 
-        <span class="row__cell row__cell--stack">
+        <span class="row__cell row__cell--stack row__cell--code">
             <span class="row__code">{{ product.sku }}</span>
             <span class="row__sub">{{ product.barcode }}</span>
         </span>
 
-        <span class="row__cell row__cell--right">
+        <span class="row__cell row__cell--right row__cell--price">
             <PriceCell :price="product.price" :discount="product.discount" />
         </span>
 
-        <span class="row__cell row__cell--right">
+        <span class="row__cell row__cell--right row__cell--discount">
             <span v-if="discounted" class="row__discount">{{ formatPercent(product.discount) }} %</span>
             <span v-else class="row__empty">—</span>
         </span>
 
-        <span class="row__cell row__cell--right">
+        <span class="row__cell row__cell--right row__cell--final">
             <PriceCell :price="product.price" :discount="product.discount" :final="product.final" variant="final" />
         </span>
 
-        <span class="row__cell">
+        <span class="row__cell row__cell--status">
             <StatusTag :status="product.status" />
         </span>
     </div>
@@ -86,9 +86,15 @@ const discounted = computed(() => Number(props.product.discount) > 0)
     transition: background-color 140ms ease-out;
 }
 
-.row:hover,
 .row--on {
     background: var(--sheet-hi);
+}
+
+/* Подсветка по наведению — только там, где есть курсор: на тапе она залипает. */
+@media (hover: hover) {
+    .row:hover {
+        background: var(--sheet-hi);
+    }
 }
 
 .row__stripe {
@@ -154,4 +160,82 @@ const discounted = computed(() => Number(props.product.discount) > 0)
     color: var(--ink-3);
 }
 
+/*
+ * Телефон: строка прайса сворачивается в ценник. Слева цветная полоса категории и
+ * галочка, справа тремя ярусами — название и цена продажи, коды и перечёркнутая
+ * розничная, статус и скидка. Товар без скидки не показывает розничную дважды:
+ * ярусы с розничной и процентом просто уходят.
+ */
+@media (max-width: 767px) {
+    .row {
+        grid-template-columns: 6px 40px minmax(0, 1fr) auto !important;
+        grid-template-areas:
+            'stripe check name   final'
+            'stripe check code   price'
+            'stripe check status discount';
+        align-items: start;
+        padding: 10px 0;
+        column-gap: 4px;
+    }
+
+    .row__cell {
+        padding: 2px 12px 2px 4px;
+    }
+
+    .row__stripe {
+        grid-area: stripe;
+    }
+
+    .row__cell--check {
+        grid-area: check;
+        align-self: center;
+        padding: 0;
+    }
+
+    .row__cell--check :deep(.box) {
+        width: 22px !important;
+        height: 22px !important;
+        font-size: 12px !important;
+    }
+
+    .row__cell--name {
+        grid-area: name;
+    }
+
+    .row__cell--code {
+        grid-area: code;
+    }
+
+    .row__cell--price {
+        grid-area: price;
+    }
+
+    .row__cell--discount {
+        grid-area: discount;
+    }
+
+    .row__cell--final {
+        grid-area: final;
+    }
+
+    .row__cell--status {
+        grid-area: status;
+        align-items: flex-start;
+    }
+
+    .row__name {
+        font-size: 14px;
+        white-space: normal;
+        text-wrap: pretty;
+    }
+
+    .row__cell--final :deep(.cell) {
+        font-size: 16px;
+    }
+
+    .row:not(.row--sale) .row__cell--price,
+    .row:not(.row--sale) .row__cell--discount {
+        display: none;
+    }
+}
 </style>

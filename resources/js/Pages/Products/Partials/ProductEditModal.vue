@@ -303,4 +303,52 @@ const submit = () =>
     gap: 10px;
     flex: none;
 }
+
+/*
+ * Телефон: коды встают парой, длинный штрихкод забирает строку целиком; цена и скидка
+ * остаются рядом, а результат уходит под них во всю ширину — так он читается ценником.
+ */
+@media (max-width: 767px) {
+    .codes {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .codes > div:last-child {
+        grid-column: 1 / -1;
+    }
+
+    .price {
+        grid-template-columns: minmax(0, 1fr) 96px;
+    }
+
+    .result {
+        grid-column: 1 / -1;
+    }
+
+    .history {
+        flex-wrap: wrap;
+        gap: 4px 10px;
+    }
+
+    .history__reason {
+        flex-basis: 100%;
+        white-space: normal;
+        text-wrap: pretty;
+    }
+
+    .foot__status,
+    .foot__actions {
+        width: 100%;
+    }
+
+    .foot__status :deep(.select) {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .foot__actions :deep(.btn) {
+        flex: 1;
+        min-height: 44px;
+    }
+}
 </style>

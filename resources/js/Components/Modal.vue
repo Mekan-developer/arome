@@ -93,4 +93,41 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
     justify-content: space-between;
     gap: 16px;
 }
+
+/*
+ * Телефон: окно перестаёт быть окном и садится на нижний край во всю ширину — так до
+ * кнопок в подвале дотягивается большой палец, а не вторая рука. Ширина приходит
+ * инлайновым стилем, поэтому перебиваем её здесь явно.
+ */
+@media (max-width: 767px) {
+    .overlay {
+        padding: 0;
+        align-items: flex-end;
+    }
+
+    .card {
+        width: 100% !important;
+        max-height: 92dvh;
+        border-left: 0;
+        border-right: 0;
+        border-bottom: 0;
+        animation: slideup 0.18s ease-out;
+    }
+
+    .card__head {
+        padding: 14px max(16px, env(safe-area-inset-right)) 14px max(16px, env(safe-area-inset-left));
+    }
+
+    .card__body {
+        padding: 16px max(16px, env(safe-area-inset-right)) 18px max(16px, env(safe-area-inset-left));
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+
+    .card__foot {
+        flex-wrap: wrap;
+        padding: 12px max(16px, env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom))
+            max(16px, env(safe-area-inset-left));
+    }
+}
 </style>

@@ -28,14 +28,14 @@ const tagColor = computed(() => TAG_COLORS[kind.value])
 
 <template>
     <div class="row" :class="`row--${kind}`" :style="{ gridTemplateColumns: columns }">
-        <span class="mono">{{ row.row }}</span>
-        <span class="mono">{{ row.mainCode || '—' }}</span>
-        <span class="mono">{{ row.sku || '—' }}</span>
-        <span class="mono">{{ row.barcode }}</span>
-        <span class="ellipsis" :title="row.name">{{ row.name || '—' }}</span>
-        <span class="mono right">{{ row.retail }}</span>
-        <span class="mono right">{{ row.discount || '' }}</span>
-        <span class="mono right">{{ row.final || '= розн.' }}</span>
+        <span class="mono num"><span class="label">Строка</span>{{ row.row }}</span>
+        <span class="mono"><span class="label">Осн. код</span>{{ row.mainCode || '—' }}</span>
+        <span class="mono"><span class="label">Артикул</span>{{ row.sku || '—' }}</span>
+        <span class="mono"><span class="label">Штрихкод</span>{{ row.barcode }}</span>
+        <span class="ellipsis name" :title="row.name">{{ row.name || '—' }}</span>
+        <span class="mono right"><span class="label">Розн. цена</span>{{ row.retail }}</span>
+        <span class="mono right"><span class="label">Скидка</span>{{ row.discount || '—' }}</span>
+        <span class="mono right"><span class="label">Со скидкой</span>{{ row.final || '= розн.' }}</span>
 
         <span class="problem">
             <template v-if="kind !== 'ok'">
@@ -134,5 +134,67 @@ const tagColor = computed(() => TAG_COLORS[kind.value])
 
 .problem__field {
     width: 118px;
+}
+
+/* Подписи ячеек нужны только в карточке: за монитором их держит шапка таблицы. */
+.label {
+    display: none;
+}
+
+/*
+ * Телефон: строка проверки раскладывается карточкой — номер и название сверху, коды и
+ * цены двумя тройками с подписями, разбор проблемы и поле правки во всю ширину.
+ */
+@media (max-width: 767px) {
+    .row {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 8px 10px;
+        padding: 12px 14px;
+        align-items: start;
+    }
+
+    .row > span {
+        padding: 0;
+    }
+
+    .num {
+        order: -2;
+        grid-column: 1 / -1;
+        color: var(--ink-3);
+    }
+
+    .name {
+        order: -1;
+        grid-column: 1 / -1;
+        white-space: normal;
+        font-size: 13.5px;
+        text-wrap: pretty;
+    }
+
+    .right {
+        text-align: left;
+    }
+
+    .label {
+        display: block;
+        font-size: 9px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-3);
+        margin-bottom: 3px;
+    }
+
+    .problem {
+        grid-column: 1 / -1;
+    }
+
+    .problem__fix {
+        width: 100%;
+    }
+
+    .problem__field {
+        flex: 1;
+        width: auto;
+    }
 }
 </style>
