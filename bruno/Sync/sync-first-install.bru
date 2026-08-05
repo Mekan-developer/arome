@@ -1,0 +1,40 @@
+meta {
+  name: Sync device — first install
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{base_url}}/api/v1/sync
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "data_version": 0,
+    "app_version": "1.4.2"
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.data.previous_version: eq 0
+  res.body.data.up_to_date: eq false
+}
+
+tests {
+  test("свежая установка отстаёт ровно на всю ревизию", function () {
+    const data = res.getBody().data;
+
+    expect(data.lag).to.equal(data.catalog_version);
+  });
+}
+
+docs {
+  Телефон, на котором каталога ещё нет: `data_version: 0`. Отставание равно всей текущей
+  ревизии, `up_to_date` — false.
+
+  Поле необязательное: без него сервер тоже считает ревизию нулевой. Отправляем явно,
+  чтобы случай читался в теле запроса.
+}

@@ -1,0 +1,57 @@
+meta {
+  name: Issue token
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/api/v1/tokens
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "login": "{{login}}",
+    "password": "{{password}}",
+    "device": "{{device}}"
+  }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("token", res.body.data.token);
+    bru.setVar("user_role", res.body.data.user.role);
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.data.user.role: isDefined
+  res.body.meta.server_time: isDefined
+}
+
+tests {
+  test("токен — непустая строка", function () {
+    expect(res.body.data.token).to.be.a("string").and.not.empty;
+  });
+
+  test("пароль не возвращается ни в каком виде", function () {
+    expect(JSON.stringify(res.getBody())).to.not.include(bru.getEnvVar("password"));
+  });
+}
+
+docs {
+  Вход устройства. Отдаёт 201 и кладёт токен в runtime-переменную `token` — дальше он
+  подставляется во все запросы коллекции через bearer-авторизацию.
+
+  Именно runtime, а не `setEnvVar`: переменные окружения CLI дописывает обратно в
+  `environments/local.bru`, и живой токен уехал бы в git.
+
+  Токен именной по устройству: повторный вход с тем же `device` удаляет предыдущий токен
+  этого телефона, но не трогает остальные. Поэтому в окружении стоит отдельное значение
+  `Bruno · dev`.
+
+  Срока жизни у токена нет (`sanctum.expiration = null`) — он живёт, пока его не отзовут
+  выходом, блокировкой сотрудника или сменой пароля с галкой «завершить сессии».
+}

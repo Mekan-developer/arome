@@ -1,0 +1,34 @@
+meta {
+  name: List products — per_page clamp
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/api/v1/products?per_page=500
+  body: none
+  auth: inherit
+}
+
+params:query {
+  per_page: 500
+}
+
+assert {
+  res.status: eq 200
+  res.body.meta.per_page: eq 100
+}
+
+tests {
+  test("страница не длиннее сотни строк", function () {
+    expect(res.getBody().data.length).to.be.at.most(100);
+  });
+}
+
+docs {
+  Устройство не может выпросить весь каталог одним запросом: `per_page` зажат в 1..100.
+  500 превращается в 100, ноль и мусор — в 1.
+
+  Проверка сторожит именно потолок. Без него телефон в зале с плохой связью мог бы
+  запросить `per_page=50000` и подвесить и себя, и базу.
+}

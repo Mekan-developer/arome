@@ -1,0 +1,24 @@
+meta {
+  name: Product by barcode — unknown
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{base_url}}/api/v1/products/0000000000000
+  body: none
+  auth: inherit
+}
+
+assert {
+  res.status: eq 404
+  res.body.error.code: eq product_not_found
+}
+
+docs {
+  Штрихкод правильной формы, но товара нет: 404 с машинным кодом `product_not_found`.
+  Приложение по нему рисует «товар не найден» и предлагает ввести код руками.
+
+  Отличать это от 404 маршрутизации (см. следующий запрос) важно: там пришёл мусор со
+  сканера, здесь — валидный код отсутствующего товара.
+}

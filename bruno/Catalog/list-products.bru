@@ -1,0 +1,74 @@
+meta {
+  name: List products
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/api/v1/products?per_page=25
+  body: none
+  auth: inherit
+}
+
+params:query {
+  per_page: 25
+}
+
+script:post-response {
+  const first = res.body && res.body.data && res.body.data[0];
+
+  if (first && first.barcode) {
+    bru.setVar("barcode", first.barcode);
+  }
+}
+
+assert {
+  res.status: eq 200
+  res.body.meta.per_page: eq 25
+  res.body.meta.current_page: eq 1
+  res.body.meta.has_more: isDefined
+}
+
+tests {
+  test("скрытое поле отсутствует, а не приходит как null", function () {
+    const rows = res.getBody().data;
+
+    if (rows.length === 0) {
+      return;
+    }
+
+    Object.entries(rows[0]).forEach(function ([key, value]) {
+      expect(value, "поле " + key).to.not.be.null;
+    });
+  });
+
+  test("цена — целые минорные единицы, а не float", function () {
+    const withPrice = res.getBody().data.find(function (row) {
+      return row.retail !== undefined;
+    });
+
+    if (!withPrice) {
+      return;
+    }
+
+    expect(withPrice.retail.amount % 1).to.equal(0);
+    expect(withPrice.retail.currency).to.equal("TMT");
+  });
+}
+
+docs {
+  Каталог постранично. Страница выбирается стандартным `?page=`, размер — `per_page`
+  (зажат в 1..100, по умолчанию 25).
+
+  В `meta` нет `total`: устройство листает по `has_more`. Само количество репозиторий знает
+  (внутри `LengthAwarePaginator`), просто в ответ оно не выкладывается — если приложению
+  понадобится «показано N из M», добавление ключа ничего не будет стоить.
+
+  Состав полей в строке определяет матрица прав роли. Скрытого ключа в ответе нет вообще —
+  тест выше проверяет именно это: `null` вместо цены означал бы, что поле всё-таки уехало
+  на устройство и его форму видно.
+
+  Запрос записывает штрихкод первой строки в переменную `barcode`, поэтому `Product by
+  barcode` дальше работает без ручной подстановки. Если у роли скрыт `barcode`, переменная
+  остаётся прежней.
+}

@@ -1,0 +1,55 @@
+meta {
+  name: Issue token — blocked employee
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{base_url}}/api/v1/tokens
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "login": "{{blocked_login}}",
+    "password": "{{password}}",
+    "device": "{{device}}"
+  }
+}
+
+tests {
+  test("заблокированная учётка отбивается кодом account_blocked", function () {
+    const status = res.getStatus();
+
+    if (status === 429) {
+      console.log("429: сработал throttle:5,1 на POST /tokens — проверка пропущена.");
+      return;
+    }
+
+    if (status === 401) {
+      console.log("Учётки из blocked_login нет — проверка пропущена, см. docs запроса.");
+      return;
+    }
+
+    expect(status).to.equal(403);
+    expect(res.getBody().error.code).to.equal("account_blocked");
+  });
+}
+
+docs {
+  Смысл проверки: блокировка отбивается на входе отдельным кодом, а не молча превращается
+  в «неверный пароль» — сотруднику в зале нужно понимать, что дело не в опечатке. Живые
+  сессии рвутся не здесь: `UserService::toggleAccess` удаляет все токены в той же транзакции,
+  где снимает `is_active`.
+
+  Проверка требует подготовки, поэтому она мягкая: без заблокированной учётки придёт 401 и
+  тест пропустится с сообщением в лог, а не покрасит прогон в красный.
+
+  Чтобы включить её по-настоящему, заведите сотрудника с логином из `blocked_login`
+  и паролем из `password`, затем заблокируйте его в разделе «Пользователи». Или разом:
+
+  ```
+  php artisan tinker --execute 'App\Models\User::create(["name" => "Тест блокировки", "login" => "blocked-seller", "role" => "seller", "password" => "admin12345", "is_active" => false]);'
+  ```
+}

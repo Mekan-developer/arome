@@ -1,0 +1,63 @@
+meta {
+  name: Recent scans
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{base_url}}/api/v1/products/recent?limit=20
+  body: none
+  auth: inherit
+}
+
+params:query {
+  limit: 20
+}
+
+assert {
+  res.status: eq 200
+  res.body.meta.limit: eq 20
+  res.body.meta.server_time: isDefined
+}
+
+tests {
+  test("история отсортирована от свежего к старому", function () {
+    const rows = res.getBody().data;
+
+    for (let i = 1; i < rows.length; i++) {
+      const previous = new Date(rows[i - 1].scanned_at).getTime();
+      const current = new Date(rows[i].scanned_at).getTime();
+
+      expect(previous, "верхняя строка не может быть старше нижней").to.be.at.least(current);
+    }
+  });
+
+  test("карточка в истории — та же, что и по штрихкоду", function () {
+    const rows = res.getBody().data;
+
+    if (rows.length === 0) {
+      return;
+    }
+
+    expect(rows[0].times, "счётчик сканирований").to.be.a("number");
+    expect(rows[0].product.id, "карточка приезжает целиком, а не одним id").to.be.a("string");
+  });
+}
+
+docs {
+  Последние просканированные товары этого сотрудника — экран «История» в приложении.
+
+  Историю пишет сам сервер на успешном `Product by barcode`: отдельного вызова «залогируй
+  скан» у приложения нет, поэтому история не расходится с тем, что продавец видел на экране.
+  Повторный скан не добавляет строку — товар поднимается наверх, а `times` растёт.
+
+  Чтобы увидеть результат, прогоните `Product by barcode` хотя бы раз: на пустой истории
+  ответ вернёт `data: []`.
+
+  Карточки собираются в момент запроса, поэтому цена в истории всегда актуальная, а товар,
+  скрытый в панели после скана, из истории пропадает. Матрица прав действует ровно так же,
+  как в остальном каталоге: скрытого поля в `product` не будет.
+
+  `limit` по умолчанию — `aroma.scan_history.limit` (20), потолок — `aroma.scan_history.max` (50);
+  запрос сверх потолка не ошибка, значение просто зажимается, и фактическое видно в `meta.limit`.
+}
