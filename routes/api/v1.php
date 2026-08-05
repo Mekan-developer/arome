@@ -23,6 +23,14 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function (): void {
     Route::delete('tokens', [TokenApiController::class, 'destroy'])->name('api.v1.tokens.destroy');
 
     Route::get('products', [ProductApiController::class, 'index'])->name('api.v1.products.index');
+
+    /*
+     * История сканирований объявлена выше `products/{barcode}`: пересечься они не
+     * могут — штрихкод ограничен цифрами, — но порядок здесь читается как правило.
+     */
+    Route::get('products/recent', [ProductApiController::class, 'recent'])->name('api.v1.products.recent');
+    Route::delete('products/recent', [ProductApiController::class, 'clearRecent'])->name('api.v1.products.recent.clear');
+
     Route::get('products/{barcode}', [ProductApiController::class, 'show'])
         ->where('barcode', '[0-9]{8,13}')
         ->name('api.v1.products.show');

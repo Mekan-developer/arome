@@ -14,9 +14,18 @@ return [
     'catalog_version' => 4193,
 
     /*
-     * Rows per page in the product table.
+     * Rows per page in the product table and in the audit journal.
      */
     'per_page' => 15,
+
+    /*
+     * История последних просканированных товаров в приложении продавца: сколько
+     * строк уходит по умолчанию и потолок для параметра `?limit=`.
+     */
+    'scan_history' => [
+        'limit' => 20,
+        'max' => 50,
+    ],
 
     /*
      * The service account for the console at /su. Nothing reads these at runtime —

@@ -5,22 +5,39 @@ namespace App\Http\Controllers\Api\V1;
 use App\Enums\ModuleKey;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\V1\ProductResource;
+use App\Http\Resources\V1\ProductScanResource;
+use App\Models\ProductScan;
 use App\Repositories\ProductRepository;
 use App\Services\ModuleService;
 use App\Services\RightsService;
+use App\Services\ScanHistoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
  * Каталог, каким его читает приложение продавца. Сервисы те же, что у веб-панели —
  * различаются только формат входа и выхода.
+ *
+ * Скрытый товар (`status = hidden`) на устройство не уходит ни в списке, ни по
+ * штрихкоду: карточка остаётся в базе и в отчётах, но для продавца её нет.
  */
 class ProductApiController extends Controller
 {
+    /**
+     * Ключ матрицы прав => колонка, по которой ищет `?q=`.
+     */
+    private const SEARCHABLE = [
+        'name' => 'name',
+        'sku' => 'sku',
+        'mainCode' => 'main_code',
+        'barcode' => 'barcode',
+    ];
+
     public function __construct(
         private readonly ProductRepository $products,
         private readonly RightsService $rights,
         private readonly ModuleService $modules,
+        private readonly ScanHistoryService $scans,
     ) {}
 
     public function index(Request $request): JsonResponse
@@ -34,6 +51,8 @@ class ProductApiController extends Controller
             'point' => $request->query('point'),
             'status' => $request->query('status'),
             'sort' => $request->query('sort'),
+            'only_active' => true,
+            'search_fields' => $this->searchFields($visible),
         ], $perPage, $withStock);
 
         return response()->json([
@@ -50,12 +69,13 @@ class ProductApiController extends Controller
     }
 
     /**
-     * Один товар по штрихкоду — то, ради чего продавец подносит сканер.
+     * Один товар по штрихкоду — то, ради чего продавец подносит сканер. Успешный
+     * поиск попадает в историю: отдельного вызова «залогируй скан» у приложения нет.
      */
     public function show(Request $request, string $barcode): JsonResponse
     {
         $visible = $this->visibleFields($request);
-        $product = $this->products->findByBarcode($barcode, $this->withStock($visible));
+        $product = $this->products->findByBarcode($barcode, $this->withStock($visible), onlyActive: true);
 
         if ($product === null) {
             return response()->json([
@@ -66,8 +86,46 @@ class ProductApiController extends Controller
             ], 404);
         }
 
+        $this->scans->record($request->user(), $product, $request->user()->currentAccessToken()?->name);
+
         return response()->json([
             'data' => (new ProductResource($product, $visible))->toArray($request),
+            'meta' => ['server_time' => now()->toIso8601ZuluString()],
+        ]);
+    }
+
+    /**
+     * Последние просканированные товары этого продавца. Карточки собираются здесь и
+     * сейчас, поэтому цена в истории не отстаёт от каталога.
+     */
+    public function recent(Request $request): JsonResponse
+    {
+        $visible = $this->visibleFields($request);
+        $limit = $this->scans->limit($request->query('limit'));
+
+        $scans = $this->scans->recent($request->user(), $limit, $this->withStock($visible));
+
+        return response()->json([
+            'data' => $scans
+                ->map(fn (ProductScan $scan): array => (new ProductScanResource($scan, $visible))->toArray($request))
+                ->all(),
+            'meta' => [
+                'limit' => $limit,
+                'server_time' => now()->toIso8601ZuluString(),
+            ],
+        ]);
+    }
+
+    /**
+     * «Очистить историю» на устройстве. Чистится история сотрудника, а не телефона:
+     * пересел на другой аппарат — история переехала вместе с ним.
+     */
+    public function clearRecent(Request $request): JsonResponse
+    {
+        $this->scans->clear($request->user());
+
+        return response()->json([
+            'data' => ['cleared' => true],
             'meta' => ['server_time' => now()->toIso8601ZuluString()],
         ]);
     }
@@ -88,5 +146,17 @@ class ProductApiController extends Controller
     private function withStock(array $visible): bool
     {
         return $this->modules->enabled(ModuleKey::ProductPoints->value) && in_array('stock', $visible, true);
+    }
+
+    /**
+     * Искать можно только по тем полям, которые роль и так видит в карточке — иначе
+     * скрытый «Основной код» восстанавливается перебором префиксов через `?q=`.
+     *
+     * @param  list<string>  $visible
+     * @return list<string>
+     */
+    private function searchFields(array $visible): array
+    {
+        return array_values(array_intersect_key(self::SEARCHABLE, array_flip($visible)));
     }
 }

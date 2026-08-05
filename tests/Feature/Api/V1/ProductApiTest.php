@@ -43,6 +43,40 @@ class ProductApiTest extends TestCase
             ->assertJsonStructure(['data' => ['id', 'status'], 'meta' => ['server_time']]);
     }
 
+    public function test_the_list_does_not_carry_hidden_products(): void
+    {
+        Product::factory()->create(['name' => 'ACTIVE ONE']);
+        Product::factory()->hidden()->create(['name' => 'HIDDEN ONE']);
+
+        $rows = $this->asDevice($this->seller())
+            ->getJson('/api/v1/products')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertSame(['ACTIVE ONE'], array_column($rows, 'name'));
+    }
+
+    public function test_the_status_filter_cannot_reveal_hidden_products(): void
+    {
+        Product::factory()->create();
+        Product::factory()->hidden()->create();
+
+        $this->asDevice($this->seller())
+            ->getJson('/api/v1/products?status=hidden')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    }
+
+    public function test_a_hidden_product_is_not_found_by_barcode(): void
+    {
+        Product::factory()->hidden()->create(['barcode' => '8011003993802']);
+
+        $this->asDevice($this->seller())
+            ->getJson('/api/v1/products/8011003993802')
+            ->assertNotFound()
+            ->assertJsonPath('error.code', 'product_not_found');
+    }
+
     public function test_an_unknown_barcode_answers_with_a_code_not_a_message(): void
     {
         $this->asDevice($this->seller())
@@ -64,6 +98,41 @@ class ProductApiTest extends TestCase
             ->json('data');
 
         $this->assertArrayNotHasKey('main_code', $row);
+    }
+
+    public function test_the_search_finds_a_product_by_name_and_by_sku(): void
+    {
+        Product::factory()->create(['name' => 'LATTAFA KHAMRAH EDP 100ML', 'sku' => '510028']);
+        Product::factory()->create(['name' => 'VERSACE EROS EDT 50ML', 'sku' => '510041']);
+
+        $seller = $this->seller();
+
+        $byName = $this->asDevice($seller)->getJson('/api/v1/products?q=KHAMRAH')->assertOk()->json('data');
+        $this->assertSame(['LATTAFA KHAMRAH EDP 100ML'], array_column($byName, 'name'));
+
+        $bySku = $this->getJson('/api/v1/products?q=510041')->assertOk()->json('data');
+        $this->assertSame(['VERSACE EROS EDT 50ML'], array_column($bySku, 'name'));
+    }
+
+    public function test_the_search_does_not_reach_a_field_hidden_from_the_role(): void
+    {
+        Product::factory()->create(['name' => 'LATTAFA KHAMRAH EDP 100ML', 'main_code' => 'AA1001']);
+
+        RoleFieldRight::updateOrCreate(['role' => 'seller', 'field' => 'mainCode'], ['visible' => false]);
+        Cache::flush();
+
+        $seller = $this->seller();
+
+        // Скрытый код нельзя восстановить перебором префиксов через ?q=…
+        $this->asDevice($seller)
+            ->getJson('/api/v1/products?q=AA10')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+
+        // …а видимые поля продолжают искаться.
+        $this->getJson('/api/v1/products?q=KHAMRAH')
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
     }
 
     public function test_the_barcode_lookup_is_not_public(): void

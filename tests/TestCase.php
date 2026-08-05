@@ -6,7 +6,6 @@ use App\Models\Module;
 use App\Models\User;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\Cache;
-use Laravel\Sanctum\Sanctum;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -51,12 +50,14 @@ abstract class TestCase extends BaseTestCase
     /**
      * Мобильный клиент ходит в /api/v1 с токеном устройства, а не с сессией —
      * тесты обращаются к API так же, как это делает телефон в зале.
+     *
+     * Токен настоящий и уезжает заголовком: подменённый через `Sanctum::actingAs`
+     * токен — мок, у него нет ни имени устройства, ни строки в базе, а именно по ним
+     * сервер решает, с какого телефона пришёл запрос.
      */
     protected function asDevice(User $user, string $device = 'Redmi 12'): static
     {
-        Sanctum::actingAs($user->withAccessToken($user->createToken($device)->accessToken));
-
-        return $this;
+        return $this->withHeader('Authorization', 'Bearer '.$user->createToken($device)->plainTextToken);
     }
 
     /**

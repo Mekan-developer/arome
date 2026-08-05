@@ -28,7 +28,15 @@ class ProductRepository
     ];
 
     /**
-     * @param  array{q?: string|null, point?: string|null, status?: string|null, sort?: string|null}  $filters
+     * Колонки, по которым работает `?q=`. API сужает список до полей, открытых роли;
+     * веб-панель ничего не передаёт и ищет по всем четырём.
+     *
+     * @var list<string>
+     */
+    private const SEARCHABLE = ['name', 'sku', 'main_code', 'barcode'];
+
+    /**
+     * @param  array{q?: string|null, point?: string|null, status?: string|null, sort?: string|null, only_active?: bool, search_fields?: list<string>}  $filters
      * @return LengthAwarePaginator<int, Product>
      */
     public function paginate(array $filters, int $perPage, bool $withPoints): LengthAwarePaginator
@@ -78,11 +86,15 @@ class ProductRepository
 
     /**
      * Поиск по штрихкоду — то, что делает сканер. Точное совпадение по индексу.
+     *
+     * `$onlyActive` — то же правило, что и в списке: скрытый товар для приложения
+     * продавца не существует, и отвечать на него надо так же, как на чужой штрихкод.
      */
-    public function findByBarcode(string $barcode, bool $withStock = false): ?Product
+    public function findByBarcode(string $barcode, bool $withStock = false, bool $onlyActive = false): ?Product
     {
         return Product::query()
             ->when($withStock, fn (Builder $query) => $query->with('stocks:id,product_id,point_id,qty'))
+            ->when($onlyActive, fn (Builder $query) => $query->where('status', ProductStatus::Active->value))
             ->where('barcode', $barcode)
             ->first();
     }
@@ -150,7 +162,7 @@ class ProductRepository
      * Filtering and sorting shared by the table, the export and the row counter — the
      * three must never disagree about what «the current list» means.
      *
-     * @param  array{q?: string|null, point?: string|null, status?: string|null, sort?: string|null}  $filters
+     * @param  array{q?: string|null, point?: string|null, status?: string|null, sort?: string|null, only_active?: bool, search_fields?: list<string>}  $filters
      * @return Builder<Product>
      */
     private function filtered(array $filters, bool $withPoints): Builder
@@ -158,7 +170,8 @@ class ProductRepository
         $query = Product::query()
             ->select(['id', 'main_code', 'sku', 'barcode', 'name', 'kind', 'price', 'discount', 'status']);
 
-        $this->applySearch($query, $filters['q'] ?? null);
+        $this->applyActiveOnly($query, ($filters['only_active'] ?? false) === true);
+        $this->applySearch($query, $filters['q'] ?? null, $filters['search_fields'] ?? self::SEARCHABLE);
         $this->applyStatus($query, $filters['status'] ?? null);
         $this->applyPoint($query, $filters['point'] ?? null, $withPoints);
         $this->applySort($query, $filters['sort'] ?? null);
@@ -167,9 +180,14 @@ class ProductRepository
     }
 
     /**
+     * Поиск идёт только по колонкам из $fields. Роль, которой скрыли все четыре поля,
+     * не находит ничего — «искать не по чему» здесь означает пустой результат, а не
+     * весь каталог: иначе скрытое поле восстанавливается перебором префиксов.
+     *
      * @param  Builder<Product>  $query
+     * @param  list<string>  $fields
      */
-    private function applySearch(Builder $query, ?string $term): void
+    private function applySearch(Builder $query, ?string $term, array $fields): void
     {
         $term = trim((string) $term);
 
@@ -177,13 +195,25 @@ class ProductRepository
             return;
         }
 
+        $fields = array_values(array_intersect(self::SEARCHABLE, $fields));
+
+        if ($fields === []) {
+            $query->whereRaw('0 = 1');
+
+            return;
+        }
+
         $like = $this->caseInsensitiveLike();
 
-        $query->where(function (Builder $query) use ($term, $like): void {
-            $query->where('name', $like, '%'.$term.'%')
-                ->orWhere('sku', 'like', $term.'%')
-                ->orWhere('main_code', $like, $term.'%')
-                ->orWhere('barcode', 'like', $term.'%');
+        $query->where(function (Builder $query) use ($term, $like, $fields): void {
+            foreach ($fields as $field) {
+                // Название ищется подстрокой, коды — префиксом: артикул набирают с начала.
+                $query->orWhere(
+                    $field,
+                    $field === 'sku' || $field === 'barcode' ? 'like' : $like,
+                    $field === 'name' ? '%'.$term.'%' : $term.'%',
+                );
+            }
         });
     }
 
@@ -194,6 +224,19 @@ class ProductRepository
     private function caseInsensitiveLike(): string
     {
         return Product::query()->getConnection()->getDriverName() === 'pgsql' ? 'ilike' : 'like';
+    }
+
+    /**
+     * Жёсткое ограничение каталога, а не фильтр: приложение продавца видит только
+     * активные карточки, и никакой параметр запроса это снять не может.
+     *
+     * @param  Builder<Product>  $query
+     */
+    private function applyActiveOnly(Builder $query, bool $onlyActive): void
+    {
+        if ($onlyActive) {
+            $query->where('status', ProductStatus::Active->value);
+        }
     }
 
     /**
