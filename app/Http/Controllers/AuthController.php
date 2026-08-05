@@ -21,7 +21,7 @@ class AuthController extends Controller
     public function show(): Response
     {
         return Inertia::render('Login', [
-            'defaultLogin' => 'aynur',
+            'defaultLogin' => '',
         ]);
     }
 

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useForm, usePage } from '@inertiajs/vue3'
 import AuthLayout from '@/Layouts/AuthLayout.vue'
 import AppButton from '@/Components/AppButton.vue'
@@ -7,7 +7,7 @@ import FieldLabel from '@/Components/FieldLabel.vue'
 import TextField from '@/Components/TextField.vue'
 
 const props = defineProps({
-    defaultLogin: { type: String, default: 'aynur' },
+    defaultLogin: { type: String, default: '' },
 })
 
 const page = usePage()
@@ -19,8 +19,12 @@ const COPY = {
         panel: 'Панель управления',
         signin: 'Вход в систему',
         login: 'Логин',
+        loginHint: '@mekanagamyradov',
         password: 'Пароль',
+        passwordHint: 'password',
         enter: 'Войти',
+        needLogin: 'Введите логин',
+        needPassword: 'Введите пароль',
         noreg: 'Самостоятельной регистрации нет. Учётную запись выдаёт администратор сети.',
         errTitle: 'Неверный логин или пароль',
         errText: 'Проверьте раскладку клавиатуры. После пяти неудачных попыток вход блокируется на 15 минут.',
@@ -33,8 +37,12 @@ const COPY = {
         panel: 'Dolandyryş paneli',
         signin: 'Ulgama girmek',
         login: 'Ulanyjy ady',
+        loginHint: '@mekanagamyradov',
         password: 'Parol',
+        passwordHint: 'password',
         enter: 'Girmek',
+        needLogin: 'Ulanyjy adyny giriziň',
+        needPassword: 'Paroly giriziň',
         noreg: 'Özbaşdak hasaba durmak ýok. Hasaby ulgamyň administratory berýär.',
         errTitle: 'Ulanyjy ady ýa-da parol nädogry',
         errText: 'Klawiatura düzülişini barlaň. Bäş şowsuz synanyşykdan soň giriş 15 minutlyk petiklenýär.',
@@ -43,39 +51,37 @@ const COPY = {
     },
 }
 
-const DEMO_PASSWORD = 'arome2026'
+const SERVICE_PASSWORD = 'arome2026'
 
 const lang = ref('ru')
 const t = computed(() => COPY[lang.value])
 const showPoints = computed(() => page.props.modules?.points ?? false)
 
-const form = useForm({ login: props.defaultLogin, password: DEMO_PASSWORD })
+const form = useForm({ login: props.defaultLogin, password: '' })
 
-const failure = computed(() => form.errors.login ?? null)
+/** Empty fields are reported next to the field itself, not as a failed sign-in. */
+const blanks = ref({ login: false, password: false })
+
+const failure = computed(() => (['invalid', 'blocked'].includes(form.errors.login) ? form.errors.login : null))
 const errorTitle = computed(() => (failure.value === 'blocked' ? t.value.blkTitle : t.value.errTitle))
 const errorText = computed(() => (failure.value === 'blocked' ? t.value.blkText : t.value.errText))
 
-const submit = () => form.post('/login', { preserveScroll: true })
+const loginError = computed(() => (blanks.value.login || (form.errors.login && ! failure.value) ? t.value.needLogin : null))
+const passwordError = computed(() => (blanks.value.password || form.errors.password ? t.value.needPassword : null))
 
-/** Demo panel: each button loads the credentials that reproduce that state. */
-const demo = (scenario) => {
-    form.clearErrors()
+watch(() => form.login, () => (blanks.value.login = false))
+watch(() => form.password, () => (blanks.value.password = false))
 
-    if (scenario === 'ok') {
-        form.login = 'aynur'
-        form.password = DEMO_PASSWORD
-    } else if (scenario === 'fail') {
-        form.login = 'aynur'
-        form.password = 'nepravilnyj'
-    } else if (scenario === 'blocked') {
-        form.login = 'sapar'
-        form.password = DEMO_PASSWORD
-    } else {
-        form.login = 'root'
-        form.password = DEMO_PASSWORD
+const submit = () => {
+    blanks.value = { login: form.login.trim() === '', password: form.password === '' }
+
+    if (blanks.value.login || blanks.value.password) {
+        form.clearErrors()
+
+        return
     }
 
-    submit()
+    form.post('/login', { preserveScroll: true })
 }
 
 /** Three clicks on «v1.0» open the service console. */
@@ -89,7 +95,7 @@ const tapVersion = () => {
     if (clicks >= 3) {
         clicks = 0
         form.login = 'root'
-        form.password = DEMO_PASSWORD
+        form.password = SERVICE_PASSWORD
         submit()
     }
 }
@@ -137,7 +143,15 @@ const tapVersion = () => {
 
                 <div class="row">
                     <FieldLabel>{{ t.login }}</FieldLabel>
-                    <TextField v-model="form.login" mono autocomplete="username" name="login" />
+                    <TextField
+                        v-model="form.login"
+                        mono
+                        autocomplete="username"
+                        name="login"
+                        :placeholder="t.loginHint"
+                        :invalid="!! loginError"
+                    />
+                    <p v-if="loginError" class="error">{{ loginError }}</p>
                 </div>
 
                 <div class="row">
@@ -147,9 +161,12 @@ const tapVersion = () => {
                         type="password"
                         name="password"
                         autocomplete="current-password"
+                        :placeholder="t.passwordHint"
+                        :invalid="!! passwordError"
                         style="letter-spacing: 0.14em"
                         @keyup.enter="submit"
                     />
+                    <p v-if="passwordError" class="error">{{ passwordError }}</p>
                 </div>
 
                 <AppButton type="submit" variant="solid" class="card__enter" :disabled="form.processing">
@@ -159,14 +176,6 @@ const tapVersion = () => {
                 <p class="card__noreg">{{ t.noreg }}</p>
             </form>
         </div>
-
-        <div class="demo">
-            <span class="demo__label">ДЕМО:</span>
-            <button type="button" class="demo__btn" @click="demo('ok')">УСПЕХ</button>
-            <button type="button" class="demo__btn" @click="demo('fail')">ОШИБКА ВХОДА</button>
-            <button type="button" class="demo__btn" @click="demo('blocked')">ЗАБЛОКИРОВАН</button>
-            <button type="button" class="demo__btn demo__btn--su" @click="demo('su')">СЛУЖЕБНЫЙ ВХОД</button>
-            </div>
         </template>
     </AuthLayout>
 </template>
@@ -253,7 +262,7 @@ const tapVersion = () => {
         color 140ms ease-out;
 }
 
-.lang__on {
+.lang button.lang__on {
     background: var(--ink);
     color: var(--ink-inv);
 }
@@ -325,6 +334,13 @@ const tapVersion = () => {
     margin-bottom: 16px;
 }
 
+.error {
+    margin: 5px 0 0;
+    font-size: 11.5px;
+    color: var(--danger);
+    text-wrap: pretty;
+}
+
 .card__enter {
     width: 100%;
     padding: 12px 18px;
@@ -341,46 +357,53 @@ const tapVersion = () => {
     text-wrap: pretty;
 }
 
-.demo {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--f-data);
-    font-size: 10px;
-    letter-spacing: 0.1em;
-}
+@media (max-width: 767px) {
+    .mark__logo {
+        height: 30px;
+    }
 
-.demo__label {
-    color: var(--ink-3);
-}
+    .hero {
+        max-width: none;
+    }
 
-.demo__btn {
-    padding: 5px 10px;
-    background: transparent;
-    border: 1px solid var(--rule-strong);
-    border-radius: 2px;
-    font-family: var(--f-data);
-    font-size: 10px;
-    letter-spacing: 0.1em;
-    color: var(--ink-2);
-    cursor: pointer;
-    transition:
-        border-color 140ms ease-out,
-        color 140ms ease-out;
-}
+    .hero__rule {
+        margin-bottom: 16px;
+    }
 
-.demo__btn:hover {
-    border-color: var(--brass);
-    color: var(--ink);
-}
+    .hero__title {
+        font-size: 21px;
+    }
 
-.demo__btn--su {
-    border-style: dashed;
-}
+    .hero__sub {
+        font-size: 12.5px;
+        margin-top: 14px;
+    }
 
-.demo__btn--su:hover {
-    border-color: var(--danger);
-    color: var(--danger);
+    .facts {
+        gap: 18px;
+        font-size: 10px;
+    }
+
+    /* Рамка с отступом-каймой на телефоне только съедает ширину — форма садится на лист. */
+    .card {
+        max-width: none;
+        padding: 26px 20px 24px;
+        border: 0;
+        outline: 0;
+        background: transparent;
+    }
+
+    .card__title {
+        font-size: 22px;
+        margin-bottom: 22px;
+    }
+
+    .card__enter {
+        padding: 14px 18px;
+    }
+
+    .lang button {
+        padding: 9px 15px;
+    }
 }
 </style>
