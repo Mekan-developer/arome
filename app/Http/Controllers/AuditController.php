@@ -20,18 +20,23 @@ class AuditController extends Controller
 
         return Inertia::render('Audit/Index', [
             'filter' => $filter,
-            'entries' => fn () => $this->audit->page($filter)->map(fn (AuditLog $entry): array => [
-                'id' => $entry->id,
-                'time' => $entry->happened_at->format('d.m.Y H:i'),
-                'actor' => $entry->actor,
-                'action' => $entry->action,
-                'object' => $entry->object,
-                'from' => $entry->value_from,
-                'to' => $entry->value_to,
-                'kind' => $entry->kind->value,
-                'kindLabel' => $entry->kind->label(),
-                'kindColor' => $entry->kind->color(),
-            ]),
+            /*
+             * through() вместо map(): он переписывает только строки страницы и
+             * оставляет счётчики пагинатора на месте — футеру нужны current_page и total.
+             */
+            'entries' => fn () => $this->audit->page($filter, config('aroma.per_page'))
+                ->through(fn (AuditLog $entry): array => [
+                    'id' => $entry->id,
+                    'time' => $entry->happened_at->format('d.m.Y H:i'),
+                    'actor' => $entry->actor,
+                    'action' => $entry->action,
+                    'object' => $entry->object,
+                    'from' => $entry->value_from,
+                    'to' => $entry->value_to,
+                    'kind' => $entry->kind->value,
+                    'kindLabel' => $entry->kind->label(),
+                    'kindColor' => $entry->kind->color(),
+                ]),
         ]);
     }
 }

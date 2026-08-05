@@ -4,17 +4,18 @@ namespace App\Repositories;
 
 use App\Enums\AuditKind;
 use App\Models\AuditLog;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class AuditRepository
 {
     /**
-     * Журнал за последние 24 месяца, отфильтрованный по типу события. Фильтрация —
-     * SQL: записей за два года набирается много больше, чем стоит слать в браузер.
+     * Журнал за последние 24 месяца, отфильтрованный по типу события. Фильтрация и
+     * постраничность — SQL: записей за два года набирается много больше, чем стоит
+     * слать в браузер.
      *
-     * @return Collection<int, AuditLog>
+     * @return LengthAwarePaginator<int, AuditLog>
      */
-    public function page(string $filter, int $limit = 200): Collection
+    public function page(string $filter, int $perPage): LengthAwarePaginator
     {
         $kinds = AuditKind::filters()[$filter] ?? [];
 
@@ -22,8 +23,8 @@ class AuditRepository
             ->when($kinds !== [], fn ($query) => $query->whereIn('kind', $kinds))
             ->orderByDesc('happened_at')
             ->orderByDesc('id')
-            ->limit($limit)
-            ->get();
+            ->paginate($perPage)
+            ->withQueryString();
     }
 
     public function record(AuditLog $entry): AuditLog
