@@ -38,7 +38,8 @@ class DeviceController extends Controller
                 return $devices->map(fn (Device $device): array => [
                     'id' => $device->id,
                     'user' => $device->user?->name,
-                    'point' => $withPoints ? $device->point?->name : null,
+                    // Телефон, зарегистрировавший себя синхронизацией, ещё не привязан к точке.
+                    'point' => $withPoints ? ($device->point?->name ?? '—') : null,
                     'model' => $device->model,
                     'appVersion' => $device->app_version,
                     'syncedAt' => $device->synced_at->format('d.m.Y H:i'),

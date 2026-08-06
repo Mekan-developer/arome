@@ -21,9 +21,9 @@ class SyncApiController extends Controller
     public function store(SyncRequest $request): JsonResponse
     {
         $user = $request->user();
-        $device = $this->devices->forUser($user->id);
+        $device = $this->devices->registerForUser($user->id, $request->deviceName(), $request->appVersion());
 
-        if ($device?->is_blocked) {
+        if ($device->is_blocked) {
             return response()->json([
                 'error' => [
                     'code' => 'device_blocked',

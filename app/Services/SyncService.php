@@ -21,20 +21,18 @@ class SyncService
     /**
      * @return array{catalog_version: int, previous_version: int, lag: int, up_to_date: bool}
      */
-    public function apply(User $user, ?Device $device, int $sinceVersion): array
+    public function apply(User $user, Device $device, int $sinceVersion): array
     {
         $catalogVersion = $this->catalogVersion->current();
         $lag = max(0, $catalogVersion - $sinceVersion);
 
-        if ($device !== null) {
-            $this->devices->markSynced($device, $catalogVersion);
-        }
+        $this->devices->markSynced($device, $catalogVersion);
 
         if ($lag > 0) {
             $this->audit->record(
                 $user->name,
                 'Синхронизация устройства',
-                $device?->model ?? 'устройство',
+                $device->model,
                 (string) $sinceVersion,
                 (string) $catalogVersion,
                 'auth',
