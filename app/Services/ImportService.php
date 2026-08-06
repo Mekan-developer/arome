@@ -25,6 +25,7 @@ class ImportService
         private readonly ProductRepository $products,
         private readonly ProductService $productService,
         private readonly AuditService $audit,
+        private readonly CatalogVersionService $catalogVersion,
     ) {}
 
     /**
@@ -87,6 +88,11 @@ class ImportService
             ]);
 
             $this->audit->record($actor, 'Импорт из Excel', $fileName, null, $applied.' строк', 'import');
+
+            /* Файл, из которого не прошла ни одна строка, каталог не менял. */
+            if ($applied > 0) {
+                $this->catalogVersion->bump();
+            }
 
             return ['ok' => $applied, 'failed' => $skipped, 'created' => $created, 'updated' => $updated];
         });

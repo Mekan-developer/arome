@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Models\Device;
 use App\Models\Point;
 use App\Models\User;
+use App\Services\CatalogVersionService;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -23,7 +24,8 @@ class DeviceFactory extends Factory
             'model' => fake()->randomElement(['Redmi 12', 'Samsung A15', 'Tecno Spark']),
             'app_version' => '2.4.1',
             'synced_at' => now(),
-            'data_version' => config('aroma.catalog_version'),
+            /* Телефон «в норме»: стоит ровно на той ревизии, что опубликована сейчас. */
+            'data_version' => app(CatalogVersionService::class)->current(),
             'lag' => 0,
             'is_blocked' => false,
         ];

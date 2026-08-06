@@ -25,6 +25,7 @@ class ProductService
     public function __construct(
         private readonly ProductRepository $products,
         private readonly AuditService $audit,
+        private readonly CatalogVersionService $catalogVersion,
     ) {}
 
     /**
@@ -78,6 +79,7 @@ class ProductService
             ]);
 
             $this->audit->record($actor, 'Создан товар', $product->main_code.' · '.$product->name, null, number_format((float) $product->price, 2, ',', ' '), 'product');
+            $this->catalogVersion->bump();
 
             return $product;
         });
@@ -132,6 +134,11 @@ class ProductService
                 );
             }
 
+            /* Открыли карточку и закрыли, ничего не тронув, — это не новая ревизия. */
+            if ($product->wasChanged()) {
+                $this->catalogVersion->bump();
+            }
+
             return $product;
         });
     }
@@ -141,6 +148,9 @@ class ProductService
      * by {@see ImportService}, which already knows — from one batched lookup covering the
      * whole file — whether this sku exists; not wrapped in its own transaction, the
      * caller commits the batch as one unit.
+     *
+     * Ревизию каталога здесь не двигают: файл на 500 строк — одна публикация, поэтому
+     * счётчик поднимает {@see ImportService}, один раз на всю загрузку.
      *
      * Status is deliberately left untouched on update: a product an administrator hid
      * from sale must not silently reappear just because its sku is still in the price
@@ -200,6 +210,7 @@ class ProductService
     {
         return DB::transaction(function () use ($ids, $mode, $value, $actor): int {
             $products = $this->products->whereIds($ids);
+            $changed = 0;
 
             foreach ($products as $product) {
                 $priceBefore = (float) $product->price;
@@ -214,6 +225,10 @@ class ProductService
 
                 $product->save();
 
+                if ($product->wasChanged()) {
+                    $changed++;
+                }
+
                 if ($priceBefore !== (float) $product->price) {
                     $product->priceHistories()->create([
                         'changed_at' => now(),
@@ -226,6 +241,11 @@ class ProductService
             }
 
             $this->audit->record($actor, 'Массовая правка цены', 'Выбрано товаров: '.$products->count(), null, $mode, 'price');
+
+            /* Правка всей выборки — одна ревизия каталога, а не по одной на товар. */
+            if ($changed > 0) {
+                $this->catalogVersion->bump();
+            }
 
             return $products->count();
         });
@@ -248,6 +268,10 @@ class ProductService
                 self::statusCaption(ProductStatus::Hidden),
                 'product',
             );
+
+            if ($count > 0) {
+                $this->catalogVersion->bump();
+            }
 
             return $count;
         });

@@ -9,11 +9,6 @@ return [
     'now' => '2026-07-28 14:12:00',
 
     /*
-     * Revision of the catalogue currently published to the devices.
-     */
-    'catalog_version' => 4193,
-
-    /*
      * Rows per page in the product table and in the audit journal.
      */
     'per_page' => 15,

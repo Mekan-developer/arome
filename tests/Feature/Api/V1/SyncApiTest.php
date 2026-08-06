@@ -20,13 +20,15 @@ class SyncApiTest extends TestCase
 
     public function test_it_reports_how_far_behind_the_device_is(): void
     {
+        $this->publishCatalogRevision(4193);
+
         $user = User::factory()->create(['role' => 'seller']);
         Device::factory()->create(['user_id' => $user->id, 'point_id' => Point::factory(), 'data_version' => 4102, 'lag' => 91]);
 
         $this->asDevice($user)
             ->postJson('/api/v1/sync', ['data_version' => 4102])
             ->assertOk()
-            ->assertJsonPath('data.catalog_version', config('aroma.catalog_version'))
+            ->assertJsonPath('data.catalog_version', 4193)
             ->assertJsonPath('data.previous_version', 4102)
             ->assertJsonPath('data.lag', 91)
             ->assertJsonPath('data.up_to_date', false);
@@ -34,11 +36,13 @@ class SyncApiTest extends TestCase
 
     public function test_a_device_on_the_current_revision_is_up_to_date(): void
     {
+        $this->publishCatalogRevision(4193);
+
         $user = User::factory()->create(['role' => 'seller']);
         Device::factory()->create(['user_id' => $user->id, 'point_id' => Point::factory()]);
 
         $this->asDevice($user)
-            ->postJson('/api/v1/sync', ['data_version' => config('aroma.catalog_version')])
+            ->postJson('/api/v1/sync', ['data_version' => 4193])
             ->assertOk()
             ->assertJsonPath('data.lag', 0)
             ->assertJsonPath('data.up_to_date', true);
@@ -46,6 +50,8 @@ class SyncApiTest extends TestCase
 
     public function test_syncing_brings_the_device_up_to_the_server_revision(): void
     {
+        $this->publishCatalogRevision(4193);
+
         $user = User::factory()->create(['role' => 'seller']);
         $device = Device::factory()->create([
             'user_id' => $user->id,
@@ -58,7 +64,7 @@ class SyncApiTest extends TestCase
 
         $device->refresh();
 
-        $this->assertSame((int) config('aroma.catalog_version'), $device->data_version);
+        $this->assertSame(4193, $device->data_version);
         $this->assertSame(0, $device->lag);
         $this->assertSame('ok', $device->level());
     }

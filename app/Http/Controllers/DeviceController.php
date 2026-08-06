@@ -7,6 +7,7 @@ use App\Models\Device;
 use App\Models\ProductScan;
 use App\Repositories\DeviceRepository;
 use App\Repositories\ProductScanRepository;
+use App\Services\CatalogVersionService;
 use App\Services\ModuleService;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -18,6 +19,7 @@ class DeviceController extends Controller
         private readonly ModuleService $modules,
         private readonly DeviceRepository $devices,
         private readonly ProductScanRepository $scans,
+        private readonly CatalogVersionService $catalogVersion,
     ) {}
 
     public function index(): Response
@@ -25,7 +27,7 @@ class DeviceController extends Controller
         $withPoints = $this->modules->enabled(ModuleKey::Points->value);
 
         return Inertia::render('Devices/Index', [
-            'catalogVersion' => config('aroma.catalog_version'),
+            'catalogVersion' => $this->catalogVersion->current(),
             'devices' => function () use ($withPoints): Collection {
                 $devices = $this->devices->all($withPoints);
                 $history = $this->scans->forUsers(

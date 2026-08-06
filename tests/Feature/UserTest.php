@@ -187,6 +187,9 @@ class UserTest extends TestCase
      */
     public function test_changing_a_password_with_end_sessions_revokes_the_sellers_token(): void
     {
+        /* Иначе сброс устройства на нулевую ревизию нечем отличить от пустого каталога. */
+        $this->publishCatalogRevision(4193);
+
         $target = User::factory()->create(['login' => 'gozel']);
         $token = $target->createToken('seller')->plainTextToken;
         $device = Device::factory()->for($target)->create();
@@ -212,6 +215,8 @@ class UserTest extends TestCase
 
     public function test_changing_a_password_without_end_sessions_leaves_the_seller_logged_in(): void
     {
+        $this->publishCatalogRevision(4193);
+
         $target = User::factory()->create(['login' => 'gozel']);
         $device = Device::factory()->for($target)->create();
         $target->createToken('seller');
@@ -223,7 +228,7 @@ class UserTest extends TestCase
 
         $this->assertTrue(Hash::check('parol123', $target->refresh()->password));
         $this->assertSame(1, $target->tokens()->count());
-        $this->assertNotSame(0, $device->refresh()->data_version);
+        $this->assertSame(4193, $device->refresh()->data_version);
     }
 
     /**

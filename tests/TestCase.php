@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use App\Models\CatalogVersion;
 use App\Models\Module;
 use App\Models\User;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
@@ -34,6 +35,17 @@ abstract class TestCase extends BaseTestCase
 
         // ModuleService and RightsService cache for the request; tests write straight
         // to the table, so the cache has to be dropped by hand.
+        Cache::flush();
+    }
+
+    /**
+     * Каталог на заданной ревизии — короткий путь вместо сотни правок товаров. Как и с
+     * модулями, запись идёт прямо в таблицу, поэтому кеш сбрасывается руками.
+     */
+    protected function publishCatalogRevision(int $number): void
+    {
+        CatalogVersion::query()->firstOrCreate([], ['number' => 0])->update(['number' => $number]);
+
         Cache::flush();
     }
 

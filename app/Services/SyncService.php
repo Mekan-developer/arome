@@ -15,6 +15,7 @@ class SyncService
     public function __construct(
         private readonly DeviceRepository $devices,
         private readonly AuditService $audit,
+        private readonly CatalogVersionService $catalogVersion,
     ) {}
 
     /**
@@ -22,7 +23,7 @@ class SyncService
      */
     public function apply(User $user, ?Device $device, int $sinceVersion): array
     {
-        $catalogVersion = (int) config('aroma.catalog_version');
+        $catalogVersion = $this->catalogVersion->current();
         $lag = max(0, $catalogVersion - $sinceVersion);
 
         if ($device !== null) {
