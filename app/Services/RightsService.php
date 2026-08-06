@@ -30,12 +30,33 @@ class RightsService
     ];
 
     /**
+     * Fields withheld from the rights matrix for now. The policy row keeps living in the
+     * database and still filters the API, so a column returns by dropping its key here.
+     *
+     * @var list<string>
+     */
+    private const HIDDEN_IN_PANEL = ['stock'];
+
+    /**
      * @var list<array{key: string, title: string, note: string, editable: bool}>
      */
     public const ROLES = [
         ['key' => 'admin', 'title' => 'Администратор', 'note' => 'Веб-панель: каталог, цены, импорт, доступы. Менять нельзя', 'editable' => false],
         ['key' => 'seller', 'title' => 'Продавец', 'note' => 'Только мобильное приложение — данные из этой панели по API', 'editable' => true],
     ];
+
+    /**
+     * The fields the panel offers for switching.
+     *
+     * @return list<array{key: string, title: string, sample: string}>
+     */
+    public static function panelFields(): array
+    {
+        return array_values(array_filter(
+            self::FIELDS,
+            fn (array $field): bool => ! in_array($field['key'], self::HIDDEN_IN_PANEL, true),
+        ));
+    }
 
     /**
      * Effective policy as role => field => visible.

@@ -17,9 +17,14 @@ const props = defineProps({
     savedAt: { type: String, default: '' },
 })
 
-/** Draft policy: brass until "Сохранить политику" is pressed. */
-const draft = reactive({ ...props.matrix.seller })
-const saved = ref({ ...props.matrix.seller })
+/**
+ * Draft policy: brass until "Сохранить политику" is pressed. Only the fields the panel
+ * offers are drafted — a column withheld on the server keeps its stored policy untouched.
+ */
+const policy = () => Object.fromEntries(props.fields.map((field) => [field.key, props.matrix.seller[field.key]]))
+
+const draft = reactive(policy())
+const saved = ref(policy())
 const previewRole = ref('seller')
 
 const form = useForm({ fields: {} })
@@ -80,7 +85,7 @@ const previewNote = computed(() =>
             </header>
 
             <div class="scroll">
-                <div class="matrix">
+                <div class="matrix" :style="{ '--cols': fields.length }">
                     <span class="matrix__corner" />
                     <span v-for="field in fields" :key="field.key" class="matrix__col">
                         <span class="matrix__colname">{{ field.title }}</span>
@@ -93,7 +98,7 @@ const previewNote = computed(() =>
                         <span class="matrix__role" :class="{ 'matrix__role--locked': !role.editable }">
                             <span class="matrix__rolename">{{ role.title }}</span>
                             <span class="matrix__rolenote">{{ role.note }}</span>
-                            <span class="matrix__rolecount">{{ countFor(role.key) }} / 7 полей</span>
+                            <span class="matrix__rolecount">{{ countFor(role.key) }} / {{ fields.length }} полей</span>
                         </span>
 
                         <button
@@ -257,7 +262,7 @@ const previewNote = computed(() =>
 
 .matrix {
     display: inline-grid;
-    grid-template-columns: minmax(196px, 1.3fr) repeat(7, minmax(98px, 1fr));
+    grid-template-columns: minmax(196px, 1.3fr) repeat(var(--cols), minmax(98px, 1fr));
     border: 1px solid var(--rule-strong);
     background: var(--rule-soft);
     gap: 1px;

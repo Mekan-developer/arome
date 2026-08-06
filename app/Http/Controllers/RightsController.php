@@ -19,7 +19,7 @@ class RightsController extends Controller
     public function index(): Response
     {
         return Inertia::render('Rights/Index', [
-            'fields' => RightsService::FIELDS,
+            'fields' => RightsService::panelFields(),
             'roles' => RightsService::ROLES,
             'matrix' => $this->rights->matrix(),
             'savedAt' => '24.07.2026, Айнур Д.',

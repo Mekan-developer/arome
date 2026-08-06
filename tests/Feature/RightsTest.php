@@ -52,6 +52,29 @@ class RightsTest extends TestCase
         $this->assertTrue($matrix['admin']['retail']);
     }
 
+    /**
+     * The stock column is withheld from the panel for now. Its policy row still lives in
+     * the database, so a request that names it must not be able to flip it.
+     */
+    public function test_the_stock_column_is_not_offered_in_the_matrix(): void
+    {
+        $this->assertNotContains('stock', array_column(RightsService::panelFields(), 'key'));
+
+        $this->actingAs($this->admin())
+            ->get('/rights')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where(
+                'fields',
+                fn ($fields): bool => ! in_array('stock', collect($fields)->pluck('key')->all(), true),
+            ));
+
+        $this->actingAs($this->admin())
+            ->put('/rights', ['fields' => ['stock' => false]])
+            ->assertSessionHasNoErrors();
+
+        $this->assertTrue($this->rights->matrix()['seller']['stock']);
+    }
+
     public function test_a_hidden_field_never_reaches_the_products_endpoint(): void
     {
         Product::factory()->create([

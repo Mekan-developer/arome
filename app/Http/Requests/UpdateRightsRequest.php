@@ -23,7 +23,7 @@ class UpdateRightsRequest extends FormRequest
         return [
             'fields' => ['required', 'array'],
             'fields.*' => ['boolean'],
-            ...collect(RightsService::FIELDS)
+            ...collect(RightsService::panelFields())
                 ->mapWithKeys(fn (array $field): array => [
                     'fields.'.$field['key'] => ['sometimes', 'boolean'],
                 ])
@@ -36,7 +36,7 @@ class UpdateRightsRequest extends FormRequest
      */
     public function payload(): array
     {
-        $allowed = array_column(RightsService::FIELDS, 'key');
+        $allowed = array_column(RightsService::panelFields(), 'key');
 
         return collect($this->validated()['fields'])
             ->only($allowed)
