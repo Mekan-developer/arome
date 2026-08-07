@@ -32,6 +32,15 @@ class PolicyTest extends TestCase
         $this->assertFalse(Gate::forUser(User::factory()->create(['role' => 'seller']))->allows('update', $product));
     }
 
+    public function test_only_the_catalog_managers_may_delete_products(): void
+    {
+        $product = Product::factory()->create();
+
+        $this->assertTrue(Gate::forUser($this->admin())->allows('delete', $product));
+        $this->assertTrue(Gate::forUser(User::factory()->superadmin()->create())->allows('delete', $product));
+        $this->assertFalse(Gate::forUser(User::factory()->create(['role' => 'seller']))->allows('delete', $product));
+    }
+
     public function test_a_seller_cannot_bulk_edit_prices(): void
     {
         $products = Product::factory()->count(2)->create();

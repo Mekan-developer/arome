@@ -43,15 +43,7 @@ class ProductController extends Controller
             'points' => fn () => $modules['points']
                 ? Point::orderBy('id')->get(['id', 'code', 'name'])
                 : [],
-            /*
-             * resolve() instead of returning the resource itself: Inertia renders a
-             * Responsable through toResponse(), and a single JsonResource wraps its
-             * payload in «data» there — the modal would get {data: {...}} and show
-             * nothing but empty fields.
-             */
-            'card' => fn (): ?array => $request->filled('product')
-                ? (new ProductCardResource($this->products->find((int) $request->integer('product'))))->resolve()
-                : null,
+            'card' => fn (): ?array => $this->card($request),
         ]);
     }
 
@@ -93,6 +85,24 @@ class ProductController extends Controller
     }
 
     /**
+     * Удаление карточки из каталога. Подтверждение спрашивают в браузере — сюда запрос
+     * приходит уже после него, и восстановить товар отсюда нельзя.
+     */
+    public function destroy(Product $product): RedirectResponse
+    {
+        Gate::authorize('delete', $product);
+
+        $name = $product->name;
+
+        $this->service->delete($product, $this->actor());
+
+        return back()->with('toast', [
+            'name' => $name,
+            'text' => 'удалён из каталога. Устройства потеряют карточку при ближайшей синхронизации.',
+        ]);
+    }
+
+    /**
      * Bulk price / discount edit over the current selection.
      */
     public function bulk(BulkPriceRequest $request): RedirectResponse
@@ -119,6 +129,28 @@ class ProductController extends Controller
         Gate::authorize('create', Product::class);
 
         return back()->with('toast', ['barcode' => $this->service->generateBarcode()]);
+    }
+
+    /**
+     * The product card the «?product=» in the URL asks for, if it is still there.
+     *
+     * resolve() instead of returning the resource itself: Inertia renders a Responsable
+     * through toResponse(), and a single JsonResource wraps its payload in «data» there —
+     * the modal would get {data: {...}} and show nothing but empty fields.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function card(Request $request): ?array
+    {
+        if (! $request->filled('product')) {
+            return null;
+        }
+
+        $product = $this->products->find((int) $request->integer('product'));
+
+        return $product instanceof Product
+            ? (new ProductCardResource($product))->resolve()
+            : null;
     }
 
     /**

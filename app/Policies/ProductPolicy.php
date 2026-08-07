@@ -32,6 +32,16 @@ class ProductPolicy
     }
 
     /**
+     * Удаление карточки из каталога — вместе с остатками, историей цены и сканами.
+     * Обычный способ убрать товар с продажи — статус «скрыт»; удаление необратимо,
+     * поэтому право на него то же, что и на правку каталога, а не шире.
+     */
+    public function delete(User $user, Product $product): bool
+    {
+        return $user->managesCatalog();
+    }
+
+    /**
      * Массовая правка цены и скрытие из продажи.
      */
     public function bulkEdit(User $user): bool

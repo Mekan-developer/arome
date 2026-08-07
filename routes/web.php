@@ -11,6 +11,12 @@ use App\Http\Controllers\SuperadminController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/debug-ip', fn () => [
+    'ip' => request()->ip(),
+    'scheme' => request()->getScheme(),
+    'url' => url('/'),
+]);
+
 Route::redirect('/', '/products');
 
 Route::middleware('guest')->group(function (): void {
@@ -25,6 +31,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('products/export', [ProductController::class, 'export'])->name('products.export');
     Route::post('products', [ProductController::class, 'store'])->name('products.store');
     Route::put('products/{product}', [ProductController::class, 'update'])->name('products.update');
+    Route::delete('products/{product}', [ProductController::class, 'destroy'])->name('products.destroy');
     Route::post('products/bulk', [ProductController::class, 'bulk'])->name('products.bulk');
     Route::post('products/hide', [ProductController::class, 'hide'])->name('products.hide');
     Route::post('products/barcode', [ProductController::class, 'barcode'])->name('products.barcode');

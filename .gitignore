@@ -31,3 +31,5 @@ auth.json
 
 # Windows/WSL alternate data streams
 *:Zone.Identifier
+docker-compose.override.yml
+docker-compose.override.yml

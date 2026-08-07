@@ -252,6 +252,31 @@ class ProductService
     }
 
     /**
+     * Безвозвратное удаление карточки. Остатки по точкам, история цены и сканы уезжают
+     * следом по внешним ключам — их не переносят и не восстанавливают.
+     *
+     * Запись в журнал делается до удаления: после него у модели уже нет ни кода, ни
+     * названия, которые нужно в неё положить.
+     */
+    public function delete(Product $product, string $actor): void
+    {
+        DB::transaction(function () use ($product, $actor): void {
+            $this->audit->record(
+                $actor,
+                'Удалён товар',
+                $product->main_code.' · '.$product->name,
+                number_format((float) $product->price, 2, ',', ' '),
+                null,
+                'product',
+            );
+
+            $product->delete();
+
+            $this->catalogVersion->bump();
+        });
+    }
+
+    /**
      * @param  list<int>  $ids
      */
     public function hide(array $ids, string $actor): int

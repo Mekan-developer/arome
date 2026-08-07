@@ -76,12 +76,16 @@ class ProductRepository
     /**
      * Full card for the edit modal. Stock is not part of it: the remainder is owned by the
      * warehouse and by device sync, and is never typed in by hand here.
+     *
+     * Ничего не найдено — это null, а не 404: ссылка с `?product=` живёт дольше карточки
+     * (её удалили, её прислали в письме), и вся страница каталога из-за этого падать
+     * не должна — просто не открывается модальное окно.
      */
-    public function find(int $id): Product
+    public function find(int $id): ?Product
     {
         return Product::with([
             'priceHistories' => fn ($query) => $query->orderByDesc('changed_at'),
-        ])->findOrFail($id);
+        ])->find($id);
     }
 
     /**

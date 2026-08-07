@@ -13,7 +13,7 @@ const props = defineProps({
     card: { type: Object, required: true },
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'delete'])
 
 const STATUS_HINTS = {
     active: 'Товар выдаётся устройствам при синхронизации и доступен для продажи.',
@@ -140,6 +140,7 @@ const submit = () =>
                 <span class="foot__hint">{{ STATUS_HINTS[form.status] }}</span>
             </span>
             <span class="foot__actions">
+                <button type="button" class="delete" @click="emit('delete')">Удалить</button>
                 <AppButton variant="ghost" @click="emit('close')">Отмена</AppButton>
                 <AppButton variant="solid" :disabled="form.processing" @click="submit">
                     {{ form.processing ? 'Сохраняем…' : 'Сохранить изменения' }}
@@ -305,6 +306,26 @@ const submit = () =>
 }
 
 /*
+ * «Удалить» намеренно не выглядит кнопкой рядом с «Сохранить»: необратимое действие
+ * не должно ловить палец, промахнувшийся мимо соседа.
+ */
+.delete {
+    padding: 9px 12px;
+    background: transparent;
+    border: 0;
+    font-size: 13px;
+    color: var(--danger);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.delete:hover {
+    color: var(--ink);
+}
+
+/*
  * Телефон: коды встают парой, длинный штрихкод забирает строку целиком; цена и скидка
  * остаются рядом, а результат уходит под них во всю ширину — так он читается ценником.
  */
@@ -348,6 +369,12 @@ const submit = () =>
 
     .foot__actions :deep(.btn) {
         flex: 1;
+        min-height: 44px;
+    }
+
+    /* Кнопка удаления не растягивается вместе с остальными — она и должна быть мельче. */
+    .delete {
+        flex: none;
         min-height: 44px;
     }
 }

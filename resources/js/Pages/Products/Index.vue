@@ -15,6 +15,7 @@ import SelectField from '@/Components/SelectField.vue'
 import ProductRow from './Partials/ProductRow.vue'
 import ProductEditModal from './Partials/ProductEditModal.vue'
 import ProductCreateModal from './Partials/ProductCreateModal.vue'
+import ProductDeleteModal from './Partials/ProductDeleteModal.vue'
 import BulkPriceModal from './Partials/BulkPriceModal.vue'
 import { useBulkSelection } from '@/Composables/useBulkSelection.js'
 import { formatInt } from '@/Composables/useFormat.js'
@@ -44,6 +45,9 @@ const selection = useBulkSelection(rows)
 const creating = ref(false)
 const bulking = ref(false)
 const toast = ref(null)
+
+/** Карточка, для которой открыт запрос подтверждения на удаление. */
+const deleting = ref(null)
 
 watch(
     () => page.props.flash?.toast,
@@ -97,6 +101,19 @@ const openCard = (id) => {
 
 const closeCard = () => {
     router.get('/products', props.filters, { only: ['card'], preserveState: true, preserveScroll: true })
+}
+
+/**
+ * Товара больше нет: закрываем оба окна, снимаем его отметку и убираем `?product=` из
+ * адреса — иначе ссылка на удалённую карточку останется в истории браузера.
+ */
+const onDeleted = (id) => {
+    if (selection.has(id)) {
+        selection.toggle(id)
+    }
+
+    deleting.value = null
+    closeCard()
 }
 
 /**
@@ -302,7 +319,7 @@ const to = computed(() => meta.value.to ?? 0)
             </span>
         </div>
 
-        <ProductEditModal v-if="card" :card="card" @close="closeCard" />
+        <ProductEditModal v-if="card" :card="card" @close="closeCard" @delete="deleting = card" />
         <ProductCreateModal v-if="creating" @close="creating = false" />
         <BulkPriceModal
             v-if="bulking"
@@ -310,6 +327,12 @@ const to = computed(() => meta.value.to ?? 0)
             :processing="bulkForm.processing"
             @close="bulking = false"
             @apply="applyBulk"
+        />
+        <ProductDeleteModal
+            v-if="deleting"
+            :card="deleting"
+            @close="deleting = null"
+            @deleted="onDeleted"
         />
     </div>
 </template>

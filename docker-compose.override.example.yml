@@ -1,0 +1,23 @@
+services:
+  app:
+    volumes:
+      - ./:/var/www/html
+
+  scheduler:
+    volumes:
+      - ./:/var/www/html
+
+  nginx:
+    ports:
+      - "127.0.0.1:8000:80"
+    volumes:
+      - ./:/var/www/html
+      - ./docker/nginx/conf.d/:/etc/nginx/conf.d/
+
+  db:
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  redis:
+    ports:
+      - "127.0.0.1:6379:6379"
