@@ -2,8 +2,11 @@
 FROM node:20-alpine AS frontend
 WORKDIR /app
 COPY package.json package-lock.json ./
-# Указываем ваш Nexus-прокси прямо в контейнере
-RUN npm config set registry https://nexus.telecom.tm/repository/npm-proxy/
+
+# registry.npmjs.org из туркменской сети не открывается, поэтому реестр берётся
+# из build-arg: в .env стоит Nexus-прокси, по умолчанию — официальный реестр.
+ARG NPM_REGISTRY=https://registry.npmjs.org/
+RUN npm config set registry "${NPM_REGISTRY}"
 
 # Убедитесь, что НЕ используется --production, иначе devDependencies (Vite) не установятся
 RUN npm ci
@@ -14,6 +17,15 @@ RUN npm run build
 # ---------- Stage 2: зависимости composer ----------
 FROM composer:2 AS vendor
 WORKDIR /app
+
+# repo.packagist.org и dist-архивы с GitHub тоже недоступны напрямую: пустой
+# COMPOSER_MIRROR оставляет штатный packagist, заполненный — уводит и метаданные,
+# и загрузку архивов на Nexus.
+ARG COMPOSER_MIRROR=
+RUN if [ -n "${COMPOSER_MIRROR}" ]; then \
+        composer config -g repos.packagist composer "${COMPOSER_MIRROR}"; \
+    fi
+
 COPY database/ database/
 COPY composer.json composer.lock ./
 RUN composer install \

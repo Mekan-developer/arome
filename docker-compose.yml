@@ -2,13 +2,18 @@ x-logging: &logging
   driver: json-file
   options: { max-size: "10m", max-file: "3" }
 
+x-build-args: &build-args
+  UID: ${UID:-1000}
+  ALPINE_MIRROR: ${ALPINE_MIRROR:-https://mirror.yandex.ru/mirrors/alpine}
+  COMPOSER_MIRROR: ${COMPOSER_MIRROR:-}
+  NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
+
 x-app-base: &app-base
   build:
     context: .
     dockerfile: docker/php/Dockerfile
     target: runtime
-    args:
-      UID: ${UID:-1000}
+    args: *build-args
   image: aroma-app:latest
   pull_policy: build
   restart: unless-stopped
@@ -55,6 +60,7 @@ services:
       context: .
       dockerfile: docker/php/Dockerfile
       target: web
+      args: *build-args
     image: aroma-web:latest
     pull_policy: build
     container_name: aroma_nginx
