@@ -2,6 +2,10 @@
 FROM node:20-alpine AS frontend
 WORKDIR /app
 COPY package.json package-lock.json ./
+# Указываем ваш Nexus-прокси прямо в контейнере
+RUN npm config set registry https://nexus.telecom.tm/repository/npm-proxy/
+
+# Убедитесь, что НЕ используется --production, иначе devDependencies (Vite) не установятся
 RUN npm ci
 COPY resources/ ./resources/
 COPY vite.config.js tailwind.config.js ./
