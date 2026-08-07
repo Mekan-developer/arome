@@ -28,28 +28,39 @@ WORKDIR /var/www/html
 # недоступности штатного зеркала репозитории переписываются на запасное.
 ARG ALPINE_MIRROR=https://mirror.yandex.ru/mirrors/alpine
 
-# Рантайм-библиотеки остаются, build-зависимости удаляются. pecl докачки не умеет:
-# оборванный tgz оседает в кэше и валит сборку, поэтому перед каждой попыткой
-# установки redis каталог загрузок сносится целиком.
-RUN { apk update >/dev/null 2>&1 \
-      || sed -i "s|https://dl-cdn.alpinelinux.org/alpine|${ALPINE_MIRROR}|g" /etc/apk/repositories; } \
-    && apk add --no-cache \
-        libpq icu-libs libzip libpng libjpeg-turbo libwebp freetype \
-        postgresql16-client zip unzip \
-    && apk add --no-cache --virtual .build-deps \
-        $PHPIZE_DEPS postgresql-dev icu-dev libzip-dev \
-        libpng-dev libjpeg-turbo-dev libwebp-dev freetype-dev oniguruma-dev \
-    && docker-php-ext-configure gd --with-jpeg --with-webp --with-freetype \
-    && docker-php-ext-install -j$(nproc) \
-        pdo_pgsql pgsql zip gd bcmath intl mbstring opcache pcntl \
-    && { for i in 1 2 3; do \
-            rm -rf /tmp/pear; \
-            if pecl install redis; then redis_installed=1; break; fi; \
-            sleep 5; \
-         done; [ -n "${redis_installed:-}" ]; } \
-    && docker-php-ext-enable redis \
-    && rm -rf /tmp/pear \
-    && apk del .build-deps
+# Рантайм-библиотеки остаются, build-зависимости удаляются. Канал рвётся посреди
+# слоя, поэтому обе загрузки идут циклом с паузой: apk перед повтором сносит
+# .build-deps (оборванный пакет остаётся помеченным как установленный и уже не
+# перекачивается), а pecl — каталог загрузок, докачки он не умеет.
+RUN set -eu; \
+    for attempt in 1 2 3 4 5 6; do \
+        { apk update >/dev/null 2>&1 \
+            || sed -i "s|https://dl-cdn.alpinelinux.org/alpine|${ALPINE_MIRROR}|g" /etc/apk/repositories; } \
+        && apk add --no-cache \
+            libpq icu-libs libzip libpng libjpeg-turbo libwebp freetype \
+            postgresql16-client zip unzip \
+        && apk add --no-cache --virtual .build-deps \
+            $PHPIZE_DEPS postgresql-dev icu-dev libzip-dev \
+            libpng-dev libjpeg-turbo-dev libwebp-dev freetype-dev oniguruma-dev \
+        && { apk_ok=1; break; }; \
+        echo "apk сорвался (попытка ${attempt}) — повтор через 30 с" >&2; \
+        apk del .build-deps >/dev/null 2>&1 || true; \
+        sleep 30; \
+    done; \
+    [ -n "${apk_ok:-}" ]; \
+    docker-php-ext-configure gd --with-jpeg --with-webp --with-freetype; \
+    docker-php-ext-install -j"$(nproc)" \
+        pdo_pgsql pgsql zip gd bcmath intl mbstring opcache pcntl; \
+    for attempt in 1 2 3 4 5; do \
+        rm -rf /tmp/pear; \
+        if pecl install redis; then pecl_ok=1; break; fi; \
+        echo "pecl сорвался (попытка ${attempt}) — повтор через 30 с" >&2; \
+        sleep 30; \
+    done; \
+    [ -n "${pecl_ok:-}" ]; \
+    docker-php-ext-enable redis; \
+    rm -rf /tmp/pear /var/cache/apk/*; \
+    apk del .build-deps
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 

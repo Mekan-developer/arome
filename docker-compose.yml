@@ -10,6 +10,7 @@ x-app-base: &app-base
     args:
       UID: ${UID:-1000}
   image: aroma-app:latest
+  pull_policy: build
   restart: unless-stopped
   working_dir: /var/www/html
   env_file: .env
@@ -55,6 +56,7 @@ services:
       dockerfile: docker/php/Dockerfile
       target: web
     image: aroma-web:latest
+    pull_policy: build
     container_name: aroma_nginx
     restart: unless-stopped
     volumes:
