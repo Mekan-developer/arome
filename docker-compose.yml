@@ -28,6 +28,8 @@ services:
   app:
     <<: *app-base
     container_name: aroma_app
+    environment:
+      RUN_MIGRATIONS: "true"
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 9000 || exit 1"]
       interval: 30s
@@ -39,6 +41,13 @@ services:
     <<: *app-base
     container_name: aroma_scheduler
     command: php artisan schedule:work
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      app:
+        condition: service_healthy
 
   nginx:
     build:

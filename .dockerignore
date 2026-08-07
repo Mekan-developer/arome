@@ -16,7 +16,12 @@ storage/framework/cache/*
 storage/framework/sessions/*
 storage/framework/views/*
 storage/logs/*
+bootstrap/cache/*
+.phpunit.result.cache
 !.env.example
 docker-compose*.yml
 tests
 *.md
+.claude
+bruno
+global-proxy

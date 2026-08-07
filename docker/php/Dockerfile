@@ -24,8 +24,16 @@ RUN composer install \
 FROM php:8.3-fpm-alpine AS runtime
 WORKDIR /var/www/html
 
-# рантайм-библиотеки остаются, build-зависимости удаляются
-RUN apk add --no-cache \
+# dl-cdn.alpinelinux.org из туркменской сети не открывается без VPN, поэтому при
+# недоступности штатного зеркала репозитории переписываются на запасное.
+ARG ALPINE_MIRROR=https://mirror.yandex.ru/mirrors/alpine
+
+# Рантайм-библиотеки остаются, build-зависимости удаляются. pecl докачки не умеет:
+# оборванный tgz оседает в кэше и валит сборку, поэтому перед каждой попыткой
+# установки redis каталог загрузок сносится целиком.
+RUN { apk update >/dev/null 2>&1 \
+      || sed -i "s|https://dl-cdn.alpinelinux.org/alpine|${ALPINE_MIRROR}|g" /etc/apk/repositories; } \
+    && apk add --no-cache \
         libpq icu-libs libzip libpng libjpeg-turbo libwebp freetype \
         postgresql16-client zip unzip \
     && apk add --no-cache --virtual .build-deps \
@@ -34,8 +42,13 @@ RUN apk add --no-cache \
     && docker-php-ext-configure gd --with-jpeg --with-webp --with-freetype \
     && docker-php-ext-install -j$(nproc) \
         pdo_pgsql pgsql zip gd bcmath intl mbstring opcache pcntl \
-    && pecl install redis \
+    && { for i in 1 2 3; do \
+            rm -rf /tmp/pear; \
+            if pecl install redis; then redis_installed=1; break; fi; \
+            sleep 5; \
+         done; [ -n "${redis_installed:-}" ]; } \
     && docker-php-ext-enable redis \
+    && rm -rf /tmp/pear \
     && apk del .build-deps
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
@@ -75,4 +88,7 @@ CMD ["php-fpm"]
 # ---------- Stage 4: nginx с готовым public/ ----------
 FROM nginx:1.31.3-alpine AS web
 COPY --from=runtime /var/www/html/public /var/www/html/public
+# Штатный default.conf тоже слушает 80 с server_name localhost и перехватывает
+# роль сервера по умолчанию, поэтому уезжает до копирования своего конфига.
+RUN rm -f /etc/nginx/conf.d/default.conf
 COPY docker/nginx/conf.d/ /etc/nginx/conf.d/

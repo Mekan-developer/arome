@@ -1,11 +1,18 @@
 services:
   app:
+    environment:
+      RUN_MIGRATIONS: "true"
+      OPTIMIZE_ON_BOOT: "false"
     volumes:
       - ./:/var/www/html
+      - ./docker/php/opcache-dev.ini:/usr/local/etc/php/conf.d/opcache.ini:ro
 
   scheduler:
+    environment:
+      OPTIMIZE_ON_BOOT: "false"
     volumes:
       - ./:/var/www/html
+      - ./docker/php/opcache-dev.ini:/usr/local/etc/php/conf.d/opcache.ini:ro
 
   nginx:
     ports:
