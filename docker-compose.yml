@@ -68,7 +68,11 @@ services:
     volumes:
       - storage_app:/var/www/html/storage/app:ro
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/nginx-health"]
+      # Именно 127.0.0.1, а не localhost: busybox-wget идёт сначала по ::1, а
+      # nginx слушает только IPv4 — штатный скрипт 10-listen-on-ipv6-by-default.sh
+      # правит default.conf, который из образа удалён. По localhost проверка
+      # всегда получала connection refused и контейнер висел unhealthy.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx-health"]
       interval: 30s
       timeout: 5s
       retries: 3
