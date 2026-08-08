@@ -45,9 +45,12 @@ WORKDIR /var/www/html
 ARG ALPINE_MIRROR=https://mirror.yandex.ru/mirrors/alpine
 
 # Рантайм-библиотеки остаются, build-зависимости удаляются. Канал рвётся посреди
-# слоя, поэтому обе загрузки идут циклом с паузой: apk перед повтором сносит
-# .build-deps (оборванный пакет остаётся помеченным как установленный и уже не
-# перекачивается), а pecl — каталог загрузок, докачки он не умеет.
+# слоя, поэтому загрузка идёт циклом с паузой: apk перед повтором сносит
+# .build-deps — оборванный пакет остаётся помеченным как установленный и уже не
+# перекачивается.
+# Расширения phpredis здесь нет: pecl.php.net из этой сети недоступен, а прокси
+# под формат PECL в Nexus не заведён. Redis обслуживает predis/predis — клиент на
+# чистом PHP, он приезжает обычной зависимостью composer (REDIS_CLIENT=predis).
 RUN set -eu; \
     for attempt in 1 2 3 4 5 6; do \
         { apk update >/dev/null 2>&1 \
@@ -67,15 +70,7 @@ RUN set -eu; \
     docker-php-ext-configure gd --with-jpeg --with-webp --with-freetype; \
     docker-php-ext-install -j"$(nproc)" \
         pdo_pgsql pgsql zip gd bcmath intl mbstring opcache pcntl; \
-    for attempt in 1 2 3 4 5; do \
-        rm -rf /tmp/pear; \
-        if pecl install redis; then pecl_ok=1; break; fi; \
-        echo "pecl сорвался (попытка ${attempt}) — повтор через 30 с" >&2; \
-        sleep 30; \
-    done; \
-    [ -n "${pecl_ok:-}" ]; \
-    docker-php-ext-enable redis; \
-    rm -rf /tmp/pear /var/cache/apk/*; \
+    rm -rf /var/cache/apk/*; \
     apk del .build-deps
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
