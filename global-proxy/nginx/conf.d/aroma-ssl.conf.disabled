@@ -1,0 +1,45 @@
+# Конфиг с TLS. Nginx подхватывает только *.conf, поэтому пока файл
+# лежит с суффиксом .disabled — он не читается и отсутствие
+# сертификатов не мешает прокси стартовать.
+#
+# Включение, когда certs/live/arome-tm.com/{fullchain,privkey}.pem —
+# настоящие (из certbot):
+#   cd global-proxy
+#   mv nginx/conf.d/aroma.conf              nginx/conf.d/aroma-http.conf.disabled
+#   mv nginx/conf.d/aroma-ssl.conf.disabled nginx/conf.d/aroma.conf
+#   docker compose exec proxy nginx -t && docker compose exec proxy nginx -s reload
+# И в .env приложения вернуть APP_URL=https://arome-tm.com и
+# SESSION_SECURE_COOKIE=true, затем: docker compose up -d --force-recreate app
+server {
+    listen 80;
+    server_name arome-tm.com;
+
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name arome-tm.com;
+
+    ssl_certificate     /etc/nginx/certs/live/arome-tm.com/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/live/arome-tm.com/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    client_max_body_size 60M;   # импорт Excel и фото товаров
+
+    location / {
+        proxy_pass http://aroma_nginx:80;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Port  $server_port;
+
+        proxy_read_timeout 120s;    # импорт больших Excel
+    }
+}
