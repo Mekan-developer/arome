@@ -33,3 +33,6 @@ auth.json
 *:Zone.Identifier
 docker-compose.override.yml
 docker-compose.override.yml
+
+# Сертификаты прокси кладутся на сервер вручную и в репозиторий не едут
+/global-proxy/certs/

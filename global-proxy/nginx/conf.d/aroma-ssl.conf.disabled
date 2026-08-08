@@ -2,14 +2,24 @@
 # лежит с суффиксом .disabled — он не читается и отсутствие
 # сертификатов не мешает прокси стартовать.
 #
-# Включение, когда certs/live/arome-tm.com/{fullchain,privkey}.pem —
-# настоящие (из certbot):
+# Сертификаты кладутся в каталог руками, certbot не используется. Файлы
+# должны лежать ровно так (каталог ./certs/ примонтирован в контейнер
+# как /etc/nginx/certs/):
+#   certs/live/arome-tm.com/fullchain.pem   сертификат + промежуточные,
+#                                           именно цепочка, не один свой
+#   certs/live/arome-tm.com/privkey.pem     приватный ключ без пароля,
+#                                           chmod 600
+#
+# Дальше:
 #   cd global-proxy
 #   mv nginx/conf.d/aroma.conf              nginx/conf.d/aroma-http.conf.disabled
 #   mv nginx/conf.d/aroma-ssl.conf.disabled nginx/conf.d/aroma.conf
 #   docker compose exec proxy nginx -t && docker compose exec proxy nginx -s reload
 # И в .env приложения вернуть APP_URL=https://arome-tm.com и
 # SESSION_SECURE_COOKIE=true, затем: docker compose up -d --force-recreate app
+#
+# Замена сертификата в будущем — положить новые файлы поверх и повторить
+# nginx -s reload; пересоздавать контейнер не нужно.
 server {
     listen 80;
     server_name arome-tm.com;
