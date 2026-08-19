@@ -1,52 +1,66 @@
-x-logging: &logging
-  driver: json-file
-  options: { max-size: "10m", max-file: "3" }
-
-x-build-args: &build-args
-  UID: ${UID:-1000}
-  ALPINE_MIRROR: ${ALPINE_MIRROR:-https://mirror.yandex.ru/mirrors/alpine}
-  COMPOSER_MIRROR: ${COMPOSER_MIRROR:-}
-  NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
-
-x-app-base: &app-base
-  build:
-    context: .
-    dockerfile: docker/php/Dockerfile
-    target: runtime
-    args: *build-args
-  image: aroma-app:latest
-  pull_policy: build
-  restart: unless-stopped
-  working_dir: /var/www/html
-  env_file: .env
-  volumes:
-    - storage_app:/var/www/html/storage/app
-    - backups:/var/www/html/storage/app/backups
-  depends_on:
-    db:
-      condition: service_healthy
-    redis:
-      condition: service_healthy
-  networks: [aroma_network]
-  logging: *logging
-
 services:
   app:
-    <<: *app-base
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+      target: runtime
+      args:
+        UID: ${UID:-1000}
+        ALPINE_MIRROR: ${ALPINE_MIRROR:-https://mirror.yandex.ru/mirrors/alpine}
+        COMPOSER_MIRROR: ${COMPOSER_MIRROR:-}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
+    image: aroma-app:latest
+    pull_policy: build
     container_name: aroma_app
+    restart: unless-stopped
+    working_dir: /var/www/html
+    env_file: .env
     environment:
       RUN_MIGRATIONS: "true"
+    volumes:
+      - storage_app:/var/www/html/storage/app
+      - backups:/var/www/html/storage/app/backups
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 9000 || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 20s
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aroma_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   scheduler:
-    <<: *app-base
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+      target: runtime
+      args:
+        UID: ${UID:-1000}
+        ALPINE_MIRROR: ${ALPINE_MIRROR:-https://mirror.yandex.ru/mirrors/alpine}
+        COMPOSER_MIRROR: ${COMPOSER_MIRROR:-}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
+    image: aroma-app:latest
+    pull_policy: build
     container_name: aroma_scheduler
+    restart: unless-stopped
+    working_dir: /var/www/html
+    env_file: .env
+    environment:
+      RUN_MIGRATIONS: "false"
     command: php artisan schedule:work
+    volumes:
+      - storage_app:/var/www/html/storage/app
+      - backups:/var/www/html/storage/app/backups
     depends_on:
       db:
         condition: service_healthy
@@ -54,24 +68,38 @@ services:
         condition: service_healthy
       app:
         condition: service_healthy
+    networks:
+      - aroma_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   nginx:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
       target: web
-      args: *build-args
+      args:
+        UID: ${UID:-1000}
+        ALPINE_MIRROR: ${ALPINE_MIRROR:-https://mirror.yandex.ru/mirrors/alpine}
+        COMPOSER_MIRROR: ${COMPOSER_MIRROR:-}
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
     image: aroma-web:latest
     pull_policy: build
     container_name: aroma_nginx
     restart: unless-stopped
+    # Порт открыт ТОЛЬКО на loopback — снаружи он недоступен,
+    # к нему ходит хостовый nginx через proxy_pass.
+    ports:
+      # - "127.0.0.1:8080:80"
+      - "${APP_PORT_BIND:-127.0.0.1:8080}:80"
     volumes:
       - storage_app:/var/www/html/storage/app:ro
     healthcheck:
-      # Именно 127.0.0.1, а не localhost: busybox-wget идёт сначала по ::1, а
-      # nginx слушает только IPv4 — штатный скрипт 10-listen-on-ipv6-by-default.sh
-      # правит default.conf, который из образа удалён. По localhost проверка
-      # всегда получала connection refused и контейнер висел unhealthy.
+      # Именно 127.0.0.1, а не localhost: busybox-wget идёт сначала по ::1,
+      # а nginx слушает только IPv4.
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx-health"]
       interval: 30s
       timeout: 5s
@@ -81,8 +109,11 @@ services:
         condition: service_healthy
     networks:
       - aroma_network
-      - proxy_net
-    logging: *logging
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   db:
     image: postgres:16.14-alpine
@@ -99,8 +130,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks: [aroma_network]
-    logging: *logging
+    networks:
+      - aroma_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   redis:
     image: redis:8.10-alpine
@@ -114,14 +150,17 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-    networks: [aroma_network]
-    logging: *logging
+    networks:
+      - aroma_network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   aroma_network:
     driver: bridge
-  proxy_net:
-    external: true
 
 volumes:
   db_data:
