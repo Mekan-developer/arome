@@ -3,7 +3,13 @@ services:
   php:       { volumes: !override [ storage_data:/var/www/laravel/storage ] }
   scheduler: { volumes: !override [ storage_data:/var/www/laravel/storage ] }
   artisan:   { volumes: !override [ storage_data:/var/www/laravel/storage ] }
-  nginx:     { volumes: !override [ storage_data:/var/www/laravel/storage:ro ] }
+  nginx:
+    image: arome-nginx:local
+    build:
+      context: .
+      dockerfile: ./docker/php/Dockerfile
+      target: web
+    volumes: !override []
 
 volumes:
   storage_data:
