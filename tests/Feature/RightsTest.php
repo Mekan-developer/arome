@@ -42,7 +42,7 @@ class RightsTest extends TestCase
     public function test_saving_the_policy_ignores_the_administrator_row(): void
     {
         $this->actingAs($this->admin())
-            ->put('/rights', ['fields' => ['mainCode' => false, 'retail' => false]])
+            ->put('/rights', ['roles' => ['seller' => ['mainCode' => false, 'retail' => false]]])
             ->assertSessionHasNoErrors();
 
         $matrix = $this->rights->matrix();
@@ -50,6 +50,74 @@ class RightsTest extends TestCase
         $this->assertFalse($matrix['seller']['mainCode']);
         $this->assertFalse($matrix['seller']['retail']);
         $this->assertTrue($matrix['admin']['retail']);
+    }
+
+    /**
+     * Продавец и менеджер настраиваются по отдельности: одна строка не тянет за собой
+     * другую, иначе разделение ролей теряет смысл.
+     */
+    public function test_each_role_keeps_its_own_row(): void
+    {
+        $this->actingAs($this->admin())
+            ->put('/rights', ['roles' => [
+                'seller' => ['retail' => false],
+                'manager' => ['retail' => true, 'wholesale' => false],
+            ]])
+            ->assertSessionHasNoErrors();
+
+        $matrix = $this->rights->matrix();
+
+        $this->assertFalse($matrix['seller']['retail']);
+        $this->assertTrue($matrix['manager']['retail']);
+        $this->assertFalse($matrix['manager']['wholesale']);
+    }
+
+    /**
+     * Оптовая цена — то, чем менеджер отличается от продавца. Без единой строки в базе
+     * она уже уходит менеджеру и уже не уходит продавцу.
+     */
+    public function test_the_wholesale_price_reaches_the_manager_and_not_the_seller(): void
+    {
+        Product::factory()->create(['price' => 1415.88, 'wholesale_price' => 920]);
+
+        $manager = User::factory()->create(['role' => 'manager']);
+
+        $row = $this->asDevice($manager)->getJson('/api/v1/products')->assertOk()->json('data.0');
+
+        $this->assertSame(92000, $row['wholesale']['amount']);
+        $this->assertSame('TMT', $row['wholesale']['currency']);
+
+        $sellerRow = $this->forgetAuthenticatedUser()
+            ->asDevice($this->seller())
+            ->getJson('/api/v1/products')
+            ->assertOk()
+            ->json('data.0');
+
+        $this->assertArrayNotHasKey('wholesale', $sellerRow);
+    }
+
+    public function test_a_product_without_a_wholesale_price_sends_no_wholesale_key(): void
+    {
+        Product::factory()->create(['wholesale_price' => null]);
+
+        $manager = User::factory()->create(['role' => 'manager']);
+
+        $row = $this->asDevice($manager)->getJson('/api/v1/products')->assertOk()->json('data.0');
+
+        $this->assertArrayNotHasKey('wholesale', $row);
+    }
+
+    public function test_the_wholesale_column_may_be_opened_for_the_seller(): void
+    {
+        Product::factory()->create(['wholesale_price' => 920]);
+
+        $this->actingAs($this->admin())
+            ->put('/rights', ['roles' => ['seller' => ['wholesale' => true]]])
+            ->assertSessionHasNoErrors();
+
+        $row = $this->asDevice($this->seller())->getJson('/api/v1/products')->assertOk()->json('data.0');
+
+        $this->assertSame(92000, $row['wholesale']['amount']);
     }
 
     /**
@@ -69,10 +137,25 @@ class RightsTest extends TestCase
             ));
 
         $this->actingAs($this->admin())
-            ->put('/rights', ['fields' => ['stock' => false]])
+            ->put('/rights', ['roles' => ['seller' => ['stock' => false]]])
             ->assertSessionHasNoErrors();
 
         $this->assertTrue($this->rights->matrix()['seller']['stock']);
+    }
+
+    public function test_the_matrix_offers_the_manager_row_and_the_wholesale_column(): void
+    {
+        $this->actingAs($this->admin())
+            ->get('/rights')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('roles', fn ($roles): bool => collect($roles)->contains(
+                    fn (array $role): bool => $role['key'] === 'manager' && $role['editable'] === true,
+                ))
+                ->where('fields', fn ($fields): bool => in_array('wholesale', collect($fields)->pluck('key')->all(), true))
+                ->where('matrix', fn ($matrix): bool => $matrix['manager']['wholesale'] === true && $matrix['seller']['wholesale'] === false)
+                ->etc(),
+            );
     }
 
     public function test_a_hidden_field_never_reaches_the_products_endpoint(): void

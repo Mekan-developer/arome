@@ -17,47 +17,67 @@ const props = defineProps({
     savedAt: { type: String, default: '' },
 })
 
+const editableRoles = computed(() => props.roles.filter((role) => role.editable).map((role) => role.key))
+
 /**
- * Draft policy: brass until "Сохранить политику" is pressed. Only the fields the panel
+ * Draft policy: brass until "Сохранить политику" is pressed. Отдельная строка на каждую
+ * редактируемую роль — у продавца и менеджера политика своя. Only the fields the panel
  * offers are drafted — a column withheld on the server keeps its stored policy untouched.
  */
-const policy = () => Object.fromEntries(props.fields.map((field) => [field.key, props.matrix.seller[field.key]]))
+const policy = () =>
+    Object.fromEntries(
+        editableRoles.value.map((role) => [
+            role,
+            Object.fromEntries(props.fields.map((field) => [field.key, props.matrix[role][field.key]])),
+        ]),
+    )
+
+const clone = (source) => JSON.parse(JSON.stringify(source))
 
 const draft = reactive(policy())
 const saved = ref(policy())
-const previewRole = ref('seller')
+const previewRole = ref(editableRoles.value[0] ?? 'seller')
 
-const form = useForm({ fields: {} })
+const form = useForm({ roles: {} })
 
-const changed = (key) => draft[key] !== saved.value[key]
-const dirty = computed(() => props.fields.some((field) => changed(field.key)))
+const changed = (role, key) => draft[role][key] !== saved.value[role][key]
 
-const visibleFor = (role, key) => (role === 'admin' ? true : draft[key])
+const dirty = computed(() =>
+    editableRoles.value.some((role) => props.fields.some((field) => changed(role, field.key))),
+)
+
+const visibleFor = (role, key) => (role === 'admin' ? true : draft[role][key])
 
 const countFor = (role) =>
-    role === 'admin' ? props.fields.length : props.fields.filter((field) => draft[field.key]).length
+    role === 'admin' ? props.fields.length : props.fields.filter((field) => draft[role][field.key]).length
 
 const toggle = (role, key) => {
     if (role === 'admin') return
-    draft[key] = !draft[key]
+    draft[role][key] = !draft[role][key]
 }
+
+/** «Скрыть всем» ведёт колонку по всем редактируемым ролям сразу. */
+const columnIsOpen = (key) => editableRoles.value.some((role) => draft[role][key])
 
 const setColumn = (key) => {
-    draft[key] = !draft[key]
+    const next = !columnIsOpen(key)
+    editableRoles.value.forEach((role) => (draft[role][key] = next))
 }
 
-const revert = () => props.fields.forEach((field) => (draft[field.key] = saved.value[field.key]))
+const revert = () => {
+    editableRoles.value.forEach((role) => props.fields.forEach((field) => (draft[role][field.key] = saved.value[role][field.key])))
+}
 
 const save = () => {
-    form.fields = { ...draft }
+    form.roles = clone(draft)
     form.put('/rights', {
         preserveScroll: true,
-        onSuccess: () => (saved.value = { ...draft }),
+        onSuccess: () => (saved.value = clone(draft)),
     })
 }
 
 const hiddenCount = computed(() =>
-    previewRole.value === 'admin' ? 0 : props.fields.filter((field) => !draft[field.key]).length,
+    previewRole.value === 'admin' ? 0 : props.fields.filter((field) => !draft[previewRole.value][field.key]).length,
 )
 
 const previewTitle = computed(() => props.roles.find((role) => role.key === previewRole.value)?.title ?? '')
@@ -76,12 +96,13 @@ const previewNote = computed(() =>
                 <div>
                     <h1 class="head__title">Кто какие поля карточки видит</h1>
                     <p class="head__lead">
-                        В системе две роли. Администратор ведёт данные в этой панели, продавец только заходит в
-                        мобильное приложение и получает их по API. Настраивается одно: какие поля карточки уходят
-                        продавцу. Скрытое поле не приходит в приложение вообще, а не прячется на экране.
+                        Администратор ведёт данные в этой панели, менеджер и продавец только заходят в мобильное
+                        приложение и получают их по API. Настраивается одно: какие поля карточки уходят каждой из этих
+                        двух ролей. Отличие менеджера — оптовая цена товара: продавцу эта колонка закрыта. Скрытое
+                        поле не приходит в приложение вообще, а не прячется на экране.
                     </p>
                 </div>
-                <span class="head__count">РОЛЕЙ В СИСТЕМЕ: 2</span>
+                <span class="head__count">РОЛЕЙ В СИСТЕМЕ: {{ roles.length }}</span>
             </header>
 
             <div class="scroll">
@@ -90,7 +111,7 @@ const previewNote = computed(() =>
                     <span v-for="field in fields" :key="field.key" class="matrix__col">
                         <span class="matrix__colname">{{ field.title }}</span>
                         <button type="button" class="matrix__all" @click="setColumn(field.key)">
-                            {{ draft[field.key] ? 'скрыть всем' : 'открыть всем' }}
+                            {{ columnIsOpen(field.key) ? 'скрыть всем' : 'открыть всем' }}
                         </button>
                     </span>
 
@@ -109,24 +130,25 @@ const previewNote = computed(() =>
                             :class="{
                                 'cell--on': visibleFor(role.key, field.key),
                                 'cell--locked': !role.editable,
-                                'cell--dirty': role.editable && changed(field.key),
+                                'cell--dirty': role.editable && changed(role.key, field.key),
                             }"
                             :disabled="!role.editable"
                             @click="toggle(role.key, field.key)"
                         >
-                            {{ role.editable ? (draft[field.key] ? 'видно' : 'скрыто') : 'всегда' }}
+                            {{ role.editable ? (draft[role.key][field.key] ? 'видно' : 'скрыто') : 'всегда' }}
                         </button>
                     </template>
                 </div>
 
                 <!--
-                    Телефон: матрица 2×7 в 390px не читается, поэтому те же переключатели
-                    выкладываются списком. Строка администратора не повторяется — ему поля
-                    видны всегда, и переключать там нечего.
+                    Телефон: матрица 3×8 в 390px не читается, поэтому те же переключатели
+                    выкладываются списком — по списку на каждую редактируемую роль. Строка
+                    администратора не повторяется: ему поля видны всегда, переключать нечего.
                 -->
-                <div class="stack">
+                <div v-for="role in roles.filter((entry) => entry.editable)" :key="role.key" class="stack">
                     <p class="stack__note">
-                        Переключатели ниже задают, что видит продавец. Администратору поля карточки видны всегда.
+                        Переключатели ниже задают, что видит роль «{{ role.title }}». Администратору поля карточки
+                        видны всегда.
                     </p>
 
                     <button
@@ -134,15 +156,15 @@ const previewNote = computed(() =>
                         :key="field.key"
                         type="button"
                         class="stack__row"
-                        :class="{ 'stack__row--dirty': changed(field.key) }"
-                        @click="toggle('seller', field.key)"
+                        :class="{ 'stack__row--dirty': changed(role.key, field.key) }"
+                        @click="toggle(role.key, field.key)"
                     >
                         <span class="stack__text">
                             <span class="stack__name">{{ field.title }}</span>
                             <span class="stack__sample">{{ field.sample }}</span>
                         </span>
-                        <span class="stack__flag" :class="{ 'stack__flag--on': draft[field.key] }">
-                            {{ draft[field.key] ? 'видно' : 'скрыто' }}
+                        <span class="stack__flag" :class="{ 'stack__flag--on': draft[role.key][field.key] }">
+                            {{ draft[role.key][field.key] ? 'видно' : 'скрыто' }}
                         </span>
                     </button>
                 </div>
@@ -551,6 +573,10 @@ const previewNote = computed(() =>
         display: block;
         border: 1px solid var(--rule-strong);
         background: var(--sheet);
+    }
+
+    .stack + .stack {
+        margin-top: 14px;
     }
 
     .stack__note {

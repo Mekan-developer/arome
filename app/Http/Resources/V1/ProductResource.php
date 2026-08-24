@@ -53,6 +53,11 @@ class ProductResource extends JsonResource
             $payload['retail'] = ['amount' => (int) round((float) $this->price * 100), 'currency' => 'TMT'];
         }
 
+        /* Оптовую цену видит менеджер. У товара её может не быть — тогда ключ не приходит. */
+        if ($this->sees('wholesale') && $this->wholesale_price !== null) {
+            $payload['wholesale'] = ['amount' => (int) round((float) $this->wholesale_price * 100), 'currency' => 'TMT'];
+        }
+
         if ($this->sees('discount')) {
             $payload['discount'] = (float) $this->discount;
             $payload['final'] = [
