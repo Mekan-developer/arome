@@ -74,9 +74,9 @@ const submit = () =>
                 <TextField v-model="form.sku" mono inputmode="numeric" placeholder="510028" />
             </div>
             <div>
-                <FieldLabel>Штрихкод EAN-13</FieldLabel>
+                <FieldLabel>Штрихкод</FieldLabel>
                 <span class="codes__barcode">
-                    <TextField v-model="form.barcode" mono inputmode="numeric" placeholder="8011003993802" />
+                    <TextField v-model="form.barcode" mono placeholder="8011003993802" />
                     <AppButton variant="ghost" size="sm" @click="generate">Сгенерировать</AppButton>
                 </span>
             </div>

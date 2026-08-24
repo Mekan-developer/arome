@@ -87,7 +87,7 @@ const submit = () =>
                 <p v-if="form.errors.sku" class="error">{{ form.errors.sku }}</p>
             </div>
             <div>
-                <FieldLabel>Штрихкод EAN-13</FieldLabel>
+                <FieldLabel>Штрихкод</FieldLabel>
                 <TextField v-model="form.barcode" mono />
                 <p v-if="form.errors.barcode" class="error">{{ form.errors.barcode }}</p>
             </div>
