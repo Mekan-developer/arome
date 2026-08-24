@@ -28,6 +28,7 @@ class ProductCardResource extends JsonResource
             'name' => $this->name,
             'kind' => $this->kind,
             'price' => (float) $this->price,
+            'wholesalePrice' => $this->wholesale_price === null ? null : (float) $this->wholesale_price,
             'discount' => (float) $this->discount,
             'discountPercent' => round((float) $this->discount * 100, 2),
             'final' => ProductService::finalPrice((float) $this->price, (float) $this->discount),

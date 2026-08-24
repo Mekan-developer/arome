@@ -26,6 +26,7 @@ const form = useForm({
     sku: props.card.sku,
     barcode: props.card.barcode,
     price: props.card.price,
+    wholesale_price: props.card.wholesalePrice ?? '',
     discount: props.card.discountPercent,
     status: props.card.status,
 })
@@ -112,6 +113,18 @@ const submit = () =>
                 <span class="result__label">Со скидкой</span>
                 <span class="result__value">{{ formatMoney(result) }}</span>
             </div>
+        </div>
+
+        <div class="wholesale">
+            <div>
+                <FieldLabel>Оптовая, TMT</FieldLabel>
+                <TextField v-model="form.wholesale_price" mono align="right" inputmode="decimal" placeholder="—" />
+                <p v-if="form.errors.wholesale_price" class="error">{{ form.errors.wholesale_price }}</p>
+            </div>
+            <p class="hint">
+                Оптовую цену видит менеджер вместо розничной. Продавцу она не уходит — колонка «Оптовая цена» на
+                странице «Права» для него закрыта. Пусто — товар продаётся только в розницу.
+            </p>
         </div>
 
         <p v-if="priceTouched" class="warn">
@@ -210,6 +223,18 @@ const submit = () =>
     grid-template-columns: minmax(160px, 1fr) 110px minmax(180px, 1.2fr);
     gap: 12px;
     align-items: end;
+}
+
+.wholesale {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) minmax(180px, 1.6fr);
+    gap: 12px;
+    align-items: start;
+    margin-top: 14px;
+}
+
+.wholesale .hint {
+    margin: 22px 0 0;
 }
 
 .price__big :deep(.field),
@@ -344,6 +369,14 @@ const submit = () =>
 
     .result {
         grid-column: 1 / -1;
+    }
+
+    .wholesale {
+        grid-template-columns: 1fr;
+    }
+
+    .wholesale .hint {
+        margin-top: 8px;
     }
 
     .history {

@@ -85,6 +85,8 @@ class ProductTest extends TestCase
             'article ascending' => ['sku', 'sku', false],
             'price ascending' => ['price', 'price', false],
             'price descending' => ['-price', 'price', true],
+            'wholesale ascending' => ['wholesale', 'wholesale_price', false],
+            'wholesale descending' => ['-wholesale', 'wholesale_price', true],
         ];
     }
 

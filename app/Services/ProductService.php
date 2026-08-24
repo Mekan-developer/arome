@@ -62,7 +62,7 @@ class ProductService
     }
 
     /**
-     * @param  array{name: string, sku: string, barcode: string, price: float, discount: float, status: string, kind?: string}  $data
+     * @param  array{name: string, sku: string, barcode: string, price: float, wholesale_price?: float|null, discount: float, status: string, kind?: string}  $data
      */
     public function create(array $data, string $actor): Product
     {
@@ -74,6 +74,7 @@ class ProductService
                 'name' => $data['name'],
                 'kind' => $data['kind'] ?? 'EDT',
                 'price' => $data['price'],
+                'wholesale_price' => $data['wholesale_price'] ?? null,
                 'discount' => $data['discount'],
                 'status' => $data['status'],
             ]);
@@ -86,7 +87,7 @@ class ProductService
     }
 
     /**
-     * @param  array{name: string, main_code: string, sku: string, barcode: string, price: float, discount: float, status: string}  $data
+     * @param  array{name: string, main_code: string, sku: string, barcode: string, price: float, wholesale_price?: float|null, discount: float, status: string}  $data
      */
     public function update(Product $product, array $data, string $actor): Product
     {
@@ -102,6 +103,8 @@ class ProductService
                 'price' => $data['price'],
                 'discount' => $data['discount'],
                 'status' => $data['status'],
+                /* Ключа нет — оптовую цену не трогают: пустое поле формы приходит как null явно. */
+                ...(array_key_exists('wholesale_price', $data) ? ['wholesale_price' => $data['wholesale_price']] : []),
             ]);
 
             if ($priceBefore !== (float) $product->price) {

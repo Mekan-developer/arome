@@ -25,6 +25,7 @@ class ProductRepository
         'name' => 'name',
         'sku' => 'sku',
         'price' => 'price',
+        'wholesale' => 'wholesale_price',
     ];
 
     /**
@@ -172,7 +173,7 @@ class ProductRepository
     private function filtered(array $filters, bool $withPoints): Builder
     {
         $query = Product::query()
-            ->select(['id', 'main_code', 'sku', 'barcode', 'name', 'kind', 'price', 'discount', 'status']);
+            ->select(['id', 'main_code', 'sku', 'barcode', 'name', 'kind', 'price', 'wholesale_price', 'discount', 'status']);
 
         $this->applyActiveOnly($query, ($filters['only_active'] ?? false) === true);
         $this->applySearch($query, $filters['q'] ?? null, $filters['search_fields'] ?? self::SEARCHABLE);

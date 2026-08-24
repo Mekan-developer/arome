@@ -27,6 +27,7 @@ class ProductRowResource extends JsonResource
             'name' => $this->name,
             'kind' => $this->kind,
             'price' => (float) $this->price,
+            'wholesalePrice' => $this->wholesale_price === null ? null : (float) $this->wholesale_price,
             'discount' => (float) $this->discount,
             'final' => ProductService::finalPrice((float) $this->price, (float) $this->discount),
             'status' => $this->status,

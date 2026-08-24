@@ -16,6 +16,7 @@ const form = useForm({
     sku: '',
     barcode: '',
     price: '',
+    wholesale_price: '',
     discount: 0,
     status: 'active',
     kind: 'EDT',
@@ -97,6 +98,17 @@ const submit = () =>
                 <span class="result__label">Со скидкой</span>
                 <span class="result__value">{{ formatMoney(result) }}</span>
             </div>
+        </div>
+
+        <div class="wholesale">
+            <div>
+                <FieldLabel>Оптовая, TMT</FieldLabel>
+                <TextField v-model="form.wholesale_price" mono align="right" inputmode="decimal" placeholder="—" />
+            </div>
+            <p class="wholesale__hint">
+                Оптовую цену видит менеджер вместо розничной. Можно оставить пустой — тогда товар идёт только в
+                розницу.
+            </p>
         </div>
 
         <template #footer>
@@ -182,6 +194,21 @@ const submit = () =>
     align-items: end;
 }
 
+.wholesale {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) minmax(180px, 1.6fr);
+    gap: 12px;
+    align-items: start;
+    margin-top: 14px;
+}
+
+.wholesale__hint {
+    margin: 22px 0 0;
+    font-size: 11.5px;
+    color: var(--ink-3);
+    text-wrap: pretty;
+}
+
 .result {
     padding: 9px 12px;
     background: var(--sheet-alt);
@@ -236,6 +263,14 @@ const submit = () =>
 
     .result {
         grid-column: 1 / -1;
+    }
+
+    .wholesale {
+        grid-template-columns: 1fr;
+    }
+
+    .wholesale__hint {
+        margin-top: 8px;
     }
 
     .foot__status,

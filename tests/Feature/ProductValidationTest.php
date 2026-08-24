@@ -122,6 +122,25 @@ class ProductValidationTest extends TestCase
         $this->assertStringStartsWith('AA', $product->main_code);
     }
 
+    public function test_the_wholesale_price_is_optional_and_stored_as_given(): void
+    {
+        $this->createProduct(['sku' => '512100', 'barcode' => '8011003993901', 'wholesale_price' => 280.5])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('280.50', Product::firstWhere('sku', '512100')?->wholesale_price);
+
+        $this->createProduct(['sku' => '512101', 'barcode' => '8011003993902'])->assertSessionHasNoErrors();
+
+        $this->assertNull(Product::firstWhere('sku', '512101')?->wholesale_price);
+    }
+
+    public function test_the_wholesale_price_may_not_be_negative(): void
+    {
+        $this->createProduct(['wholesale_price' => -1])->assertSessionHasErrors([
+            'wholesale_price' => 'Оптовая цена не может быть отрицательной.',
+        ]);
+    }
+
     public function test_a_seller_may_not_create_a_product(): void
     {
         $seller = User::factory()->create(['role' => 'seller']);

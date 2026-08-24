@@ -32,7 +32,7 @@ const page = usePage()
 
 /** Header and rows share one template string — if they drift, the columns drift. */
 const COLUMNS =
-    '8px 34px minmax(260px,3fr) minmax(190px,1.5fr) minmax(120px,1fr) minmax(78px,.6fr) minmax(120px,1fr) minmax(110px,.85fr)'
+    '8px 34px minmax(240px,2.6fr) minmax(180px,1.4fr) minmax(112px,.95fr) minmax(112px,.95fr) minmax(74px,.55fr) minmax(116px,.95fr) minmax(104px,.8fr)'
 
 const rows = computed(() => props.products.data ?? [])
 const meta = computed(() => props.products.meta ?? props.products)
@@ -261,6 +261,11 @@ const to = computed(() => meta.value.to ?? 0)
                 <span class="head__right">
                     <button type="button" class="sorter" @click="sortBy('price')">
                         <span class="sorter__mark">{{ sortMarker('price') }}</span> Розн., TMT
+                    </button>
+                </span>
+                <span class="head__right">
+                    <button type="button" class="sorter" @click="sortBy('wholesale')">
+                        <span class="sorter__mark">{{ sortMarker('wholesale') }}</span> Опт., TMT
                     </button>
                 </span>
                 <span class="head__right">Скидка</span>

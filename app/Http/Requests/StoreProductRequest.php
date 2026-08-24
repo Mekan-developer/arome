@@ -23,6 +23,7 @@ class StoreProductRequest extends FormRequest
             'sku' => ['required', 'regex:/^\d{4,}$/', Rule::unique('products', 'sku')],
             'barcode' => ['required', 'string', 'max:64', Rule::unique('products', 'barcode')],
             'price' => ['required', 'numeric', 'gt:0'],
+            'wholesale_price' => ['nullable', 'numeric', 'gte:0'],
             'discount' => ['required', 'numeric', 'between:0,90'],
             'status' => ['required', Rule::in(ProductStatus::values())],
             'kind' => ['nullable', Rule::in(['PARFUM', 'EDP', 'EDT', 'CARE'])],
@@ -47,6 +48,8 @@ class StoreProductRequest extends FormRequest
             'price.required' => 'Розничная цена должна быть больше нуля.',
             'price.numeric' => 'Розничная цена должна быть больше нуля.',
             'price.gt' => 'Розничная цена должна быть больше нуля.',
+            'wholesale_price.numeric' => 'Оптовая цена должна быть числом — её видит менеджер вместо розничной.',
+            'wholesale_price.gte' => 'Оптовая цена не может быть отрицательной.',
             'discount.between' => 'Скидка допустима от 0 до 90 %.',
             'discount.numeric' => 'Скидка допустима от 0 до 90 %.',
         ];
@@ -55,7 +58,7 @@ class StoreProductRequest extends FormRequest
     /**
      * The form sends the discount as a percentage; the catalogue stores a fraction.
      *
-     * @return array{name: string, sku: string, barcode: string, price: float, discount: float, status: string, kind: string}
+     * @return array{name: string, sku: string, barcode: string, price: float, wholesale_price: float|null, discount: float, status: string, kind: string}
      */
     public function payload(): array
     {
@@ -66,6 +69,7 @@ class StoreProductRequest extends FormRequest
             'sku' => (string) $validated['sku'],
             'barcode' => (string) $validated['barcode'],
             'price' => (float) $validated['price'],
+            'wholesale_price' => isset($validated['wholesale_price']) ? (float) $validated['wholesale_price'] : null,
             'discount' => round((float) $validated['discount'] / 100, 4),
             'status' => $validated['status'],
             'kind' => $validated['kind'] ?? 'EDT',
