@@ -160,11 +160,16 @@ class ProductService
      * list. Sku itself never changes here either — it is the match key that produced
      * $existing in the first place.
      *
-     * @param  array{mainCode: string, sku: string, barcode: string, name: string, price: float, discount: float}  $row
+     * Пустая колонка опта в файле оставляет оптовую цену карточки как есть — see
+     * {@see ImportService::payload()}.
+     *
+     * @param  array{mainCode: string, sku: string, barcode: string, name: string, price: float, discount: float, wholesalePrice?: float|null}  $row
      * @return 'created'|'updated'
      */
     public function upsertFromImport(array $row, ?Product $existing, string $actor): string
     {
+        $wholesale = $row['wholesalePrice'] ?? null;
+
         if ($existing instanceof Product) {
             $priceBefore = (float) $existing->price;
 
@@ -174,6 +179,7 @@ class ProductService
                 'name' => $row['name'],
                 'price' => $row['price'],
                 'discount' => $row['discount'],
+                ...($wholesale !== null ? ['wholesale_price' => $wholesale] : []),
             ]);
 
             if ($priceBefore !== (float) $existing->price) {
@@ -196,6 +202,7 @@ class ProductService
             'name' => $row['name'],
             'kind' => 'EDT',
             'price' => $row['price'],
+            'wholesale_price' => $wholesale,
             'discount' => $row['discount'],
             'status' => ProductStatus::Active->value,
         ]);

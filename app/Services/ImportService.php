@@ -140,10 +140,12 @@ class ImportService
                 'name' => trim((string) ($cells[CatalogSheetLayout::COLUMN_NAME] ?? '')),
                 'retail' => trim((string) ($cells[CatalogSheetLayout::COLUMN_RETAIL] ?? '')),
                 'discount' => trim((string) ($cells[CatalogSheetLayout::COLUMN_DISCOUNT] ?? '')),
+                'wholesale' => trim((string) ($cells[CatalogSheetLayout::COLUMN_WHOLESALE] ?? '')),
             ];
 
             $blank = $raw['mainCode'] === '' && $raw['sku'] === '' && $raw['barcode'] === ''
-                && $raw['name'] === '' && $raw['retail'] === '' && $raw['discount'] === '';
+                && $raw['name'] === '' && $raw['retail'] === '' && $raw['discount'] === ''
+                && $raw['wholesale'] === '';
 
             if ($blank) {
                 continue;
@@ -220,8 +222,10 @@ class ImportService
         $barcodeDigits = preg_replace('/\D/', '', $barcodeRaw) ?? '';
         $retailRaw = trim((string) ($raw['retail'] ?? ''));
         $discountRaw = trim((string) ($raw['discount'] ?? ''));
+        $wholesaleRaw = trim((string) ($raw['wholesale'] ?? ''));
         $retail = self::toFloat($retailRaw);
         $discount = $discountRaw === '' ? 0.0 : self::toFloat($discountRaw);
+        $wholesale = $wholesaleRaw === '' ? null : self::toFloat($wholesaleRaw);
 
         /*
          * The prior claim on a barcode/main_code — either an earlier row in this same
@@ -247,6 +251,8 @@ class ImportService
             $issue = ['tag' => 'ЦЕНА', 'field' => 'retail', 'fix' => 'число', 'message' => 'Цена нечисловая или не больше нуля. Уберите лишние символы — колонка числовая, валюта всегда TMT.'];
         } elseif ($discount === null || $discount < 0 || $discount >= 1) {
             $issue = ['tag' => 'СКИДКА', 'field' => 'discount', 'fix' => '0,2', 'message' => 'Скидка задана некорректно. В колонке «Скидки» ожидается доля от 0 до 1: например 0,2 или 20 % — не сумма и не больше единицы.'];
+        } elseif ($wholesaleRaw !== '' && ($wholesale === null || $wholesale < 0)) {
+            $issue = ['tag' => 'ОПТ', 'field' => 'wholesale', 'fix' => 'число', 'message' => 'Оптовая цена нечисловая или отрицательная. Колонка «Оптовая цена» числовая; оставьте её пустой, если опта у товара нет.'];
         } elseif ($mainCode !== '' && $mainCodeOwner !== null && $mainCodeOwner !== $sku) {
             $issue = ['tag' => 'ОСНОВНОЙ КОД', 'field' => 'mainCode', 'fix' => 'AA####', 'message' => "Основной код «{$mainCode}» уже используется товаром с артикулом «{$mainCodeOwner}»."];
         }
@@ -271,6 +277,7 @@ class ImportService
                 'retail' => $retail !== null ? self::money($retail) : $retailRaw,
                 'discount' => $discount !== null && $discountRaw !== '' ? self::fraction($discount) : $discountRaw,
                 'final' => '',
+                'wholesale' => $wholesale !== null ? self::money($wholesale) : $wholesaleRaw,
                 'type' => 'err',
                 ...$issue,
             ];
@@ -286,6 +293,7 @@ class ImportService
                 'retail' => self::money($retail),
                 'discount' => $discount > 0 ? self::fraction($discount) : '',
                 'final' => self::money(ProductService::finalPrice($retail, $discount)),
+                'wholesale' => $wholesale !== null ? self::money($wholesale) : '',
                 'type' => 'warn',
                 'tag' => 'НОВЫЙ',
                 'field' => null,
@@ -303,6 +311,7 @@ class ImportService
             'retail' => self::money($retail),
             'discount' => $discount > 0 ? self::fraction($discount) : '',
             'final' => self::money(ProductService::finalPrice($retail, $discount)),
+            'wholesale' => $wholesale !== null ? self::money($wholesale) : '',
             'type' => 'ok',
             'tag' => null,
             'field' => null,
@@ -312,11 +321,17 @@ class ImportService
     }
 
     /**
+     * Пустая колонка «Оптовая цена» — это не ноль и не «стереть»: опт у такой строки
+     * остаётся тем, что уже стоит в карточке. Иначе прайс поставщика, свёрстанный по
+     * старым семи колонкам, обнулял бы опт всему каталогу разом.
+     *
      * @param  array<string, mixed>  $row
-     * @return array{mainCode: string, sku: string, barcode: string, name: string, price: float, discount: float}
+     * @return array{mainCode: string, sku: string, barcode: string, name: string, price: float, discount: float, wholesalePrice: float|null}
      */
     private function payload(array $row): array
     {
+        $wholesale = trim((string) ($row['wholesale'] ?? ''));
+
         return [
             'mainCode' => (string) $row['mainCode'],
             'sku' => (string) $row['sku'],
@@ -324,6 +339,7 @@ class ImportService
             'name' => (string) $row['name'],
             'price' => self::toFloat((string) $row['retail']) ?? 0.0,
             'discount' => $row['discount'] !== '' ? (self::toFloat((string) $row['discount']) ?? 0.0) : 0.0,
+            'wholesalePrice' => $wholesale !== '' ? self::toFloat($wholesale) : null,
         ];
     }
 

@@ -36,6 +36,7 @@ class ConfirmImportRequest extends FormRequest
             'rows.*.name' => ['nullable', 'string', 'max:512'],
             'rows.*.retail' => ['nullable', 'string', 'max:64'],
             'rows.*.discount' => ['nullable', 'string', 'max:64'],
+            'rows.*.wholesale' => ['nullable', 'string', 'max:64'],
         ];
     }
 
@@ -88,6 +89,7 @@ class ConfirmImportRequest extends FormRequest
                 'name' => (string) ($row['name'] ?? ''),
                 'retail' => (string) ($row['retail'] ?? ''),
                 'discount' => (string) ($row['discount'] ?? ''),
+                'wholesale' => (string) ($row['wholesale'] ?? ''),
             ], $validated['rows']),
         ];
     }

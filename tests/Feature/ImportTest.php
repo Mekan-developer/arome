@@ -258,6 +258,64 @@ class ImportTest extends TestCase
         ]);
     }
 
+    /**
+     * Колонка H прайса — оптовая цена. Пустая ячейка не обнуляет опт карточки: прайсы
+     * поставщиков сверстаны по старым семи колонкам, и такой файл не должен стирать то,
+     * что администратор проставил руками.
+     */
+    public function test_confirming_writes_the_wholesale_price_and_a_blank_column_keeps_it(): void
+    {
+        $existing = Product::factory()->create([
+            'sku' => '510028',
+            'main_code' => 'AA1001',
+            'barcode' => '8011003993802',
+            'wholesale_price' => 700,
+        ]);
+
+        $admin = $this->admin();
+
+        $file = $this->workbook([
+            ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '', '', '920,50'],
+        ]);
+
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
+
+        $this->assertSame('920,50', $props['rows'][0]['wholesale']);
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertSame('920.50', $existing->refresh()->wholesale_price);
+
+        $blank = $this->workbook([
+            ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+        ]);
+
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $blank]));
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertSame('920.50', $existing->refresh()->wholesale_price);
+    }
+
+    public function test_a_non_numeric_wholesale_price_is_rejected(): void
+    {
+        $row = $this->analyzeRow([
+            'AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '', '', '920 манат',
+        ]);
+
+        $this->assertSame('err', $row['type']);
+        $this->assertSame('ОПТ', $row['tag']);
+        $this->assertSame('wholesale', $row['field']);
+    }
+
     public function test_confirming_assigns_a_main_code_when_the_file_leaves_it_blank(): void
     {
         $file = $this->workbook([
@@ -438,7 +496,10 @@ class ImportTest extends TestCase
     }
 
     /**
-     * @param  list<array{0: string, 1: string, 2: string, 3: string, 4: string, 5: string}>  $rows
+     * Строка листа, слева направо и настолько далеко, насколько нужно тесту: колонки
+     * после последней заданной остаются пустыми.
+     *
+     * @param  list<list<string>>  $rows
      */
     private function workbook(array $rows): UploadedFile
     {
@@ -463,7 +524,7 @@ class ImportTest extends TestCase
     /**
      * Analyzes a single-row workbook and returns that row as the server validated it.
      *
-     * @param  array{0: string, 1: string, 2: string, 3: string, 4: string, 5: string}  $row
+     * @param  list<string>  $row
      * @return array<string, mixed>
      */
     private function analyzeRow(array $row): array
