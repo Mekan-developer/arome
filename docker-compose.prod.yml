@@ -1,0 +1,9 @@
+# docker-compose.prod.yml
+services:
+  php:       { volumes: !override [ storage_data:/var/www/laravel/storage ] }
+  scheduler: { volumes: !override [ storage_data:/var/www/laravel/storage ] }
+  artisan:   { volumes: !override [ storage_data:/var/www/laravel/storage ] }
+  nginx:     { volumes: !override [ storage_data:/var/www/laravel/storage:ro ] }
+
+volumes:
+  storage_data:
