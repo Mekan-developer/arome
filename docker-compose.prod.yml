@@ -31,6 +31,10 @@ services:
       dockerfile: ./docker/php/Dockerfile
       target: web
     volumes: !override []
+    # Только на localhost: 80-й держит хостовый nginx, он и проксирует сюда.
+    # Открытый наружу порт дал бы обход прокси по http://IP:8080.
+    ports: !override
+      - "127.0.0.1:8080:80"
     logging: *logging
 
   db:
