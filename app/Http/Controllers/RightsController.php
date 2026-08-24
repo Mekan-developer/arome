@@ -27,7 +27,7 @@ class RightsController extends Controller
     }
 
     /**
-     * Only the seller row is writable — the administrator role is immutable.
+     * Only the seller and manager rows are writable — the administrator role is immutable.
      */
     public function update(UpdateRightsRequest $request): RedirectResponse
     {

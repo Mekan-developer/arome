@@ -52,11 +52,7 @@ class HandleInertiaRequests extends Middleware
                     'role' => $user->role,
                     'initials' => $this->initials($user->name),
                     'shortName' => $this->shortName($user->name),
-                    'roleTitle' => match ($user->role) {
-                        'admin' => 'Администратор',
-                        'superadmin' => 'Суперадмин',
-                        default => 'Продавец',
-                    },
+                    'roleTitle' => $user->role->label(),
                 ] : null,
             ],
             'impersonating' => fn (): bool => (bool) $request->session()->get('impersonating', false),

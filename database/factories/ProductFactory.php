@@ -18,6 +18,7 @@ class ProductFactory extends Factory
     public function definition(): array
     {
         $index = fake()->unique()->numberBetween(0, 99999);
+        $price = fake()->randomFloat(2, 180, 2580);
 
         return [
             'main_code' => 'AA'.(1001 + $index),
@@ -26,7 +27,9 @@ class ProductFactory extends Factory
             'barcode' => CatalogGenerator::ean13('8011'.str_pad((string) $index, 8, '0', STR_PAD_LEFT)),
             'name' => mb_strtoupper(fake()->words(3, true)).' EDT 50ML',
             'kind' => fake()->randomElement(['PARFUM', 'EDP', 'EDT', 'CARE']),
-            'price' => fake()->randomFloat(2, 180, 2580),
+            'price' => $price,
+            // Опт всегда ниже розницы — иначе цена для менеджера теряет смысл.
+            'wholesale_price' => round($price * 0.65, 2),
             'discount' => 0,
             'status' => ProductStatus::Active->value,
         ];

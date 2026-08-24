@@ -1,0 +1,47 @@
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # env_file и volumes перекрываются целиком, а не дополняются: без !override
+  # Compose дописал бы прод-файл к dev-овскому .env, а том — к бинд-маунту.
+  php:
+    env_file: !override [ .env.production ]
+    volumes: !override [ storage_data:/var/www/laravel/storage ]
+    logging: *logging
+
+  scheduler:
+    env_file: !override [ .env.production ]
+    volumes: !override [ storage_data:/var/www/laravel/storage ]
+    logging: *logging
+
+  artisan:
+    env_file: !override [ .env.production ]
+    volumes: !override [ storage_data:/var/www/laravel/storage ]
+    logging: *logging
+
+  # В проде public/ уезжает внутрь образа nginx: раздавать статику с бинд-маунта
+  # чужого контейнера нечем — кода на хосте нет.
+  nginx:
+    image: arome-nginx:local
+    build:
+      context: .
+      dockerfile: ./docker/php/Dockerfile
+      target: web
+    volumes: !override []
+    # Только на localhost: 80-й держит хостовый nginx, он и проксирует сюда.
+    # Открытый наружу порт дал бы обход прокси по http://IP:8080.
+    ports: !override
+      - "127.0.0.1:8080:80"
+    logging: *logging
+
+  db:
+    logging: *logging
+
+  redis:
+    logging: *logging
+
+volumes:
+  storage_data:

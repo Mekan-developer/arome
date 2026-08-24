@@ -9,7 +9,7 @@ use RuntimeException;
 
 /**
  * Выгрузка каталога — обратная сторона {@see ImportService}. Лист повторяет прайс,
- * который панель принимает на импорт, лист в лист: «Лист1», колонки A–G, шапка в
+ * который панель принимает на импорт, лист в лист: «Лист1», колонки A–H, шапка в
  * третьей строке, данные с четвёртой. Выгруженный файл правят в Excel и загружают
  * обратно, не переставляя колонки руками.
  */
@@ -144,6 +144,10 @@ class ExportService
             $discounted
                 ? XlsxWriter::number(ProductService::finalPrice($price, $discount), XlsxWriter::STYLE_MONEY)
                 : XlsxWriter::blank(),
+            /* Опта у товара может не быть — пустая ячейка, а не ноль: ноль это цена. */
+            $product->wholesale_price === null
+                ? XlsxWriter::blank()
+                : XlsxWriter::number((float) $product->wholesale_price, XlsxWriter::STYLE_MONEY),
         ];
     }
 

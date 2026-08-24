@@ -125,6 +125,29 @@ class ProductExportTest extends TestCase
     }
 
     /**
+     * Оптовая цена — колонка H, восьмая и последняя. Товар без опта оставляет ячейку
+     * пустой: ноль в этой колонке значил бы «отдаём даром».
+     */
+    public function test_the_wholesale_price_lands_in_the_last_column(): void
+    {
+        Product::factory()->create(['wholesale_price' => 920.5]);
+
+        $sheet = $this->sheet($this->actingAs($this->admin())->get('/products/export'));
+
+        $this->assertSame('Оптовая цена', CatalogSheetLayout::HEADERS[CatalogSheetLayout::COLUMN_WHOLESALE]);
+        $this->assertStringContainsString('<c r="H4" s="'.XlsxWriter::STYLE_MONEY.'"><v>920.50</v></c>', $sheet);
+    }
+
+    public function test_a_product_without_a_wholesale_price_leaves_the_column_empty(): void
+    {
+        Product::factory()->create(['wholesale_price' => null]);
+
+        $sheet = $this->sheet($this->actingAs($this->admin())->get('/products/export'));
+
+        $this->assertStringContainsString('<c r="H4"/>', $sheet);
+    }
+
+    /**
      * Кавычки и амперсанды в номенклатуре ломают XML листа, если их не экранировать.
      */
     public function test_it_escapes_the_markup_characters_of_a_name(): void

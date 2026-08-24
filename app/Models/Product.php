@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['main_code', 'sku', 'barcode', 'name', 'kind', 'price', 'discount', 'status'])]
+#[Fillable(['main_code', 'sku', 'barcode', 'name', 'kind', 'price', 'wholesale_price', 'discount', 'status'])]
 class Product extends Model
 {
     use HasFactory;
@@ -20,6 +20,7 @@ class Product extends Model
     {
         return [
             'price' => 'decimal:2',
+            'wholesale_price' => 'decimal:2',
             'discount' => 'decimal:4',
             'status' => ProductStatus::class,
         ];

@@ -62,7 +62,7 @@ class ProductService
     }
 
     /**
-     * @param  array{name: string, sku: string, barcode: string, price: float, discount: float, status: string, kind?: string}  $data
+     * @param  array{name: string, sku: string, barcode: string, price: float, wholesale_price?: float|null, discount: float, status: string, kind?: string}  $data
      */
     public function create(array $data, string $actor): Product
     {
@@ -74,6 +74,7 @@ class ProductService
                 'name' => $data['name'],
                 'kind' => $data['kind'] ?? 'EDT',
                 'price' => $data['price'],
+                'wholesale_price' => $data['wholesale_price'] ?? null,
                 'discount' => $data['discount'],
                 'status' => $data['status'],
             ]);
@@ -86,7 +87,7 @@ class ProductService
     }
 
     /**
-     * @param  array{name: string, main_code: string, sku: string, barcode: string, price: float, discount: float, status: string}  $data
+     * @param  array{name: string, main_code: string, sku: string, barcode: string, price: float, wholesale_price?: float|null, discount: float, status: string}  $data
      */
     public function update(Product $product, array $data, string $actor): Product
     {
@@ -102,6 +103,8 @@ class ProductService
                 'price' => $data['price'],
                 'discount' => $data['discount'],
                 'status' => $data['status'],
+                /* Ключа нет — оптовую цену не трогают: пустое поле формы приходит как null явно. */
+                ...(array_key_exists('wholesale_price', $data) ? ['wholesale_price' => $data['wholesale_price']] : []),
             ]);
 
             if ($priceBefore !== (float) $product->price) {
@@ -154,23 +157,31 @@ class ProductService
      *
      * Status is deliberately left untouched on update: a product an administrator hid
      * from sale must not silently reappear just because its sku is still in the price
-     * list. Sku itself never changes here either — it is the match key that produced
-     * $existing in the first place.
+     * list. Sku is written on every update, not only when it produced $existing: a
+     * supplier renumbering an article is matched by {@see ImportService} on barcode or
+     * main code instead, and that row's new sku must land on the record it renamed.
      *
-     * @param  array{mainCode: string, sku: string, barcode: string, name: string, price: float, discount: float}  $row
+     * Пустая колонка опта в файле оставляет оптовую цену карточки как есть — see
+     * {@see ImportService::payload()}.
+     *
+     * @param  array{mainCode: string, sku: string, barcode: string, name: string, price: float, discount: float, wholesalePrice?: float|null}  $row
      * @return 'created'|'updated'
      */
     public function upsertFromImport(array $row, ?Product $existing, string $actor): string
     {
+        $wholesale = $row['wholesalePrice'] ?? null;
+
         if ($existing instanceof Product) {
             $priceBefore = (float) $existing->price;
 
             $existing->update([
                 'main_code' => $row['mainCode'] !== '' ? $row['mainCode'] : $existing->main_code,
+                'sku' => $row['sku'],
                 'barcode' => $row['barcode'],
                 'name' => $row['name'],
                 'price' => $row['price'],
                 'discount' => $row['discount'],
+                ...($wholesale !== null ? ['wholesale_price' => $wholesale] : []),
             ]);
 
             if ($priceBefore !== (float) $existing->price) {
@@ -193,6 +204,7 @@ class ProductService
             'name' => $row['name'],
             'kind' => 'EDT',
             'price' => $row['price'],
+            'wholesale_price' => $wholesale,
             'discount' => $row['discount'],
             'status' => ProductStatus::Active->value,
         ]);

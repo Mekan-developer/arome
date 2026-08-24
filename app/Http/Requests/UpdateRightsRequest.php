@@ -13,34 +13,47 @@ class UpdateRightsRequest extends FormRequest
     }
 
     /**
-     * Настраивается ровно одно: какие поля карточки уходят продавцу. Строка
+     * Настраивается одно: какие поля карточки уходят продавцу и менеджеру. Строка
      * администратора неизменяема, поэтому в запросе её просто нет.
      *
      * @return array<string, mixed>
      */
     public function rules(): array
     {
-        return [
-            'fields' => ['required', 'array'],
-            'fields.*' => ['boolean'],
-            ...collect(RightsService::panelFields())
-                ->mapWithKeys(fn (array $field): array => [
-                    'fields.'.$field['key'] => ['sometimes', 'boolean'],
-                ])
-                ->all(),
+        $rules = [
+            'roles' => ['required', 'array'],
         ];
+
+        foreach (RightsService::editableRoles() as $role) {
+            $rules['roles.'.$role] = ['sometimes', 'array'];
+
+            foreach (RightsService::panelFields() as $field) {
+                $rules['roles.'.$role.'.'.$field['key']] = ['sometimes', 'boolean'];
+            }
+        }
+
+        return $rules;
     }
 
     /**
-     * @return array<string, bool>
+     * Приходит только то, что панель предлагает переключать: колонка, придержанная на
+     * сервере, и роль, которой в матрице нет, из запроса выбрасываются.
+     *
+     * @return array<string, array<string, bool>>
      */
     public function payload(): array
     {
         $allowed = array_column(RightsService::panelFields(), 'key');
+        $roles = $this->validated()['roles'];
 
-        return collect($this->validated()['fields'])
-            ->only($allowed)
-            ->map(fn ($visible): bool => (bool) $visible)
+        return collect(RightsService::editableRoles())
+            ->filter(fn (string $role): bool => isset($roles[$role]) && is_array($roles[$role]))
+            ->mapWithKeys(fn (string $role): array => [
+                $role => collect($roles[$role])
+                    ->only($allowed)
+                    ->map(fn ($visible): bool => (bool) $visible)
+                    ->all(),
+            ])
             ->all();
     }
 
@@ -50,7 +63,7 @@ class UpdateRightsRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'fields.required' => 'Политика пуста — нечего сохранять.',
+            'roles.required' => 'Политика пуста — нечего сохранять.',
         ];
     }
 }

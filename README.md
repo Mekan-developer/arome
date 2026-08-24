@@ -6,9 +6,8 @@
 Приложение построено как SPA на Inertia.js: серверная маршрутизация Laravel + Vue 3 на клиенте,
 без vue-router и без сторонних UI-китов — все компоненты собственные (см. [Дизайн-система](#дизайн-система)).
 
-> **Статус:** каркас проекта. Настроены Laravel 13, Inertia v3, Vue 3, Vite, окружение Docker.
-> Разделы панели реализуются по спецификации [AROMA-ADMIN-PROMPT.md](AROMA-ADMIN-PROMPT.md) —
-> это основной документ с точными требованиями к вёрстке, данным и поведению экранов.
+> **Статус:** разделы панели реализованы, окружение Docker готово к развёртыванию —
+> см. [Деплой](#деплой).
 
 ---
 
@@ -38,25 +37,27 @@
 
 ```bash
 cp .env.example .env
-# в .env укажите параметры БД, совпадающие с docker-compose.yml:
+# в .env укажите параметры БД под docker-compose.yml:
 # DB_CONNECTION=pgsql, DB_HOST=db, DB_PORT=5432,
-# DB_DATABASE=aroma_db, DB_USERNAME=admin, DB_PASSWORD=secret
-# COMPOSE_PROJECT_NAME=aroma
+# DB_DATABASE=aroma, DB_USERNAME=aroma, DB_PASSWORD=…, REDIS_PASSWORD=…
 
 docker compose up -d --build
-docker compose exec app php artisan key:generate
+docker compose run --rm artisan key:generate
 ```
 
-Панель — http://localhost:8000
+Панель — http://localhost:8090
 
-Контейнер `app` на каждом старте сам прогоняет `migrate --force` и `db:seed --force`,
-поэтому база готова к первому входу без ручных команд. Сидер создаёт единственную
-учётку — главного администратора по `ADMIN_LOGIN` / `ADMIN_PASSWORD` из `.env`
-(по умолчанию `admin` / `admin12345`), и при перезапуске освежает её пароль из `.env`.
-Доступ к служебной консоли `/su` — `docker compose exec app php artisan aroma:superadmin`.
+Контейнер `php` на каждом старте сам прогоняет `migrate --force` и `db:seed --force`
+(`RUN_MIGRATIONS=true` в `docker-compose.yml`), поэтому база готова к первому входу
+без ручных команд. Сидер создаёт единственную учётку — главного администратора по
+`ADMIN_LOGIN` / `ADMIN_PASSWORD` из `.env` (по умолчанию `admin` / `admin12345`), и
+при перезапуске освежает её пароль из `.env`. Служебная консоль `/su` —
+`docker compose run --rm artisan aroma:superadmin`.
 
-Сервисы: `app` (PHP-FPM 8.3), `nginx` (порт 8000), `db` (PostgreSQL 16, порт 5432),
-`redis` (порт 6379). Фронтенд собирается на этапе сборки образа (`npm run build`).
+Сервисы: `php` (PHP-FPM 8.3), `nginx` (порт 8090), `db` (PostgreSQL 16, порт 5433),
+`redis` (порт 6369), `scheduler` (планировщик), `node` (Vite с HMR, порт 5163) и
+разовый `artisan` под профилем `tools`. В dev код примонтирован с хоста, а сборка
+кэшей и OPcache без revalidate выключены — правки видны сразу.
 
 ### Вариант 2 — локально
 
@@ -67,6 +68,55 @@ composer run dev   # сервер, обработчик очереди, логи
 
 `composer setup` использует настройки БД из `.env`; по умолчанию это SQLite
 (`database/database.sqlite`). Приложение будет доступно на http://localhost:8000.
+
+---
+
+## Деплой
+
+**Полная пошаговая инструкция — [DEPLOY.md](DEPLOY.md).** Там же разобраны частые
+ошибки: 500 из-за пустого `APP_KEY`, недоступный npm-реестр, незапущенный nginx,
+старый UI после деплоя.
+
+Прод собирается тем же `docker/php/Dockerfile`, но другим набором файлов: код и
+собранный фронтенд уезжают внутрь образа, `storage` становится именованным томом,
+nginx получает копию `public/` отдельной стадией. Из этого следует главное правило:
+**после изменения кода образ нужно пересобирать** — одного `git pull` на сервере мало.
+
+Боевой сервер: домен `arome-tm.com`, код в `/srv/projects/arome`. 80-й порт держит
+nginx, установленный на самом сервере (`docker/nginx/host/arome-tm.com.conf`), а
+контейнер публикуется только на `127.0.0.1:8080` — дёрнуть панель по `http://IP:8080`
+в обход прокси нельзя, и порт 8080 в firewall открывать не нужно.
+
+```bash
+cd /srv/projects/arome
+cp .env.production.example .env.production   # заполнить пароли, APP_KEY — на шаге ниже
+
+docker compose --env-file .env.production \
+  -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Оба `-f` и `--env-file` обязательны — почему именно, расписано в
+[DEPLOY.md](DEPLOY.md#сокращение-команд).
+
+Обе внешние зависимости сборки заведены на зеркала, потому что напрямую наружу
+сервер не пускают: npm идёт через `nexus.telecom.tm` (`ARG NPM_REGISTRY`), apt —
+через `mirror.yandex.ru` (`ARG DEBIAN_MIRROR`). Дефолты перебиваются через
+`--build-arg` там, где есть прямой доступ.
+
+На старте контейнер `php` сам догоняет схему, прогоняет сидер и собирает кэши
+config/route/view/event. Планировщик крутится отдельным контейнером и 1-го и 16-го
+числа снимает дамп базы в `storage/app/backups` (том `storage_data`).
+
+TLS сейчас нет: `SESSION_SECURE_COOKIE` в `.env.production` остаётся выключенным,
+иначе кука не долетит по http и вход перестанет работать. Заголовки `X-Forwarded-*`
+контейнерный nginx перебивает своими значениями (`docker/nginx/conf.d/nginx.conf`) —
+Laravel доверяет всем прокси (`trustProxies at: '*'`), а значит клиентским верить
+нельзя. Реальный IP клиента разворачивается обратно в `$remote_addr` директивами
+`set_real_ip_from`, и доверяют заголовку только с приватных адресов.
+
+`docker-compose.override.yml` — dev-only (порт 8090, бинд-маунт кода, Vite) и в
+репозиторий не едет, но Compose подхватывает его автоматически, если файл лежит
+рядом. На сервере его быть не должно.
 
 ---
 
@@ -114,7 +164,8 @@ resources/
   css/app.css           токены дизайн-системы
   views/                единственный blade-шаблон приложения
 routes/web.php
-docker/                 php/Dockerfile (multi-stage), nginx/conf.d/aroma.conf
+docker/                 php/Dockerfile (multi-stage), nginx/conf.d/nginx.conf,
+                        nginx/host/arome-tm.com.conf — конфиг для nginx на сервере
 tests/                  Feature и Unit (PHPUnit)
 ```
 

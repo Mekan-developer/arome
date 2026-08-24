@@ -1,92 +1,51 @@
-x-logging: &logging
-  driver: json-file
-  options: { max-size: "10m", max-file: "3" }
-
-x-build-args: &build-args
-  UID: ${UID:-1000}
-  ALPINE_MIRROR: ${ALPINE_MIRROR:-https://mirror.yandex.ru/mirrors/alpine}
-  COMPOSER_MIRROR: ${COMPOSER_MIRROR:-}
-  NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmjs.org/}
-
-x-app-base: &app-base
-  build:
-    context: .
-    dockerfile: docker/php/Dockerfile
-    target: runtime
-    args: *build-args
-  image: aroma-app:latest
-  pull_policy: build
-  restart: unless-stopped
-  working_dir: /var/www/html
-  env_file: .env
-  volumes:
-    - storage_app:/var/www/html/storage/app
-    - backups:/var/www/html/storage/app/backups
+x-php-build: &app-base
+  image: arome-php:local
+  env_file:
+    - .env
+  networks:
+    - arome_network
   depends_on:
     db:
       condition: service_healthy
     redis:
       condition: service_healthy
-  networks: [aroma_network]
-  logging: *logging
 
 services:
-  app:
+  php:
     <<: *app-base
-    container_name: aroma_app
+    build:
+      context: .
+      dockerfile: ./docker/php/Dockerfile
+      target: app
+    container_name: arome_app
     environment:
       RUN_MIGRATIONS: "true"
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z 127.0.0.1 9000 || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
+    user: www-data
+    restart: unless-stopped
 
   scheduler:
     <<: *app-base
-    container_name: aroma_scheduler
+    container_name: arome_scheduler
+    user: www-data
     command: php artisan schedule:work
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      app:
-        condition: service_healthy
+    restart: unless-stopped
 
   nginx:
-    build:
-      context: .
-      dockerfile: docker/php/Dockerfile
-      target: web
-      args: *build-args
-    image: aroma-web:latest
-    pull_policy: build
-    container_name: aroma_nginx
+    image: nginx:1.27-alpine
+    container_name: arome_nginx
     restart: unless-stopped
+    ports:
+      - 80:80
     volumes:
-      - storage_app:/var/www/html/storage/app:ro
-    healthcheck:
-      # Именно 127.0.0.1, а не localhost: busybox-wget идёт сначала по ::1, а
-      # nginx слушает только IPv4 — штатный скрипт 10-listen-on-ipv6-by-default.sh
-      # правит default.conf, который из образа удалён. По localhost проверка
-      # всегда получала connection refused и контейнер висел unhealthy.
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx-health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      - ./docker/nginx/conf.d/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      app:
-        condition: service_healthy
+      - php
     networks:
-      - aroma_network
-      - proxy_net
-    logging: *logging
+      - arome_network
 
   db:
     image: postgres:16.14-alpine
-    container_name: aroma_db
+    container_name: arome_db
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USERNAME}
@@ -98,13 +57,12 @@ services:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
       interval: 10s
       timeout: 5s
-      retries: 5
-    networks: [aroma_network]
-    logging: *logging
+      retries: 10
+    networks: [arome_network]
 
   redis:
     image: redis:8.10-alpine
-    container_name: aroma_redis
+    container_name: arome_redis
     restart: unless-stopped
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
@@ -114,17 +72,19 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-    networks: [aroma_network]
-    logging: *logging
+    networks: [arome_network]
+
+  artisan:
+    <<: *app-base
+    entrypoint: ["php", "/var/www/laravel/artisan"]
+    user: www-data
+    profiles: ["tools"]
+    restart: "no"
 
 networks:
-  aroma_network:
+  arome_network:
     driver: bridge
-  proxy_net:
-    external: true
 
 volumes:
   db_data:
   redis_data:
-  storage_app:
-  backups:

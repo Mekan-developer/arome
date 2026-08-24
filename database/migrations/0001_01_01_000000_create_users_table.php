@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('login')->unique();
-            $table->enum('role', ['admin', 'seller', 'superadmin'])->default('seller');
+            $table->enum('role', ['admin', 'manager', 'seller', 'superadmin'])->default('seller');
             $table->string('password');
             $table->boolean('is_active')->default(true);
             $table->timestamp('last_login_at')->nullable();

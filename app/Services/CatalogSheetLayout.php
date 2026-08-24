@@ -4,9 +4,13 @@ namespace App\Services;
 
 /**
  * The one fact {@see ExportService} and {@see ImportService} both answer to: a price
- * list is always the same seven columns in the same position. Export writes this shape
+ * list is always the same eight columns in the same position. Export writes this shape
  * and import only ever reads this shape back — the two must never drift apart, so the
  * layout lives here once instead of twice.
+ *
+ * «Оптовая цена» дописана в конец, восьмой колонкой, а не втиснута рядом с розничной:
+ * прайсы у поставщиков уже сверстаны по A–G, и сдвиг колонок молча читал бы скидку как
+ * опт. Файл без колонки H остаётся валидным — опт у таких строк просто не меняется.
  */
 final class CatalogSheetLayout
 {
@@ -33,6 +37,8 @@ final class CatalogSheetLayout
 
     public const COLUMN_FINAL = 'G';
 
+    public const COLUMN_WHOLESALE = 'H';
+
     /**
      * Column letter => header text, in sheet order.
      *
@@ -46,6 +52,7 @@ final class CatalogSheetLayout
         self::COLUMN_RETAIL => 'Розничная цена',
         self::COLUMN_DISCOUNT => 'Скидки',
         self::COLUMN_FINAL => 'Цена со скидкой',
+        self::COLUMN_WHOLESALE => 'Оптовая цена',
     ];
 
     /**
@@ -61,6 +68,7 @@ final class CatalogSheetLayout
         self::COLUMN_RETAIL => 16,
         self::COLUMN_DISCOUNT => 10,
         self::COLUMN_FINAL => 12,
+        self::COLUMN_WHOLESALE => 16,
     ];
 
     /**
@@ -69,7 +77,7 @@ final class CatalogSheetLayout
     public static function note(): string
     {
         return sprintf(
-            'лист «%s» · колонки A–G · шапка в строке %d · данные с %d-й',
+            'лист «%s» · колонки A–H · шапка в строке %d · данные с %d-й',
             self::SHEET_NAME,
             self::HEADER_ROW,
             self::FIRST_DATA_ROW,

@@ -64,12 +64,25 @@ class ProductValidationTest extends TestCase
         ]);
     }
 
-    public function test_the_barcode_must_be_thirteen_digits(): void
+    public function test_a_barcode_of_any_length_is_accepted(): void
     {
-        $message = 'Штрихкод должен быть EAN-13 — ровно 13 цифр, иначе сканер в зале не найдёт товар.';
+        $this->createProduct(['sku' => '512001', 'barcode' => '801100399391'])->assertSessionHasNoErrors();
+        $this->createProduct(['sku' => '512002', 'barcode' => '80110039938021'])->assertSessionHasNoErrors();
+        $this->createProduct(['sku' => '512003', 'barcode' => 'ABC-7'])->assertSessionHasNoErrors();
+    }
 
-        $this->createProduct(['barcode' => '801100399391'])->assertSessionHasErrors(['barcode' => $message]);
-        $this->createProduct(['barcode' => '80110039938021'])->assertSessionHasErrors(['barcode' => $message]);
+    public function test_the_barcode_is_required(): void
+    {
+        $this->createProduct(['barcode' => ''])->assertSessionHasErrors([
+            'barcode' => 'Не заполнен штрихкод — без него сканер в зале не найдёт товар.',
+        ]);
+    }
+
+    public function test_the_barcode_stops_at_sixty_four_characters(): void
+    {
+        $this->createProduct(['barcode' => str_repeat('8', 65)])->assertSessionHasErrors([
+            'barcode' => 'Штрихкод не длиннее 64 символов.',
+        ]);
     }
 
     public function test_the_barcode_must_be_unique(): void
@@ -107,6 +120,25 @@ class ProductValidationTest extends TestCase
         $this->assertSame('0.5000', $product->discount);
         $this->assertSame(210.0, $product->finalPrice());
         $this->assertStringStartsWith('AA', $product->main_code);
+    }
+
+    public function test_the_wholesale_price_is_optional_and_stored_as_given(): void
+    {
+        $this->createProduct(['sku' => '512100', 'barcode' => '8011003993901', 'wholesale_price' => 280.5])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('280.50', Product::firstWhere('sku', '512100')?->wholesale_price);
+
+        $this->createProduct(['sku' => '512101', 'barcode' => '8011003993902'])->assertSessionHasNoErrors();
+
+        $this->assertNull(Product::firstWhere('sku', '512101')?->wholesale_price);
+    }
+
+    public function test_the_wholesale_price_may_not_be_negative(): void
+    {
+        $this->createProduct(['wholesale_price' => -1])->assertSessionHasErrors([
+            'wholesale_price' => 'Оптовая цена не может быть отрицательной.',
+        ]);
     }
 
     public function test_a_seller_may_not_create_a_product(): void

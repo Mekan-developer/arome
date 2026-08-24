@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -25,7 +26,7 @@ class UpdateUserRequest extends FormRequest
             'login' => ['required', 'string', 'max:64', 'regex:/^[a-z0-9_]+$/', Rule::unique('users', 'login')->ignore($target->id)],
             // Свою роль не меняют: понизив себя, администратор закрыл бы раздел
             // «Пользователи» для всех сразу — вернуть его было бы уже некому.
-            'role' => ['required', Rule::in($this->roleIsLocked() ? [$target->role->value] : ['admin', 'seller'])],
+            'role' => ['required', Rule::in($this->roleIsLocked() ? [$target->role->value] : UserRole::assignableValues())],
             'points' => ['nullable', 'array'],
             'points.*' => ['integer', 'exists:points,id'],
         ];

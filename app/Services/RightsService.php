@@ -15,7 +15,7 @@ class RightsService
     private const CACHE_KEY = 'aroma.rights';
 
     /**
-     * The seven card fields, with the preview sample shown in the right-hand column.
+     * The eight card fields, with the preview sample shown in the right-hand column.
      *
      * @var list<array{key: string, title: string, sample: string}>
      */
@@ -26,6 +26,7 @@ class RightsService
         ['key' => 'barcode', 'title' => 'Штрихкод', 'sample' => '8011003993802'],
         ['key' => 'stock', 'title' => 'Остаток', 'sample' => 'БРК 12 · ГЛС 4 · М30 0'],
         ['key' => 'retail', 'title' => 'Розничная цена', 'sample' => '1 415,88 TMT'],
+        ['key' => 'wholesale', 'title' => 'Оптовая цена', 'sample' => '920,00 TMT'],
         ['key' => 'discount', 'title' => 'Скидка и цена со скидкой', 'sample' => '50 % · 757,62 TMT'],
     ];
 
@@ -42,7 +43,18 @@ class RightsService
      */
     public const ROLES = [
         ['key' => 'admin', 'title' => 'Администратор', 'note' => 'Веб-панель: каталог, цены, импорт, доступы. Менять нельзя', 'editable' => false],
+        ['key' => 'manager', 'title' => 'Менеджер', 'note' => 'Мобильное приложение, как у продавца, но с оптовой ценой', 'editable' => true],
         ['key' => 'seller', 'title' => 'Продавец', 'note' => 'Только мобильное приложение — данные из этой панели по API', 'editable' => true],
+    ];
+
+    /**
+     * Поля, у которых политика по умолчанию не «видно всем». Оптовая цена — граница
+     * между менеджером и продавцом: пока строки в базе нет, продавец её не получает.
+     *
+     * @var array<string, array<string, bool>>
+     */
+    private const DEFAULTS = [
+        'seller' => ['wholesale' => false],
     ];
 
     /**
@@ -70,7 +82,7 @@ class RightsService
 
             foreach (self::ROLES as $role) {
                 foreach (self::FIELDS as $field) {
-                    $matrix[$role['key']][$field['key']] = true;
+                    $matrix[$role['key']][$field['key']] = self::DEFAULTS[$role['key']][$field['key']] ?? true;
                 }
             }
 
@@ -104,33 +116,69 @@ class RightsService
     }
 
     /**
-     * Persist the seller policy. The admin row is ignored on purpose — it cannot change.
+     * Роли, строку которых панель разрешает править. Администратор в список не входит:
+     * ему поля карточки видны всегда.
      *
-     * @param  array<string, bool>  $fields
+     * @return list<string>
      */
-    public function save(array $fields, string $actor, AuditService $audit): void
+    public static function editableRoles(): array
     {
-        DB::transaction(function () use ($fields, $actor, $audit): void {
-            foreach (self::FIELDS as $field) {
-                $key = $field['key'];
+        return array_values(array_map(
+            fn (array $role): string => $role['key'],
+            array_filter(self::ROLES, fn (array $role): bool => $role['editable']),
+        ));
+    }
 
-                if (! array_key_exists($key, $fields)) {
-                    continue;
-                }
-
-                $right = RoleFieldRight::firstOrNew(['role' => 'seller', 'field' => $key]);
-                $was = $right->exists ? $right->visible : true;
-                $now = (bool) $fields[$key];
-
-                if ($was !== $now) {
-                    $audit->record($actor, 'Права роли изменены', 'Продавец · '.$field['title'], $was ? 'видно' : 'скрыто', $now ? 'видно' : 'скрыто', 'rights');
-                }
-
-                $right->visible = $now;
-                $right->save();
+    /**
+     * Persist the policy of the editable roles. The admin row is ignored on purpose —
+     * it cannot change.
+     *
+     * @param  array<string, array<string, bool>>  $policy  роль => поле => видно
+     */
+    public function save(array $policy, string $actor, AuditService $audit): void
+    {
+        DB::transaction(function () use ($policy, $actor, $audit): void {
+            foreach (self::editableRoles() as $role) {
+                $this->saveRole($role, $policy[$role] ?? [], $actor, $audit);
             }
         });
 
         Cache::forget(self::CACHE_KEY);
+    }
+
+    /**
+     * @param  array<string, bool>  $fields
+     */
+    private function saveRole(string $role, array $fields, string $actor, AuditService $audit): void
+    {
+        foreach (self::FIELDS as $field) {
+            $key = $field['key'];
+
+            if (! array_key_exists($key, $fields)) {
+                continue;
+            }
+
+            $right = RoleFieldRight::firstOrNew(['role' => $role, 'field' => $key]);
+            $was = $right->exists ? $right->visible : (self::DEFAULTS[$role][$key] ?? true);
+            $now = (bool) $fields[$key];
+
+            if ($was !== $now) {
+                $audit->record($actor, 'Права роли изменены', self::roleTitle($role).' · '.$field['title'], $was ? 'видно' : 'скрыто', $now ? 'видно' : 'скрыто', 'rights');
+            }
+
+            $right->visible = $now;
+            $right->save();
+        }
+    }
+
+    private static function roleTitle(string $role): string
+    {
+        foreach (self::ROLES as $entry) {
+            if ($entry['key'] === $role) {
+                return $entry['title'];
+            }
+        }
+
+        return $role;
     }
 }

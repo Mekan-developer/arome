@@ -36,6 +36,7 @@ const tagColor = computed(() => TAG_COLORS[kind.value])
         <span class="mono right"><span class="label">Розн. цена</span>{{ row.retail }}</span>
         <span class="mono right"><span class="label">Скидка</span>{{ row.discount || '—' }}</span>
         <span class="mono right"><span class="label">Со скидкой</span>{{ row.final || '= розн.' }}</span>
+        <span class="mono right"><span class="label">Опт.</span>{{ row.wholesale || '—' }}</span>
 
         <span class="problem">
             <template v-if="kind !== 'ok'">

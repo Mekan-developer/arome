@@ -10,8 +10,8 @@ return new class extends Migration
     {
         Schema::create('role_field_rights', function (Blueprint $table) {
             $table->id();
-            $table->enum('role', ['admin', 'seller']);
-            $table->enum('field', ['mainCode', 'name', 'sku', 'barcode', 'stock', 'retail', 'discount']);
+            $table->enum('role', ['admin', 'manager', 'seller']);
+            $table->enum('field', ['mainCode', 'name', 'sku', 'barcode', 'stock', 'retail', 'wholesale', 'discount']);
             $table->boolean('visible')->default(true);
             $table->timestamps();
 

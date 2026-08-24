@@ -72,6 +72,44 @@ class UserTest extends TestCase
         $this->assertFalse($created->managesStaff());
     }
 
+    /**
+     * Менеджер — третья выдаваемая роль: то же мобильное приложение, что у продавца,
+     * но с оптовой ценой. Панель ему, как и продавцу, не принадлежит.
+     */
+    public function test_the_root_administrator_issues_managers(): void
+    {
+        $this->actingAs($this->admin())
+            ->post('/users', [
+                'name' => 'Айгуль Реджепова',
+                'login' => 'aygul',
+                'role' => 'manager',
+                'password' => 'parol123',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $created = User::where('login', 'aygul')->firstOrFail();
+
+        $this->assertSame('manager', $created->role->value);
+        $this->assertSame('Менеджер', $created->role->label());
+        $this->assertFalse($created->managesCatalog());
+        $this->assertFalse($created->managesStaff());
+    }
+
+    public function test_a_manager_appears_in_the_staff_list(): void
+    {
+        User::factory()->create(['role' => 'manager', 'name' => 'Айгуль Реджепова']);
+
+        $this->actingAs($this->admin())
+            ->get('/users')
+            ->assertInertia(fn ($page) => $page->where(
+                'staff',
+                fn ($staff) => collect($staff)->contains(
+                    fn (array $row): bool => $row['role'] === 'manager' && $row['roleTitle'] === 'Менеджер',
+                ),
+            ));
+    }
+
     public function test_an_admin_can_edit_a_colleagues_name_login_and_role(): void
     {
         $target = User::factory()->create(['name' => 'Гөзел Сапарова', 'login' => 'gozel', 'role' => 'seller']);

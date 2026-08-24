@@ -112,8 +112,23 @@ class ImportTest extends TestCase
         $this->assertSame('barcode', $row['field']);
     }
 
-    public function test_a_barcode_already_used_by_a_different_article_is_rejected(): void
+    /**
+     * A supplier renumbering an article keeps the barcode — the row's sku is new, so
+     * this is a rename of the existing product, not a clash. {@see self::test_confirming_renames_a_product_matched_by_barcode_when_the_sku_is_new()}
+     * covers what confirm() actually does with it.
+     */
+    public function test_a_barcode_already_used_by_a_different_article_is_a_rename_when_the_sku_is_new(): void
     {
+        Product::factory()->create(['sku' => '999999', 'barcode' => '8011003993802']);
+
+        $row = $this->analyzeRow(['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '']);
+
+        $this->assertSame('ok', $row['type']);
+    }
+
+    public function test_a_barcode_belonging_to_a_different_product_than_the_row_s_own_sku_is_still_rejected(): void
+    {
+        Product::factory()->create(['sku' => '510028', 'barcode' => '8011003990001']);
         Product::factory()->create(['sku' => '999999', 'barcode' => '8011003993802']);
 
         $row = $this->analyzeRow(['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '']);
@@ -150,8 +165,21 @@ class ImportTest extends TestCase
         $this->assertNull($row['field']);
     }
 
-    public function test_a_main_code_already_used_by_a_different_article_is_rejected(): void
+    /**
+     * Same rename logic as the barcode case above, keyed on the main code instead.
+     */
+    public function test_a_main_code_already_used_by_a_different_article_is_a_rename_when_the_sku_is_new(): void
     {
+        Product::factory()->create(['sku' => '999999', 'main_code' => 'AA9999']);
+
+        $row = $this->analyzeRow(['AA9999', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '']);
+
+        $this->assertSame('ok', $row['type']);
+    }
+
+    public function test_a_main_code_belonging_to_a_different_product_than_the_row_s_own_sku_is_still_rejected(): void
+    {
+        Product::factory()->create(['sku' => '510028', 'main_code' => 'AA1001']);
         Product::factory()->create(['sku' => '999999', 'main_code' => 'AA9999']);
 
         $row = $this->analyzeRow(['AA9999', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '']);
@@ -159,6 +187,21 @@ class ImportTest extends TestCase
         $this->assertSame('err', $row['type']);
         $this->assertSame('ОСНОВНОЙ КОД', $row['tag']);
         $this->assertStringContainsString('999999', $row['message']);
+    }
+
+    /**
+     * Barcode and main code disagree about which existing product this row would
+     * rename — apply() cannot resolve two different products to one row, so this stays
+     * an error even though the sku itself is new.
+     */
+    public function test_a_barcode_and_main_code_pointing_at_different_products_is_rejected(): void
+    {
+        Product::factory()->create(['sku' => '888888', 'main_code' => 'AA8888']);
+        Product::factory()->create(['sku' => '999999', 'barcode' => '8011003993802']);
+
+        $row = $this->analyzeRow(['AA8888', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '']);
+
+        $this->assertSame('err', $row['type']);
     }
 
     public function test_analyze_runs_a_bounded_number_of_queries_regardless_of_row_count(): void
@@ -256,6 +299,131 @@ class ImportTest extends TestCase
             'product_id' => $existing->id,
             'reason' => 'импорт',
         ]);
+    }
+
+    /**
+     * The row's sku is new to the catalogue, but its barcode already belongs to a
+     * product — that product is renamed and updated, not skipped as a clash. This is
+     * the case a supplier renumbering an article without reissuing a barcode produces.
+     */
+    public function test_confirming_renames_a_product_matched_by_barcode_when_the_sku_is_new(): void
+    {
+        $existing = Product::factory()->create([
+            'sku' => '999999',
+            'main_code' => 'AA1001',
+            'barcode' => '8011003993802',
+            'name' => 'OLD NAME',
+            'price' => 1000,
+        ]);
+
+        $file = $this->workbook([
+            ['AA1001', '510028', '8011003993802', 'NEW NAME', '1415.88', ''],
+        ]);
+
+        $admin = $this->admin();
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
+        $this->assertSame('ok', $props['rows'][0]['type']);
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertDatabaseCount('products', 1);
+        $existing->refresh();
+        $this->assertSame('510028', $existing->sku);
+        $this->assertSame('NEW NAME', $existing->name);
+        $this->assertSame(1415.88, (float) $existing->price);
+    }
+
+    /**
+     * Same rename, this time resolved through the main code instead of the barcode.
+     */
+    public function test_confirming_renames_a_product_matched_by_main_code_when_the_sku_is_new(): void
+    {
+        $existing = Product::factory()->create([
+            'sku' => '999999',
+            'main_code' => 'AA9999',
+            'barcode' => '8011003993802',
+            'name' => 'OLD NAME',
+        ]);
+
+        $file = $this->workbook([
+            ['AA9999', '510028', '8011003993802', 'NEW NAME', '1415.88', ''],
+        ]);
+
+        $admin = $this->admin();
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertDatabaseCount('products', 1);
+        $existing->refresh();
+        $this->assertSame('510028', $existing->sku);
+        $this->assertSame('NEW NAME', $existing->name);
+    }
+
+    /**
+     * Колонка H прайса — оптовая цена. Пустая ячейка не обнуляет опт карточки: прайсы
+     * поставщиков сверстаны по старым семи колонкам, и такой файл не должен стирать то,
+     * что администратор проставил руками.
+     */
+    public function test_confirming_writes_the_wholesale_price_and_a_blank_column_keeps_it(): void
+    {
+        $existing = Product::factory()->create([
+            'sku' => '510028',
+            'main_code' => 'AA1001',
+            'barcode' => '8011003993802',
+            'wholesale_price' => 700,
+        ]);
+
+        $admin = $this->admin();
+
+        $file = $this->workbook([
+            ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '', '', '920,50'],
+        ]);
+
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
+
+        $this->assertSame('920,50', $props['rows'][0]['wholesale']);
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertSame('920.50', $existing->refresh()->wholesale_price);
+
+        $blank = $this->workbook([
+            ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+        ]);
+
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $blank]));
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertSame('920.50', $existing->refresh()->wholesale_price);
+    }
+
+    public function test_a_non_numeric_wholesale_price_is_rejected(): void
+    {
+        $row = $this->analyzeRow([
+            'AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '', '', '920 манат',
+        ]);
+
+        $this->assertSame('err', $row['type']);
+        $this->assertSame('ОПТ', $row['tag']);
+        $this->assertSame('wholesale', $row['field']);
     }
 
     public function test_confirming_assigns_a_main_code_when_the_file_leaves_it_blank(): void
@@ -438,7 +606,10 @@ class ImportTest extends TestCase
     }
 
     /**
-     * @param  list<array{0: string, 1: string, 2: string, 3: string, 4: string, 5: string}>  $rows
+     * Строка листа, слева направо и настолько далеко, насколько нужно тесту: колонки
+     * после последней заданной остаются пустыми.
+     *
+     * @param  list<list<string>>  $rows
      */
     private function workbook(array $rows): UploadedFile
     {
@@ -463,7 +634,7 @@ class ImportTest extends TestCase
     /**
      * Analyzes a single-row workbook and returns that row as the server validated it.
      *
-     * @param  array{0: string, 1: string, 2: string, 3: string, 4: string, 5: string}  $row
+     * @param  list<string>  $row
      * @return array<string, mixed>
      */
     private function analyzeRow(array $row): array

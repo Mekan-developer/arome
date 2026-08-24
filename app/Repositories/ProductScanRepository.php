@@ -91,7 +91,7 @@ class ProductScanRepository
     private function withProduct(bool $withStock): Builder
     {
         return ProductScan::query()->with(['product' => fn ($product) => $product
-            ->select(['id', 'main_code', 'sku', 'barcode', 'name', 'kind', 'price', 'discount', 'status'])
+            ->select(['id', 'main_code', 'sku', 'barcode', 'name', 'kind', 'price', 'wholesale_price', 'discount', 'status'])
             ->when($withStock, fn ($query) => $query->with('stocks:id,product_id,point_id,qty'))]);
     }
 }

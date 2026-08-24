@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import CheckBox from '@/Components/CheckBox.vue'
 import StatusTag from '@/Components/StatusTag.vue'
 import PriceCell from '@/Components/PriceCell.vue'
-import { formatPercent } from '@/Composables/useFormat.js'
+import { formatMoney, formatPercent } from '@/Composables/useFormat.js'
 
 /**
  * One line of the price list. The signature element: the category stripe runs the full
@@ -28,12 +28,19 @@ const KIND_COLORS = {
 
 const stripe = computed(() => KIND_COLORS[props.product.kind] ?? 'var(--c-edc)')
 const discounted = computed(() => Number(props.product.discount) > 0)
+
+/** Опт есть не у каждого товара: пустое поле на телефоне убирает ярус целиком. */
+const wholesale = computed(() =>
+    props.product.wholesalePrice === null || props.product.wholesalePrice === undefined
+        ? null
+        : Number(props.product.wholesalePrice),
+)
 </script>
 
 <template>
     <div
         class="row"
-        :class="{ 'row--on': selected || active, 'row--sale': discounted }"
+        :class="{ 'row--on': selected || active, 'row--sale': discounted, 'row--wholesale': wholesale !== null }"
         :style="{ gridTemplateColumns: columns }"
         role="button"
         tabindex="0"
@@ -59,6 +66,11 @@ const discounted = computed(() => Number(props.product.discount) > 0)
 
         <span class="row__cell row__cell--right row__cell--price">
             <PriceCell :price="product.price" :discount="product.discount" />
+        </span>
+
+        <span class="row__cell row__cell--right row__cell--wholesale">
+            <span v-if="wholesale !== null" class="row__wholesale">{{ formatMoney(wholesale) }}</span>
+            <span v-else class="row__empty">—</span>
         </span>
 
         <span class="row__cell row__cell--right row__cell--discount">
@@ -154,6 +166,14 @@ const discounted = computed(() => Number(props.product.discount) > 0)
     color: var(--danger);
 }
 
+/* Опт — служебная цена: тем же кеглем, что розница, но приглушённее её. */
+.row__wholesale {
+    font-family: var(--f-data);
+    font-variant-numeric: tabular-nums;
+    font-size: 12.5px;
+    color: var(--ink-2);
+}
+
 .row__empty {
     font-family: var(--f-data);
     font-size: 12.5px;
@@ -162,17 +182,18 @@ const discounted = computed(() => Number(props.product.discount) > 0)
 
 /*
  * Телефон: строка прайса сворачивается в ценник. Слева цветная полоса категории и
- * галочка, справа тремя ярусами — название и цена продажи, коды и перечёркнутая
- * розничная, статус и скидка. Товар без скидки не показывает розничную дважды:
- * ярусы с розничной и процентом просто уходят.
+ * галочка, справа ярусами — название и цена продажи, коды и перечёркнутая розничная,
+ * статус и скидка, а под ними опт. Товар без скидки не показывает розничную дважды:
+ * ярусы с розничной и процентом просто уходят, как и ярус опта у товара без опта.
  */
 @media (max-width: 767px) {
     .row {
         grid-template-columns: 6px 40px minmax(0, 1fr) auto !important;
         grid-template-areas:
-            'stripe check name   final'
-            'stripe check code   price'
-            'stripe check status discount';
+            'stripe check name      final'
+            'stripe check code      price'
+            'stripe check status    discount'
+            'stripe check wholesale wholesale';
         align-items: start;
         padding: 10px 0;
         column-gap: 4px;
@@ -233,8 +254,20 @@ const discounted = computed(() => Number(props.product.discount) > 0)
         font-size: 16px;
     }
 
+    .row__cell--wholesale {
+        grid-area: wholesale;
+        align-items: flex-start;
+    }
+
+    /* На телефоне у цифры нет шапки колонки — подпись едет вместе со значением. */
+    .row__wholesale::before {
+        content: 'опт ';
+        color: var(--ink-3);
+    }
+
     .row:not(.row--sale) .row__cell--price,
-    .row:not(.row--sale) .row__cell--discount {
+    .row:not(.row--sale) .row__cell--discount,
+    .row:not(.row--wholesale) .row__cell--wholesale {
         display: none;
     }
 }
