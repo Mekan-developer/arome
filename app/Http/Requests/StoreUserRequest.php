@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -21,7 +22,7 @@ class StoreUserRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'login' => ['required', 'string', 'max:64', 'regex:/^[a-z0-9_]+$/', Rule::unique('users', 'login')],
-            'role' => ['required', Rule::in(['admin', 'seller'])],
+            'role' => ['required', Rule::in(UserRole::assignableValues())],
             'password' => ['required', 'string', 'min:8', 'regex:/^\S+$/', 'regex:/[a-zA-Z]/', 'regex:/\d/'],
             'points' => ['nullable', 'array'],
             'points.*' => ['integer', 'exists:points,id'],

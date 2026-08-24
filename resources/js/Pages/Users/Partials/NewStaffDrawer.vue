@@ -79,11 +79,12 @@ const submit = () =>
             <FieldLabel>Роль</FieldLabel>
             <SelectField v-model="form.role" class="wide">
                 <option value="seller">Продавец</option>
+                <option value="manager">Менеджер</option>
                 <option value="admin">Администратор</option>
             </SelectField>
             <p class="note">
-                Продавец — только вход в мобильное приложение. Администратор — вся эта панель: каталог, цены, импорт,
-                сотрудники.
+                Продавец — только вход в мобильное приложение. Менеджер — то же приложение, но с оптовой ценой товара.
+                Администратор — вся эта панель: каталог, цены, импорт, сотрудники.
             </p>
         </div>
 

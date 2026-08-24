@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -17,7 +18,7 @@ class UserRepository
     {
         return User::query()
             ->select(['id', 'name', 'login', 'role', 'is_active', 'last_login_at', 'device'])
-            ->whereIn('role', ['admin', 'seller'])
+            ->whereIn('role', UserRole::assignableValues())
             ->when($withPoints, fn ($query) => $query->with('points:id,code,name,address'))
             ->orderBy('id')
             ->get();
