@@ -10,8 +10,12 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * The Excel import wizard. The uploaded sheet must be exactly what {@see ExportService}
- * produces — {@see CatalogSheetLayout} is the one definition both agree on — and the
- * key rows are matched on is the article (sku), never the row's position in the file.
+ * produces — {@see CatalogSheetLayout} is the one definition both agree on — and rows
+ * are matched on identity (sku, then barcode, then main code), never on the row's
+ * position in the file. Sku is tried first; when a row's sku is new but its barcode or
+ * main code already belongs to a product, that product is renamed rather than treated
+ * as a clash — a supplier renumbering an article without reissuing a new barcode is the
+ * normal case this covers, see {@see self::validateRow()}.
  *
  * Two passes read the same rows through the same validation:
  *  - {@see self::analyze()} is a dry run — it never touches the products table, only
@@ -56,7 +60,7 @@ class ImportService
     public function apply(array $rawRows, string $fileName, string $actor): array
     {
         return DB::transaction(function () use ($rawRows, $fileName, $actor): array {
-            [$rows, $existingBySku] = $this->validateRows($rawRows);
+            [$rows, $bySku, $byBarcode, $byMainCode] = $this->validateRows($rawRows);
 
             $created = 0;
             $updated = 0;
@@ -69,9 +73,19 @@ class ImportService
                     continue;
                 }
 
+                /*
+                 * Sku first, same as validateRow() judged it by. When the sku is new but
+                 * the barcode or main code already belongs to a product, that is a
+                 * renumbered article, not a new one — the row updates (and renames) it
+                 * instead of colliding with it.
+                 */
+                $existing = $bySku->get($row['sku'])
+                    ?? $byBarcode->get($row['barcode'])
+                    ?? ($row['mainCode'] !== '' ? $byMainCode->get($row['mainCode']) : null);
+
                 $action = $this->productService->upsertFromImport(
                     $this->payload($row),
-                    $existingBySku->get($row['sku']),
+                    $existing,
                     $actor,
                 );
 
@@ -164,7 +178,7 @@ class ImportService
      * have to run the same lookup a second time to decide create vs. update.
      *
      * @param  list<array<string, mixed>>  $rawRows
-     * @return array{0: list<array<string, mixed>>, 1: Collection<string, Product>}
+     * @return array{0: list<array<string, mixed>>, 1: Collection<string, Product>, 2: Collection<string, Product>, 3: Collection<string, Product>}
      */
     private function validateRows(array $rawRows): array
     {
@@ -194,25 +208,28 @@ class ImportService
         $rows = [];
 
         foreach ($rawRows as $raw) {
-            $rows[] = $this->validateRow($raw, $byBarcode, $byMainCode, $seen);
+            $rows[] = $this->validateRow($raw, $bySku, $byBarcode, $byMainCode, $seen);
         }
 
-        return [$rows, $bySku];
+        return [$rows, $bySku, $byBarcode, $byMainCode];
     }
 
     /**
      * One row, checked in the order an operator would want to fix things: identity
-     * first (sku is the match key), then the fields that block a database write, then
-     * the soft "will be created" notice. Only the first problem found is reported —
-     * the row goes back to "Исправить", not a wall of every check that failed.
+     * first (sku is the match key — falling back to barcode, then main code, when the
+     * sku is new; see the barcode/main-code checks below), then the fields that block a
+     * database write, then the soft "will be created" notice. Only the first problem
+     * found is reported — the row goes back to "Исправить", not a wall of every check
+     * that failed.
      *
      * @param  array<string, mixed>  $raw
+     * @param  Collection<string, Product>  $bySku
      * @param  Collection<string, Product>  $byBarcode
      * @param  Collection<string, Product>  $byMainCode
      * @param  array{sku: array<string,int>, barcode: array<string,string>, mainCode: array<string,string>}  $seen
      * @return array<string, mixed>
      */
-    private function validateRow(array $raw, Collection $byBarcode, Collection $byMainCode, array &$seen): array
+    private function validateRow(array $raw, Collection $bySku, Collection $byBarcode, Collection $byMainCode, array &$seen): array
     {
         $number = (int) $raw['row'];
         $sku = trim((string) ($raw['sku'] ?? ''));
@@ -228,12 +245,18 @@ class ImportService
         $wholesale = $wholesaleRaw === '' ? null : self::toFloat($wholesaleRaw);
 
         /*
-         * The prior claim on a barcode/main_code — either an earlier row in this same
-         * file, or an existing product already in the database. Null means unclaimed;
-         * equal to this row's own sku means it is this row's own product, not a clash.
+         * The prior claim on a barcode/main_code, split by source: a file-owner is an
+         * earlier row in this same import, a db-owner is a product already in the
+         * database. Null means unclaimed; equal to this row's own sku means it is this
+         * row's own product, not a clash.
          */
-        $barcodeOwner = $seen['barcode'][$barcodeDigits] ?? $byBarcode->get($barcodeDigits)?->sku;
-        $mainCodeOwner = $seen['mainCode'][$mainCode] ?? $byMainCode->get($mainCode)?->sku;
+        $skuExists = $bySku->has($sku);
+        $fileBarcodeOwner = $seen['barcode'][$barcodeDigits] ?? null;
+        $dbBarcodeOwner = $byBarcode->get($barcodeDigits)?->sku;
+        $barcodeOwner = $fileBarcodeOwner ?? $dbBarcodeOwner;
+        $fileMainCodeOwner = $seen['mainCode'][$mainCode] ?? null;
+        $dbMainCodeOwner = $byMainCode->get($mainCode)?->sku;
+        $mainCodeOwner = $fileMainCodeOwner ?? $dbMainCodeOwner;
 
         $issue = null;
 
@@ -245,7 +268,17 @@ class ImportService
             $issue = ['tag' => 'НОМЕНКЛАТУРА', 'field' => 'name', 'fix' => 'название', 'message' => 'Пустая номенклатура. Название обязательно — продавец ищет товар по нему.'];
         } elseif (strlen($barcodeDigits) !== 13) {
             $issue = ['tag' => 'ШТРИХКОД', 'field' => 'barcode', 'fix' => '13 цифр', 'message' => sprintf('В штрихкоде %d %s вместо 13. Проверьте, не потерялась ли цифра.', strlen($barcodeDigits), self::digitsWord(strlen($barcodeDigits)))];
-        } elseif ($barcodeOwner !== null && $barcodeOwner !== $sku) {
+        } elseif (
+            $barcodeOwner !== null && $barcodeOwner !== $sku
+            && ($fileBarcodeOwner !== null || $skuExists || ($mainCodeOwner !== null && $mainCodeOwner !== $barcodeOwner))
+        ) {
+            /*
+             * A db-owned barcode on a brand-new sku is not a clash — it is the same
+             * product re-numbered by the supplier, and apply() renames it. It only stays
+             * an error when the sku already belongs to someone else, the barcode was
+             * already claimed earlier in this same file, or the main code disagrees
+             * about which product this row renames.
+             */
             $issue = ['tag' => 'ШТРИХКОД', 'field' => 'barcode', 'fix' => 'новый штрихкод', 'message' => "Штрихкод «{$barcodeDigits}» уже используется товаром с артикулом «{$barcodeOwner}»."];
         } elseif ($retail === null || $retail <= 0) {
             $issue = ['tag' => 'ЦЕНА', 'field' => 'retail', 'fix' => 'число', 'message' => 'Цена нечисловая или не больше нуля. Уберите лишние символы — колонка числовая, валюта всегда TMT.'];
@@ -253,7 +286,10 @@ class ImportService
             $issue = ['tag' => 'СКИДКА', 'field' => 'discount', 'fix' => '0,2', 'message' => 'Скидка задана некорректно. В колонке «Скидки» ожидается доля от 0 до 1: например 0,2 или 20 % — не сумма и не больше единицы.'];
         } elseif ($wholesaleRaw !== '' && ($wholesale === null || $wholesale < 0)) {
             $issue = ['tag' => 'ОПТ', 'field' => 'wholesale', 'fix' => 'число', 'message' => 'Оптовая цена нечисловая или отрицательная. Колонка «Оптовая цена» числовая; оставьте её пустой, если опта у товара нет.'];
-        } elseif ($mainCode !== '' && $mainCodeOwner !== null && $mainCodeOwner !== $sku) {
+        } elseif (
+            $mainCode !== '' && $mainCodeOwner !== null && $mainCodeOwner !== $sku
+            && ($fileMainCodeOwner !== null || $skuExists || ($barcodeOwner !== null && $barcodeOwner !== $mainCodeOwner))
+        ) {
             $issue = ['tag' => 'ОСНОВНОЙ КОД', 'field' => 'mainCode', 'fix' => 'AA####', 'message' => "Основной код «{$mainCode}» уже используется товаром с артикулом «{$mainCodeOwner}»."];
         }
 

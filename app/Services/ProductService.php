@@ -157,8 +157,9 @@ class ProductService
      *
      * Status is deliberately left untouched on update: a product an administrator hid
      * from sale must not silently reappear just because its sku is still in the price
-     * list. Sku itself never changes here either — it is the match key that produced
-     * $existing in the first place.
+     * list. Sku is written on every update, not only when it produced $existing: a
+     * supplier renumbering an article is matched by {@see ImportService} on barcode or
+     * main code instead, and that row's new sku must land on the record it renamed.
      *
      * Пустая колонка опта в файле оставляет оптовую цену карточки как есть — see
      * {@see ImportService::payload()}.
@@ -175,6 +176,7 @@ class ProductService
 
             $existing->update([
                 'main_code' => $row['mainCode'] !== '' ? $row['mainCode'] : $existing->main_code,
+                'sku' => $row['sku'],
                 'barcode' => $row['barcode'],
                 'name' => $row['name'],
                 'price' => $row['price'],
