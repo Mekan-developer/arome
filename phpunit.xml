@@ -17,18 +17,40 @@
             <directory>app</directory>
         </include>
     </source>
+    <!--
+        В контейнере docker-compose раздаёт APP_ENV=local и DB_CONNECTION=pgsql
+        через env_file, и это настоящие переменные окружения процесса. Без
+        перекрытия набор уходил на рабочую базу — RefreshDatabase делал ей
+        migrate:fresh, — а APP_ENV=local вдобавок включал проверку CSRF и ронял
+        половину тестов на 419.
+
+        Дублирование <server> и <env> не лишнее. Репозиторий Env у Laravel
+        опрашивает адаптеры по порядку: $_SERVER, потом $_ENV, потом getenv().
+        PHPUnit по force="true" пишет только в два последних, поэтому без
+        <server> побеждало бы значение из env_file. <env> оставлен ради кода,
+        который читает getenv() напрямую.
+    -->
     <php>
-        <env name="APP_ENV" value="testing"/>
+        <server name="APP_ENV" value="testing" force="true"/>
+        <server name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <server name="CACHE_STORE" value="array" force="true"/>
+        <server name="DB_CONNECTION" value="sqlite" force="true"/>
+        <server name="DB_DATABASE" value=":memory:" force="true"/>
+        <server name="DB_URL" value="" force="true"/>
+        <server name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <server name="SESSION_DRIVER" value="array" force="true"/>
+
+        <env name="APP_ENV" value="testing" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
-        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="BCRYPT_ROUNDS" value="4" force="true"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
-        <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
-        <env name="DB_URL" value=""/>
+        <env name="CACHE_STORE" value="array" force="true"/>
+        <env name="DB_CONNECTION" value="sqlite" force="true"/>
+        <env name="DB_DATABASE" value=":memory:" force="true"/>
+        <env name="DB_URL" value="" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
-        <env name="QUEUE_CONNECTION" value="sync"/>
-        <env name="SESSION_DRIVER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="SESSION_DRIVER" value="array" force="true"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

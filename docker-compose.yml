@@ -18,6 +18,8 @@ services:
       dockerfile: ./docker/php/Dockerfile
       target: app
     container_name: arome_app
+    environment:
+      RUN_MIGRATIONS: "true"
     user: www-data
     restart: unless-stopped
 
@@ -51,7 +53,7 @@ services:
       POSTGRES_DB: ${DB_DATABASE}
     volumes:
       - db_data:/var/lib/postgresql/data
-    healthcheck:                     # NEW
+    healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
       interval: 10s
       timeout: 5s
@@ -65,7 +67,7 @@ services:
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     volumes:
       - redis_data:/data
-    healthcheck:                     # NEW
+    healthcheck:
       test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 3s

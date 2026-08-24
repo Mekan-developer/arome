@@ -1,8 +1,29 @@
-# docker-compose.prod.yml
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
-  php:       { volumes: !override [ storage_data:/var/www/laravel/storage ] }
-  scheduler: { volumes: !override [ storage_data:/var/www/laravel/storage ] }
-  artisan:   { volumes: !override [ storage_data:/var/www/laravel/storage ] }
+  # env_file и volumes перекрываются целиком, а не дополняются: без !override
+  # Compose дописал бы прод-файл к dev-овскому .env, а том — к бинд-маунту.
+  php:
+    env_file: !override [ .env.production ]
+    volumes: !override [ storage_data:/var/www/laravel/storage ]
+    logging: *logging
+
+  scheduler:
+    env_file: !override [ .env.production ]
+    volumes: !override [ storage_data:/var/www/laravel/storage ]
+    logging: *logging
+
+  artisan:
+    env_file: !override [ .env.production ]
+    volumes: !override [ storage_data:/var/www/laravel/storage ]
+    logging: *logging
+
+  # В проде public/ уезжает внутрь образа nginx: раздавать статику с бинд-маунта
+  # чужого контейнера нечем — кода на хосте нет.
   nginx:
     image: arome-nginx:local
     build:
@@ -10,6 +31,13 @@ services:
       dockerfile: ./docker/php/Dockerfile
       target: web
     volumes: !override []
+    logging: *logging
+
+  db:
+    logging: *logging
+
+  redis:
+    logging: *logging
 
 volumes:
   storage_data:

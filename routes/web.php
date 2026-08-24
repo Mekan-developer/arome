@@ -11,12 +11,6 @@ use App\Http\Controllers\SuperadminController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/debug-ip', fn () => [
-    'ip' => request()->ip(),
-    'scheme' => request()->getScheme(),
-    'url' => url('/'),
-]);
-
 Route::redirect('/', '/products');
 
 Route::middleware('guest')->group(function (): void {

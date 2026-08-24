@@ -100,15 +100,21 @@ class ProductTest extends TestCase
         $this->assertSame(['AAA', 'BBB'], collect($items)->pluck('name')->all());
     }
 
-    public function test_it_pages_by_twenty_five(): void
+    /**
+     * Размер страницы задаётся в aroma.per_page, а не зашит в репозиторий, поэтому
+     * ассерты считаются от конфига: смена значения не должна ронять тест.
+     */
+    public function test_it_pages_by_the_configured_size(): void
     {
+        $perPage = (int) config('aroma.per_page');
+
         Product::factory()->count(60)->create();
 
-        $page = $this->products->paginate([], config('aroma.per_page'), false);
+        $page = $this->products->paginate([], $perPage, false);
 
-        $this->assertSame(25, $page->perPage());
-        $this->assertCount(25, $page->items());
-        $this->assertSame(3, $page->lastPage());
+        $this->assertSame($perPage, $page->perPage());
+        $this->assertCount($perPage, $page->items());
+        $this->assertSame((int) ceil(60 / $perPage), $page->lastPage());
         $this->assertSame(60, $page->total());
     }
 

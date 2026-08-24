@@ -6,9 +6,8 @@
 Приложение построено как SPA на Inertia.js: серверная маршрутизация Laravel + Vue 3 на клиенте,
 без vue-router и без сторонних UI-китов — все компоненты собственные (см. [Дизайн-система](#дизайн-система)).
 
-> **Статус:** каркас проекта. Настроены Laravel 13, Inertia v3, Vue 3, Vite, окружение Docker.
-> Разделы панели реализуются по спецификации [AROMA-ADMIN-PROMPT.md](AROMA-ADMIN-PROMPT.md) —
-> это основной документ с точными требованиями к вёрстке, данным и поведению экранов.
+> **Статус:** разделы панели реализованы, окружение Docker готово к развёртыванию —
+> см. [Деплой](#деплой).
 
 ---
 
@@ -38,25 +37,27 @@
 
 ```bash
 cp .env.example .env
-# в .env укажите параметры БД, совпадающие с docker-compose.yml:
+# в .env укажите параметры БД под docker-compose.yml:
 # DB_CONNECTION=pgsql, DB_HOST=db, DB_PORT=5432,
-# DB_DATABASE=aroma_db, DB_USERNAME=admin, DB_PASSWORD=secret
-# COMPOSE_PROJECT_NAME=aroma
+# DB_DATABASE=aroma, DB_USERNAME=aroma, DB_PASSWORD=…, REDIS_PASSWORD=…
 
 docker compose up -d --build
-docker compose exec app php artisan key:generate
+docker compose run --rm artisan key:generate
 ```
 
-Панель — http://localhost:8000
+Панель — http://localhost:8090
 
-Контейнер `app` на каждом старте сам прогоняет `migrate --force` и `db:seed --force`,
-поэтому база готова к первому входу без ручных команд. Сидер создаёт единственную
-учётку — главного администратора по `ADMIN_LOGIN` / `ADMIN_PASSWORD` из `.env`
-(по умолчанию `admin` / `admin12345`), и при перезапуске освежает её пароль из `.env`.
-Доступ к служебной консоли `/su` — `docker compose exec app php artisan aroma:superadmin`.
+Контейнер `php` на каждом старте сам прогоняет `migrate --force` и `db:seed --force`
+(`RUN_MIGRATIONS=true` в `docker-compose.yml`), поэтому база готова к первому входу
+без ручных команд. Сидер создаёт единственную учётку — главного администратора по
+`ADMIN_LOGIN` / `ADMIN_PASSWORD` из `.env` (по умолчанию `admin` / `admin12345`), и
+при перезапуске освежает её пароль из `.env`. Служебная консоль `/su` —
+`docker compose run --rm artisan aroma:superadmin`.
 
-Сервисы: `app` (PHP-FPM 8.3), `nginx` (порт 8000), `db` (PostgreSQL 16, порт 5432),
-`redis` (порт 6379). Фронтенд собирается на этапе сборки образа (`npm run build`).
+Сервисы: `php` (PHP-FPM 8.3), `nginx` (порт 8090), `db` (PostgreSQL 16, порт 5433),
+`redis` (порт 6369), `scheduler` (планировщик), `node` (Vite с HMR, порт 5163) и
+разовый `artisan` под профилем `tools`. В dev код примонтирован с хоста, а сборка
+кэшей и OPcache без revalidate выключены — правки видны сразу.
 
 ### Вариант 2 — локально
 
@@ -67,6 +68,51 @@ composer run dev   # сервер, обработчик очереди, логи
 
 `composer setup` использует настройки БД из `.env`; по умолчанию это SQLite
 (`database/database.sqlite`). Приложение будет доступно на http://localhost:8000.
+
+---
+
+## Деплой
+
+Прод собирается тем же `docker/php/Dockerfile`, но другим набором файлов: код и
+собранный фронтенд уезжают внутрь образа, `storage` становится именованным томом,
+nginx получает копию `public/` отдельной стадией.
+
+```bash
+cp .env.production.example .env.production
+# заполнить APP_KEY, APP_URL, DB_PASSWORD, REDIS_PASSWORD, ADMIN_PASSWORD,
+# SUPERADMIN_PASSWORD — шаблон приезжает с пустыми значениями
+
+docker compose --env-file .env.production \
+  -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Оба `-f` обязательны. Без `docker-compose.prod.yml` поднимется базовый стек, где
+`storage` живёт в слое контейнера — логи, бэкапы и загрузки исчезнут при первом же
+`up --build`. `--env-file` нужен не только контейнерам: из того же файла Compose
+подставляет `${DB_USERNAME}` и `${REDIS_PASSWORD}` в сервисы `db` и `redis`.
+
+Ключ приложения генерируется до первого запуска:
+
+```bash
+docker compose --env-file .env.production \
+  -f docker-compose.yml -f docker-compose.prod.yml run --rm artisan key:generate --show
+```
+
+На старте контейнер `php` сам догоняет схему, прогоняет сидер и собирает кэши
+config/route/view/event. Планировщик крутится отдельным контейнером и раз в две
+недели снимает дамп базы в `storage/app/backups` (том `storage_data`).
+
+Разовые команды — через сервис `artisan` (профиль `tools`), он поднимается без
+entrypoint'а и не трогает миграции:
+
+```bash
+docker compose --env-file .env.production \
+  -f docker-compose.yml -f docker-compose.prod.yml run --rm artisan db:backup
+```
+
+Наружу торчит только nginx на порту 80 — TLS терминируется отдельным прокси перед
+ним. Когда он появится, в `.env.production` включается `SESSION_SECURE_COOKIE=true`,
+а `APP_URL` переводится на `https://`.
 
 ---
 
