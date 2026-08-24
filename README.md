@@ -73,70 +73,46 @@ composer run dev   # сервер, обработчик очереди, логи
 
 ## Деплой
 
+**Полная пошаговая инструкция — [DEPLOY.md](DEPLOY.md).** Там же разобраны частые
+ошибки: 500 из-за пустого `APP_KEY`, недоступный npm-реестр, незапущенный nginx,
+старый UI после деплоя.
+
 Прод собирается тем же `docker/php/Dockerfile`, но другим набором файлов: код и
 собранный фронтенд уезжают внутрь образа, `storage` становится именованным томом,
-nginx получает копию `public/` отдельной стадией.
+nginx получает копию `public/` отдельной стадией. Из этого следует главное правило:
+**после изменения кода образ нужно пересобирать** — одного `git pull` на сервере мало.
 
-Боевой сервер: домен `arome-tm.com`, код в `/srv/projects/arome`, наружу торчит
-nginx на 80-м порту по голому http.
+Боевой сервер: домен `arome-tm.com`, код в `/srv/projects/arome`. 80-й порт держит
+nginx, установленный на самом сервере (`docker/nginx/host/arome-tm.com.conf`), а
+контейнер публикуется только на `127.0.0.1:8080` — дёрнуть панель по `http://IP:8080`
+в обход прокси нельзя, и порт 8080 в firewall открывать не нужно.
 
 ```bash
 cd /srv/projects/arome
-cp .env.production.example .env.production
-# заполнить APP_KEY, DB_PASSWORD, REDIS_PASSWORD, ADMIN_PASSWORD,
-# SUPERADMIN_PASSWORD — шаблон приезжает с пустыми значениями;
-# APP_URL уже стоит http://arome-tm.com
+cp .env.production.example .env.production   # заполнить пароли, APP_KEY — на шаге ниже
 
 docker compose --env-file .env.production \
   -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-Оба `-f` обязательны. Без `docker-compose.prod.yml` поднимется базовый стек, где
-`storage` живёт в слое контейнера — логи, бэкапы и загрузки исчезнут при первом же
-`up --build`. `--env-file` нужен не только контейнерам: из того же файла Compose
-подставляет `${DB_USERNAME}` и `${REDIS_PASSWORD}` в сервисы `db` и `redis`.
+Оба `-f` и `--env-file` обязательны — почему именно, расписано в
+[DEPLOY.md](DEPLOY.md#сокращение-команд).
 
-Ключ приложения генерируется до первого запуска:
-
-```bash
-docker compose --env-file .env.production \
-  -f docker-compose.yml -f docker-compose.prod.yml run --rm artisan key:generate --show
-```
+Обе внешние зависимости сборки заведены на зеркала, потому что напрямую наружу
+сервер не пускают: npm идёт через `nexus.telecom.tm` (`ARG NPM_REGISTRY`), apt —
+через `mirror.yandex.ru` (`ARG DEBIAN_MIRROR`). Дефолты перебиваются через
+`--build-arg` там, где есть прямой доступ.
 
 На старте контейнер `php` сам догоняет схему, прогоняет сидер и собирает кэши
-config/route/view/event. Планировщик крутится отдельным контейнером и раз в две
-недели снимает дамп базы в `storage/app/backups` (том `storage_data`).
-
-Разовые команды — через сервис `artisan` (профиль `tools`), он поднимается без
-entrypoint'а и не трогает миграции:
-
-```bash
-docker compose --env-file .env.production \
-  -f docker-compose.yml -f docker-compose.prod.yml run --rm artisan db:backup
-```
+config/route/view/event. Планировщик крутится отдельным контейнером и 1-го и 16-го
+числа снимает дамп базы в `storage/app/backups` (том `storage_data`).
 
 TLS сейчас нет: `SESSION_SECURE_COOKIE` в `.env.production` остаётся выключенным,
 иначе кука не долетит по http и вход перестанет работать. Заголовки `X-Forwarded-*`
 контейнерный nginx перебивает своими значениями (`docker/nginx/conf.d/nginx.conf`) —
 Laravel доверяет всем прокси (`trustProxies at: '*'`), а значит клиентским верить
-нельзя. Когда TLS-терминатор появится: включить `SESSION_SECURE_COOKIE=true`,
-перевести `APP_URL` на `https://` и заменить `$scheme` на `$http_x_forwarded_proto`
-в строке `HTTP_X_FORWARDED_PROTO`.
-
-### Хостовый nginx
-
-80-й порт держит nginx, установленный на самом сервере, — он и обслуживает домен,
-а контейнер публикуется только на `127.0.0.1:8080`, чтобы его нельзя было дёрнуть
-по `http://IP:8080` в обход прокси. В firewall порт `8080` открывать не нужно.
-
-Готовый server-блок лежит в `docker/nginx/host/arome-tm.com.conf`, порядок
-установки — в шапке файла. Лимит тела запроса и таймаут чтения там выставлены
-вровень с контейнером: режет по меньшему из значений, и обрыв на хосте выглядит
-как 413 или 504 без единой строки в логах Laravel.
-
-Реальный IP клиента приезжает в контейнер через `X-Forwarded-For` и
-разворачивается обратно в `$remote_addr` директивами `set_real_ip_from` —
-заголовку доверяют только с приватных адресов, поэтому снаружи его не подделать.
+нельзя. Реальный IP клиента разворачивается обратно в `$remote_addr` директивами
+`set_real_ip_from`, и доверяют заголовку только с приватных адресов.
 
 `docker-compose.override.yml` — dev-only (порт 8090, бинд-маунт кода, Vite) и в
 репозиторий не едет, но Compose подхватывает его автоматически, если файл лежит
@@ -188,7 +164,8 @@ resources/
   css/app.css           токены дизайн-системы
   views/                единственный blade-шаблон приложения
 routes/web.php
-docker/                 php/Dockerfile (multi-stage), nginx/conf.d/aroma.conf
+docker/                 php/Dockerfile (multi-stage), nginx/conf.d/nginx.conf,
+                        nginx/host/arome-tm.com.conf — конфиг для nginx на сервере
 tests/                  Feature и Unit (PHPUnit)
 ```
 
