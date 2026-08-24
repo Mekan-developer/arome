@@ -1,7 +1,19 @@
 FROM node:22-alpine AS assets
 WORKDIR /app
+
+# К registry.npmjs.org (адреса Cloudflare) прод-сервер не пускают: соединение на
+# 443 не висит, а сразу отбивается по TCP RST — та же история, что с deb.debian.org
+# ниже. Пакеты идут через npm-прокси Nexus; ссылки на тарболлы внутри
+# package-lock.json npm переписывает на этот же хост сам (replaceRegistryHost),
+# так что лок остаётся нетронутым. Переопределить при прямом доступе:
+#   docker compose build --build-arg NPM_REGISTRY=https://registry.npmjs.org/ php
+ARG NPM_REGISTRY=https://nexus.telecom.tm/repository/npm-proxy/
+
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm config set registry "$NPM_REGISTRY" \
+    && npm config set fetch-retries 5 \
+    && npm config set fetch-retry-maxtimeout 120000 \
+    && npm ci --no-audit --no-fund
 COPY vite.config.js tailwind.config.js ./
 COPY resources ./resources
 RUN npm run build          # → /app/public/build
