@@ -77,10 +77,15 @@ composer run dev   # сервер, обработчик очереди, логи
 собранный фронтенд уезжают внутрь образа, `storage` становится именованным томом,
 nginx получает копию `public/` отдельной стадией.
 
+Боевой сервер: домен `arome-tm.com`, код в `/srv/projects/arome`, наружу торчит
+nginx на 80-м порту по голому http.
+
 ```bash
+cd /srv/projects/arome
 cp .env.production.example .env.production
-# заполнить APP_KEY, APP_URL, DB_PASSWORD, REDIS_PASSWORD, ADMIN_PASSWORD,
-# SUPERADMIN_PASSWORD — шаблон приезжает с пустыми значениями
+# заполнить APP_KEY, DB_PASSWORD, REDIS_PASSWORD, ADMIN_PASSWORD,
+# SUPERADMIN_PASSWORD — шаблон приезжает с пустыми значениями;
+# APP_URL уже стоит http://arome-tm.com
 
 docker compose --env-file .env.production \
   -f docker-compose.yml -f docker-compose.prod.yml up -d --build
@@ -110,9 +115,16 @@ docker compose --env-file .env.production \
   -f docker-compose.yml -f docker-compose.prod.yml run --rm artisan db:backup
 ```
 
-Наружу торчит только nginx на порту 80 — TLS терминируется отдельным прокси перед
-ним. Когда он появится, в `.env.production` включается `SESSION_SECURE_COOKIE=true`,
-а `APP_URL` переводится на `https://`.
+Наружу торчит только nginx на порту 80. TLS сейчас нет: `SESSION_SECURE_COOKIE`
+в `.env.production` остаётся выключенным, иначе кука не долетит по http и вход
+перестанет работать. Заголовки `X-Forwarded-*` nginx перебивает своими значениями
+(`docker/nginx/conf.d/nginx.conf`) — без прокси перед ним клиентским доверять
+нельзя. Когда TLS-терминатор появится: включить `SESSION_SECURE_COOKIE=true`,
+перевести `APP_URL` на `https://` и вернуть в тех же строках `$http_x_forwarded_*`.
+
+`docker-compose.override.yml` — dev-only (порт 8090, бинд-маунт кода, Vite) и в
+репозиторий не едет, но Compose подхватывает его автоматически, если файл лежит
+рядом. На сервере его быть не должно.
 
 ---
 

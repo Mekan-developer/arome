@@ -84,8 +84,6 @@ services:
 networks:
   arome_network:
     driver: bridge
-  proxy_net:
-    external: true
 
 volumes:
   db_data:
