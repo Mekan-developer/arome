@@ -1,33 +1,56 @@
 <script setup>
-import { onBeforeUnmount, onMounted } from 'vue'
+import DiscardPrompt from '@/Components/DiscardPrompt.vue'
+import { useCloseGuard } from '@/Composables/useCloseGuard.js'
+
+/**
+ * Панель с формой закрывается так же, как модалка: пока в ней есть незаполненное
+ * сохранение, клик по затемнению и Escape сначала спрашивают. Кнопки внутри берут тот
+ * же выход слот-пропсом `close`.
+ */
+const props = defineProps({
+    dirty: { type: Boolean, default: false },
+    discardTitle: { type: String, default: 'Закрыть без сохранения?' },
+    discardText: {
+        type: String,
+        default: 'Введённое в этой панели нигде не сохранено. Закроете — заполнять придётся заново.',
+    },
+    discardLabel: { type: String, default: 'Закрыть без сохранения' },
+})
 
 const emit = defineEmits(['close'])
 
-const onKey = (event) => {
-    if (event.key === 'Escape') {
-        emit('close')
-    }
-}
+const { asking, requestClose, stay, discard } = useCloseGuard(
+    () => props.dirty,
+    () => emit('close'),
+)
 
-onMounted(() => document.addEventListener('keydown', onKey))
-onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
+defineExpose({ requestClose })
 </script>
 
 <template>
-    <div class="scrim" @click.self="emit('close')">
+    <div class="scrim" @click.self="requestClose">
         <aside class="drawer" role="dialog" aria-modal="true">
             <header v-if="$slots.header" class="drawer__head">
-                <slot name="header" />
+                <slot name="header" :close="requestClose" />
             </header>
 
             <div class="drawer__body">
-                <slot />
+                <slot :close="requestClose" />
             </div>
 
             <footer v-if="$slots.footer" class="drawer__foot">
-                <slot name="footer" />
+                <slot name="footer" :close="requestClose" />
             </footer>
         </aside>
+
+        <DiscardPrompt
+            v-if="asking"
+            :title="discardTitle"
+            :text="discardText"
+            :discard-label="discardLabel"
+            @stay="stay"
+            @discard="discard"
+        />
     </div>
 </template>
 

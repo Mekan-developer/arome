@@ -41,6 +41,9 @@ const value = ref('')
 
 const amount = computed(() => Number(String(value.value).replace(',', '.')) || 0)
 
+/** Пока поле пустое, терять нечего — окно закрывается без вопроса. */
+const dirty = computed(() => String(value.value).trim() !== '')
+
 /**
  * Preview over the first three of the selection. This is arithmetic on rows already on
  * screen, not a query — the server recomputes and persists on apply.
@@ -63,13 +66,20 @@ const preview = computed(() =>
 </script>
 
 <template>
-    <Modal :width="560" @close="emit('close')">
-        <template #header>
+    <Modal
+        :width="560"
+        :dirty="dirty"
+        discard-title="Закрыть, не применив изменение?"
+        :discard-text="`Введённое значение ещё никуда не ушло: цены и скидки у выбранных товаров (${products.length}) останутся прежними.`"
+        discard-label="Закрыть без изменения цен"
+        @close="emit('close')"
+    >
+        <template #header="{ close }">
             <span>
                 <span class="head__kicker">Выбрано товаров: {{ products.length }}</span>
                 <h2 class="head__title">Изменить цену или скидку</h2>
             </span>
-            <AppButton variant="ghost" size="sm" class="head__cancel" @click="emit('close')">Отмена</AppButton>
+            <AppButton variant="ghost" size="sm" class="head__cancel" @click="close">Отмена</AppButton>
         </template>
 
         <SegmentedTabs v-model="mode" :options="MODES" stretch />
@@ -90,9 +100,9 @@ const preview = computed(() =>
             <p v-if="preview.length === 0" class="preview__empty">Ни одной строки не выбрано.</p>
         </div>
 
-        <template #footer>
+        <template #footer="{ close }">
             <span class="foot__actions">
-                <AppButton variant="ghost" @click="emit('close')">Отмена</AppButton>
+                <AppButton variant="ghost" @click="close">Отмена</AppButton>
                 <AppButton
                     variant="solid"
                     :disabled="processing || products.length === 0"

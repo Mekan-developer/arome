@@ -33,6 +33,26 @@ watch([mode, generated, manual], () => {
 
 const ready = computed(() => passwordIsAcceptable(form.password))
 
+/**
+ * Терять здесь нечего ровно до тех пор, пока пароль сгенерирован, а не набран руками:
+ * такой же выдаётся одним нажатием. Набранный вручную — уже работа, а после сохранения
+ * под вопросом любое закрытие: показанный пароль второй раз панель нигде не покажет,
+ * поэтому из этого состояния выход только через явное «Готово».
+ */
+const dirty = computed(() => done.value || (mode.value === 'manual' && manual.value !== ''))
+
+const discardTitle = computed(() =>
+    done.value ? 'Закрыть окно с новым паролем?' : 'Закрыть без смены пароля?',
+)
+
+const discardText = computed(() =>
+    done.value
+        ? 'Новый пароль показывается один раз и больше нигде не отображается. Если он не записан и не передан сотруднику, выдать его будет нечем — пароль придётся менять заново.'
+        : `Набранный пароль никуда не ушёл: ${props.staff.name} продолжит входить со старым.`,
+)
+
+const discardLabel = computed(() => (done.value ? 'Пароль передан, закрыть' : 'Закрыть без смены пароля'))
+
 const copy = async () => {
     try {
         await navigator.clipboard.writeText(form.password)
@@ -58,7 +78,14 @@ const happened = computed(() => {
 </script>
 
 <template>
-    <Modal :width="560" @close="emit('close')">
+    <Modal
+        :width="560"
+        :dirty="dirty"
+        :discard-title="discardTitle"
+        :discard-text="discardText"
+        :discard-label="discardLabel"
+        @close="emit('close')"
+    >
         <template #header>
             <span v-if="!done">
                 <span class="head__kicker">СМЕНА ПАРОЛЯ</span>
@@ -130,10 +157,10 @@ const happened = computed(() => {
             </div>
         </template>
 
-        <template #footer>
+        <template #footer="{ close }">
             <span class="foot">
                 <template v-if="!done">
-                    <AppButton variant="ghost" @click="emit('close')">Отмена</AppButton>
+                    <AppButton variant="ghost" @click="close">Отмена</AppButton>
                     <button type="button" class="save" :disabled="!ready || form.processing" @click="submit">
                         {{ form.processing ? 'Сохраняем…' : 'Сменить пароль' }}
                     </button>

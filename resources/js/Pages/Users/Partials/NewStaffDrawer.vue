@@ -57,10 +57,16 @@ const submit = () =>
 </script>
 
 <template>
-    <SideDrawer @close="emit('close')">
-        <template #header>
+    <SideDrawer
+        :dirty="form.isDirty"
+        discard-title="Закрыть, не создав сотрудника?"
+        discard-text="Сотрудник ещё не заведён: имя, логин, роль, точки и пароль никуда не ушли. Закроете панель — заполнять придётся заново."
+        discard-label="Закрыть и потерять заполненное"
+        @close="emit('close')"
+    >
+        <template #header="{ close }">
             <h2 class="head__title">Новый сотрудник</h2>
-            <AppButton variant="ghost" size="sm" @click="emit('close')">Закрыть</AppButton>
+            <AppButton variant="ghost" size="sm" @click="close">Закрыть</AppButton>
         </template>
 
         <div class="form-block">
@@ -136,8 +142,8 @@ const submit = () =>
             <p v-if="form.errors.password" class="error">{{ form.errors.password }}</p>
         </div>
 
-        <template #footer>
-            <AppButton variant="ghost" @click="emit('close')">Отмена</AppButton>
+        <template #footer="{ close }">
+            <AppButton variant="ghost" @click="close">Отмена</AppButton>
             <AppButton variant="solid" :disabled="!canSubmit || form.processing" @click="submit">
                 {{ form.processing ? 'Создаём…' : 'Создать и выдать доступ' }}
             </AppButton>

@@ -1,46 +1,65 @@
 <script setup>
-import { onBeforeUnmount, onMounted } from 'vue'
+import DiscardPrompt from '@/Components/DiscardPrompt.vue'
+import { useCloseGuard } from '@/Composables/useCloseGuard.js'
 
 /**
  * Modals and the side drawer are the only things in the panel that cast a shadow —
  * they are the only things that float above the sheet.
+ *
+ * A window that holds unsaved input passes `dirty`: the backdrop and Escape then ask
+ * before throwing the input away. Buttons inside the window get the same guarded exit
+ * as the `close` slot prop — `<template #footer="{ close }">`.
  */
 const props = defineProps({
     width: { type: Number, default: 660 },
     confirm: { type: Boolean, default: false },
+    dirty: { type: Boolean, default: false },
+    discardTitle: { type: String, default: 'Закрыть без сохранения?' },
+    discardText: {
+        type: String,
+        default: 'Введённое в этом окне нигде не сохранено. Закроете — заполнять придётся заново.',
+    },
+    discardLabel: { type: String, default: 'Закрыть без сохранения' },
 })
 
 const emit = defineEmits(['close'])
 
-const onKey = (event) => {
-    if (event.key === 'Escape') {
-        emit('close')
-    }
-}
+const { asking, requestClose, stay, discard } = useCloseGuard(
+    () => props.dirty,
+    () => emit('close'),
+)
 
-onMounted(() => document.addEventListener('keydown', onKey))
-onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
+defineExpose({ requestClose })
 </script>
 
 <template>
     <div
         class="overlay"
         :style="{ background: props.confirm ? 'var(--overlay-confirm)' : 'var(--overlay)' }"
-        @click.self="emit('close')"
+        @click.self="requestClose"
     >
         <div class="card" :style="{ width: `${width}px` }" role="dialog" aria-modal="true">
             <header v-if="$slots.header" class="card__head">
-                <slot name="header" />
+                <slot name="header" :close="requestClose" />
             </header>
 
             <div class="card__body">
-                <slot />
+                <slot :close="requestClose" />
             </div>
 
             <footer v-if="$slots.footer" class="card__foot">
-                <slot name="footer" />
+                <slot name="footer" :close="requestClose" />
             </footer>
         </div>
+
+        <DiscardPrompt
+            v-if="asking"
+            :title="discardTitle"
+            :text="discardText"
+            :discard-label="discardLabel"
+            @stay="stay"
+            @discard="discard"
+        />
     </div>
 </template>
 

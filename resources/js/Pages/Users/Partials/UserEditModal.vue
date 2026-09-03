@@ -43,7 +43,14 @@ const submit = () =>
 </script>
 
 <template>
-    <Modal :width="560" @close="emit('close')">
+    <Modal
+        :width="560"
+        :dirty="form.isDirty"
+        discard-title="Закрыть карточку сотрудника без сохранения?"
+        :discard-text="`Правки по ${staff.name} никуда не ушли: имя, логин, роль и доступ к точкам останутся прежними.`"
+        discard-label="Закрыть и потерять правки"
+        @close="emit('close')"
+    >
         <template #header>
             <span>
                 <span class="head__kicker">ДАННЫЕ СОТРУДНИКА</span>
@@ -94,9 +101,9 @@ const submit = () =>
             <p class="note">{{ pointsNote }}</p>
         </div>
 
-        <template #footer>
+        <template #footer="{ close }">
             <span class="foot">
-                <AppButton variant="ghost" @click="emit('close')">Отмена</AppButton>
+                <AppButton variant="ghost" @click="close">Отмена</AppButton>
                 <button type="button" class="save" :disabled="!canSubmit || form.processing" @click="submit">
                     {{ form.processing ? 'Сохраняем…' : 'Сохранить' }}
                 </button>

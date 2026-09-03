@@ -51,6 +51,8 @@ const result = computed(() =>
     finalPrice(Number(form.price) || 0, (Number(form.discount) || 0) / 100),
 )
 
+const discardText = `Правки по карточке ${originalCode} никуда не ушли: в базе и на устройствах останутся прежние цена, коды и статус.`
+
 const submit = () =>
     form.put(`/products/${props.card.id}`, {
         preserveScroll: true,
@@ -59,15 +61,22 @@ const submit = () =>
 </script>
 
 <template>
-    <Modal :width="660" @close="emit('close')">
-        <template #header>
+    <Modal
+        :width="660"
+        :dirty="form.isDirty"
+        discard-title="Закрыть карточку без сохранения?"
+        :discard-text="discardText"
+        discard-label="Закрыть и потерять правки"
+        @close="emit('close')"
+    >
+        <template #header="{ close }">
             <span>
                 <h2 class="head__title">{{ card.name }}</h2>
                 <span class="head__sub">
                     карточка {{ card.mainCode }} · изменения уйдут на устройства при синхронизации
                 </span>
             </span>
-            <AppButton variant="ghost" size="sm" class="head__cancel" @click="emit('close')">Отмена</AppButton>
+            <AppButton variant="ghost" size="sm" class="head__cancel" @click="close">Отмена</AppButton>
         </template>
 
         <div class="form-block">
@@ -144,7 +153,7 @@ const submit = () =>
             </span>
         </div>
 
-        <template #footer>
+        <template #footer="{ close }">
             <span class="foot__status">
                 <SelectField v-model="form.status">
                     <option value="active">В продаже</option>
@@ -154,7 +163,7 @@ const submit = () =>
             </span>
             <span class="foot__actions">
                 <button type="button" class="delete" @click="emit('delete')">Удалить</button>
-                <AppButton variant="ghost" @click="emit('close')">Отмена</AppButton>
+                <AppButton variant="ghost" @click="close">Отмена</AppButton>
                 <AppButton variant="solid" :disabled="form.processing" @click="submit">
                     {{ form.processing ? 'Сохраняем…' : 'Сохранить изменения' }}
                 </AppButton>

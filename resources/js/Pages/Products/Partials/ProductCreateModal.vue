@@ -51,13 +51,20 @@ const submit = () =>
 </script>
 
 <template>
-    <Modal :width="660" @close="emit('close')">
-        <template #header>
+    <Modal
+        :width="660"
+        :dirty="form.isDirty"
+        discard-title="Закрыть карточку без сохранения?"
+        discard-text="Новый товар ещё не создан: ни номенклатура, ни коды, ни цена в базу не ушли. Закроете окно — заполнять придётся заново."
+        discard-label="Закрыть и потерять заполненное"
+        @close="emit('close')"
+    >
+        <template #header="{ close }">
             <span>
                 <h2 class="head__title">Новый товар</h2>
                 <span class="head__sub">основной код присвоится автоматически · AA13xx</span>
             </span>
-            <AppButton variant="ghost" size="sm" class="head__cancel" @click="emit('close')">Отмена</AppButton>
+            <AppButton variant="ghost" size="sm" class="head__cancel" @click="close">Отмена</AppButton>
         </template>
 
         <div v-if="problems.length" class="problems">
@@ -111,7 +118,7 @@ const submit = () =>
             </p>
         </div>
 
-        <template #footer>
+        <template #footer="{ close }">
             <span class="foot__status">
                 <SelectField v-model="form.status">
                     <option value="active">В продаже</option>
@@ -120,7 +127,7 @@ const submit = () =>
                 <span class="foot__hint">{{ statusHint }}</span>
             </span>
             <span class="foot__actions">
-                <AppButton variant="ghost" @click="emit('close')">Отмена</AppButton>
+                <AppButton variant="ghost" @click="close">Отмена</AppButton>
                 <AppButton variant="solid" :disabled="form.processing" @click="submit">
                     {{ form.processing ? 'Сохраняем…' : 'Сохранить и отправить в CMS' }}
                 </AppButton>
