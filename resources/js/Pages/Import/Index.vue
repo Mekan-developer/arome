@@ -5,12 +5,13 @@ export default { layout: AdminLayout }
 </script>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useForm, usePage } from '@inertiajs/vue3'
 import AppButton from '@/Components/AppButton.vue'
 import SegmentedTabs from '@/Components/SegmentedTabs.vue'
 import ImportIssueRow from './Partials/ImportIssueRow.vue'
-import { formatInt, formatMoney, finalPrice } from '@/Composables/useFormat.js'
+import ImportConfirmModal from './Partials/ImportConfirmModal.vue'
+import { formatInt, formatMoney, formatPercent, finalPrice } from '@/Composables/useFormat.js'
 
 const props = defineProps({
     fileName: { type: String, default: null },
@@ -19,6 +20,7 @@ const props = defineProps({
     rows: { type: Array, required: true },
     recent: { type: Array, default: () => [] },
     counters: { type: Object, required: true },
+    obsolete: { type: Number, default: 0 },
 })
 
 const page = usePage()
@@ -30,12 +32,52 @@ const STEPS = [
 
 const step = ref(1)
 
+/**
+ * Уведомление держится на экране 4 секунды и гаснет само — и об удачном импорте, и об
+ * отказе сервера. Таймер один на всех: второе уведомление перезапускает отсчёт, иначе
+ * оно погасло бы по таймеру первого.
+ */
+const TOAST_MS = 4000
 const toast = ref(null)
+let toastTimer = null
+
+const hideToast = () => {
+    if (toastTimer) {
+        clearTimeout(toastTimer)
+        toastTimer = null
+    }
+
+    toast.value = null
+}
+
+const showToast = (payload) => {
+    hideToast()
+    toast.value = payload
+    toastTimer = setTimeout(hideToast, TOAST_MS)
+}
+
+onBeforeUnmount(hideToast)
+
 watch(
     () => page.props.flash?.toast,
-    (value) => value && (toast.value = value),
+    (value) => value && showToast({ ...value, kind: 'ok' }),
     { immediate: true },
 )
+
+/**
+ * Ошибку валидации оператор ловит уведомлением, а не молчащей формой: сообщения с
+ * сервера уже на русском (см. StoreImportFileRequest и ConfirmImportRequest), берём
+ * первое — они описывают одну и ту же причину с разных сторон.
+ */
+const showErrorToast = (errors, name) => {
+    const [first] = Object.values(errors ?? {})
+
+    showToast({
+        kind: 'err',
+        name,
+        text: first ?? 'Сервер отклонил запрос. Загрузите файл заново и повторите импорт.',
+    })
+}
 
 /**
  * A working copy of the rows the server sent: "Исправить" edits a cell in place, and a
@@ -67,6 +109,43 @@ watch(
     { immediate: true },
 )
 
+/**
+ * A believable, ever-climbing percentage for the stretch Inertia can't report — its
+ * `progress` event only covers the browser→server upload transfer, so once that hits
+ * 100% the UI would otherwise go dark while the server parses/writes rows. This fills
+ * the gap and settles once the request actually resolves.
+ */
+const useFakeProgress = (processing) => {
+    const percent = ref(0)
+    let timer = null
+
+    const stop = () => {
+        if (timer) {
+            clearInterval(timer)
+            timer = null
+        }
+    }
+
+    watch(
+        processing,
+        (active) => {
+            stop()
+            percent.value = active ? 6 : 0
+
+            if (active) {
+                timer = setInterval(() => {
+                    percent.value = Math.min(96, Math.round(percent.value + (96 - percent.value) * 0.12))
+                }, 220)
+            }
+        },
+        { immediate: true },
+    )
+
+    onBeforeUnmount(stop)
+
+    return percent
+}
+
 const effectiveType = (row) => (fixes[row.row] ? 'fixed' : row.type)
 
 const counts = computed(() => {
@@ -90,6 +169,23 @@ const parseAmount = (value) => {
     return normalized !== '' && !Number.isNaN(Number(normalized)) ? Number(normalized) : null
 }
 
+/**
+ * Скидка как доля: «50 %», «50» и «0,5» — это все 0.5. Правила те же, что у
+ * ImportService::toDiscount() на сервере; он всё равно пересчитает строку заново,
+ * здесь это нужно только для мгновенного пересчёта «Со скидкой».
+ */
+const parseDiscount = (value) => {
+    const raw = String(value ?? '').trim()
+    const isPercent = raw.endsWith('%')
+    const number = parseAmount(isPercent ? raw.slice(0, -1) : raw)
+
+    if (number === null) {
+        return null
+    }
+
+    return isPercent || number > 1 ? number / 100 : number
+}
+
 const applyFix = (row) => {
     const value = (fixDrafts[row.row] ?? '').trim()
 
@@ -106,17 +202,33 @@ const applyFix = (row) => {
     target[row.field] = value
     fixes[row.row] = { field: row.field, value }
 
+    /* Введённую скидку показываем в том же виде, что и разобранные сервером: «30 %». */
+    if (row.field === 'discount') {
+        const fraction = parseDiscount(value)
+
+        if (fraction !== null) {
+            target.discount = `${formatPercent(fraction)} %`
+        }
+    }
+
     if (row.field === 'retail' || row.field === 'discount') {
         const retail = parseAmount(target.retail)
-        const discount = target.discount ? (parseAmount(target.discount) ?? 0) : 0
+        const discount = target.discount ? (parseDiscount(target.discount) ?? 0) : 0
         target.final = retail !== null ? formatMoney(finalPrice(retail, discount)) : target.final
     }
 }
 
-const footerSummary = computed(() =>
-    counts.value.err > 0
-        ? `Строк с ошибками: ${formatInt(counts.value.err)}. Они будут пропущены, остальные ${formatInt(counts.value.total - counts.value.err)} импортируются.`
-        : `Ошибок не осталось. Будут импортированы все ${formatInt(counts.value.total)} строк, ${formatInt(counts.value.warn)} — с предупреждением.`,
+/** Удаление старых товаров — половина того, что сделает кнопка, поэтому оно в сводке. */
+const obsoleteNote = computed(() =>
+    props.obsolete > 0 ? ` Товаров, которых нет в файле: ${formatInt(props.obsolete)} — они будут удалены.` : '',
+)
+
+const footerSummary = computed(
+    () =>
+        (counts.value.err > 0
+            ? `Строк с ошибками: ${formatInt(counts.value.err)}. Они будут пропущены, остальные ${formatInt(counts.value.total - counts.value.err)} импортируются.`
+            : `Ошибок не осталось. Будут импортированы все ${formatInt(counts.value.total)} строк, ${formatInt(counts.value.warn)} — с предупреждением.`) +
+        obsoleteNote.value,
 )
 
 const importLabel = computed(() =>
@@ -129,6 +241,12 @@ const importLabel = computed(() =>
 const fileInput = ref(null)
 const dragOver = ref(false)
 const uploadForm = useForm({ file: null })
+const uploadFakePercent = useFakeProgress(computed(() => uploadForm.processing))
+const uploadPercent = computed(() => {
+    const real = uploadForm.progress?.percentage
+
+    return real !== undefined && real < 100 ? real : uploadFakePercent.value
+})
 
 const analyze = (file) => {
     if (!file || uploadForm.processing) {
@@ -136,7 +254,7 @@ const analyze = (file) => {
     }
 
     uploadForm.file = file
-    uploadForm.post('/import')
+    uploadForm.post('/import', { onError: (errors) => showErrorToast(errors, 'Файл не принят.') })
 }
 
 const handleFileChange = (event) => {
@@ -153,12 +271,31 @@ const downloadTemplate = () => (window.location.href = '/import/template')
 
 /* Step 2 — confirm */
 const confirmForm = useForm({ fileName: '', storedPath: '', rows: [] })
+const confirmPercent = useFakeProgress(computed(() => confirmForm.processing))
+
+/*
+ * Кнопка «Импортировать» больше не импортирует сразу: файл заменяет каталог целиком, и
+ * прежде чем что-то удалится, оператор видит число обречённых карточек и может забрать
+ * копию каталога — см. ImportConfirmModal.
+ */
+const confirming = ref(false)
 
 const confirmImport = () => {
+    confirming.value = true
+}
+
+const runImport = () => {
     confirmForm.fileName = props.fileName
     confirmForm.storedPath = props.storedPath
     confirmForm.rows = localRows.value
-    confirmForm.post('/import/confirm', { preserveScroll: true })
+    confirmForm.post('/import/confirm', {
+        preserveScroll: true,
+        onSuccess: () => (confirming.value = false),
+        onError: (errors) => {
+            confirming.value = false
+            showErrorToast(errors, 'Импорт не выполнен.')
+        },
+    })
 }
 
 const ROW_COLUMNS =
@@ -190,11 +327,11 @@ const ROW_COLUMNS =
             </button>
         </nav>
 
-        <div v-if="toast" class="toast">
+        <div v-if="toast" class="toast" :class="`toast--${toast.kind ?? 'ok'}`" role="status" aria-live="polite">
             <span>
                 <strong>{{ toast.name }}</strong> {{ toast.text }}
             </span>
-            <button type="button" class="toast__hide" @click="toast = null">скрыть</button>
+            <button type="button" class="toast__hide" @click="hideToast">скрыть</button>
         </div>
 
         <!-- Шаг 1 — Файл -->
@@ -204,7 +341,7 @@ const ROW_COLUMNS =
                 <p class="lead">
                     Прайс — единственный источник цен: панель ничего не придумывает сверх восьми колонок файла. Формат
                     всегда один и тот же — тот же, что отдаёт кнопка «Экспорт» в товарах. Ключ сопоставления —
-                    артикул. Строки, которых нет в файле, останутся в каталоге без изменений.
+                    артикул. Прайс задаёт каталог целиком: товаров, которых в файле нет, после импорта не останется.
                 </p>
 
                 <div
@@ -217,8 +354,9 @@ const ROW_COLUMNS =
                 >
                     <template v-if="uploadForm.processing">
                         <div class="drop__kicker">ЧИТАЕМ ФАЙЛ…</div>
-                        <div class="drop__title">
-                            {{ uploadForm.progress ? `Загружено ${uploadForm.progress.percentage}%` : 'Секунду' }}
+                        <div class="drop__title">{{ uploadPercent }}%</div>
+                        <div class="progress">
+                            <div class="progress__bar" :style="{ width: uploadPercent + '%' }" />
                         </div>
                     </template>
                     <template v-else>
@@ -307,7 +445,7 @@ const ROW_COLUMNS =
                 <p class="filter-bar__note">
                     Пустая «Цена со скидкой» — скидки нет, применим розничную. Пустая «Оптовая цена» — опт в карточке
                     останется прежним. Правьте строки здесь: перезаливать файл не нужно, строки с ошибками не
-                    импортируются.
+                    импортируются — и их товары тоже уходят из каталога, потому что в прайсе их нет.
                 </p>
             </div>
 
@@ -343,16 +481,29 @@ const ROW_COLUMNS =
                     {{ confirmForm.errors.storedPath }}
                 </span>
                 <span class="foot__actions">
+                    <span v-if="confirmForm.processing" class="progress progress--inline">
+                        <span class="progress__bar" :style="{ width: confirmPercent + '%' }" />
+                    </span>
                     <AppButton
                         variant="solid"
                         :disabled="confirmForm.processing || counts.total - counts.err === 0"
                         @click="confirmImport"
                     >
-                        {{ confirmForm.processing ? 'Импортируем…' : importLabel }}
+                        {{ confirmForm.processing ? `Импортируем… ${confirmPercent}%` : importLabel }}
                     </AppButton>
                 </span>
             </footer>
         </template>
+
+        <ImportConfirmModal
+            v-if="confirming"
+            :importing="counts.total - counts.err"
+            :obsolete="obsolete"
+            :skipped="counts.err"
+            :processing="confirmForm.processing"
+            @close="confirming = false"
+            @confirm="runImport"
+        />
     </div>
 </template>
 
@@ -425,13 +576,21 @@ const ROW_COLUMNS =
     flex: none;
     margin: 10px 20px 0;
     padding: 10px 14px;
-    background: var(--tint-ok);
-    border-left: 3px solid var(--ok);
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
     font-size: 12.5px;
+}
+
+.toast--ok {
+    background: var(--tint-ok);
+    border-left: 3px solid var(--ok);
+}
+
+.toast--err {
+    background: var(--danger-tint);
+    border-left: 3px solid var(--danger);
 }
 
 .toast__hide {
@@ -530,6 +689,27 @@ const ROW_COLUMNS =
     color: var(--ink-inv);
     border-radius: 2px;
     font-size: 13px;
+}
+
+.progress {
+    width: 220px;
+    height: 4px;
+    margin: 16px auto 0;
+    background: var(--rule-soft);
+    overflow: hidden;
+}
+
+.progress__bar {
+    display: block;
+    height: 100%;
+    background: var(--brass);
+    transition: width 200ms ease-out;
+}
+
+.progress--inline {
+    width: 120px;
+    margin: 0;
+    align-self: center;
 }
 
 .upload-error {

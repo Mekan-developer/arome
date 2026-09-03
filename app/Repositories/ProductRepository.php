@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Enums\ProductStatus;
 use App\Models\Product;
+use App\Services\ImportService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -151,6 +152,35 @@ class ProductRepository
                     ->orWhereIn('main_code', $mainCodes);
             })
             ->get();
+    }
+
+    public function countAll(): int
+    {
+        return Product::count();
+    }
+
+    /**
+     * Всё, чего нет в свежем прайсе, из каталога уходит: файл задаёт каталог целиком,
+     * см. {@see ImportService::apply()}. Уцелевшие приходят списком id,
+     * поэтому лишние считаются в PHP и удаляются пачками — прайс на несколько тысяч
+     * строк иначе собрал бы NOT IN на столько же плейсхолдеров.
+     *
+     * Удаление каскадное: вместе с товаром уходят его история цен, остатки по точкам
+     * и сканы (см. миграции этих таблиц).
+     *
+     * @param  list<int>  $keepIds
+     * @return int сколько товаров удалено
+     */
+    public function deleteExcept(array $keepIds): int
+    {
+        $keep = array_flip($keepIds);
+        $doomed = Product::pluck('id')->reject(fn (int $id): bool => isset($keep[$id]))->values();
+
+        foreach ($doomed->chunk(1000) as $chunk) {
+            Product::whereIn('id', $chunk->all())->delete();
+        }
+
+        return $doomed->count();
     }
 
     /**

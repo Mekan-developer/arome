@@ -8,11 +8,14 @@ use App\Services\CatalogGenerator;
 use App\Services\CatalogSheetLayout;
 use App\Services\ExportService;
 use App\Services\XlsxWriter;
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
+use Mockery;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 use ZipArchive;
 
@@ -66,7 +69,7 @@ class ImportTest extends TestCase
         $this->assertSame(['total' => 1, 'warn' => 0, 'err' => 0, 'ok' => 1], $props['counters']);
         $this->assertSame('ok', $props['rows'][0]['type']);
         $this->assertSame('510028', $props['rows'][0]['sku']);
-        $this->assertSame('1 415,88', $props['rows'][0]['retail']);
+        $this->assertSame('1 416,00', $props['rows'][0]['retail']);
         $this->assertMatchesRegularExpression('#^imports/[A-Za-z0-9]+\.xlsx$#', $props['storedPath']);
         $this->assertTrue(Storage::exists($props['storedPath']));
     }
@@ -147,6 +150,34 @@ class ImportTest extends TestCase
         $this->assertSame('retail', $row['field']);
     }
 
+    /**
+     * Заказчик просил математическое округление цен при импорте: дробная часть от 0,5
+     * и выше уходит вверх, ниже — вниз.
+     */
+    public function test_retail_and_wholesale_prices_are_rounded_to_the_nearest_whole_number(): void
+    {
+        $row = $this->analyzeRow([
+            'AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1780.51', '', '', '920.49',
+        ]);
+
+        $this->assertSame('ok', $row['type']);
+        $this->assertSame('1 781,00', $row['retail']);
+        $this->assertSame('920,00', $row['wholesale']);
+    }
+
+    /**
+     * A price that rounds down to zero is not "no price" — it stays rejected the same
+     * way a zero or negative retail price already was, just reached via rounding now.
+     */
+    public function test_a_retail_price_that_rounds_down_to_zero_is_rejected(): void
+    {
+        $row = $this->analyzeRow(['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '0.4', '']);
+
+        $this->assertSame('err', $row['type']);
+        $this->assertSame('ЦЕНА', $row['tag']);
+        $this->assertSame('retail', $row['field']);
+    }
+
     public function test_a_discount_given_as_an_amount_instead_of_a_fraction_is_rejected(): void
     {
         $row = $this->analyzeRow(['AA1024', '511044', '8011003818501', 'ARMANI ACQUA DI GIO EDT 100ML', '2340.00', '120']);
@@ -154,6 +185,60 @@ class ImportTest extends TestCase
         $this->assertSame('err', $row['type']);
         $this->assertSame('СКИДКА', $row['tag']);
         $this->assertSame('discount', $row['field']);
+    }
+
+    /**
+     * Заказчик читает скидку процентом, а не долей: в файле 0,5 — на проверке «50 %».
+     */
+    public function test_a_discount_stored_as_a_fraction_is_shown_as_a_percent(): void
+    {
+        $row = $this->analyzeRow(['AA1002', '510030', '8011003993819', 'VERSACE BRIGHT CRYSTAL EDT 50ML', '1920.96', '0,5']);
+
+        $this->assertSame('ok', $row['type']);
+        $this->assertSame("50\u{00A0}%", $row['discount']);
+        $this->assertSame('960,50', $row['final']);
+    }
+
+    public function test_a_fractional_percent_keeps_its_decimals(): void
+    {
+        $row = $this->analyzeRow(['AA1002', '510030', '8011003993819', 'VERSACE BRIGHT CRYSTAL EDT 50ML', '2000.00', '0,335']);
+
+        $this->assertSame('ok', $row['type']);
+        $this->assertSame("33,5\u{00A0}%", $row['discount']);
+    }
+
+    /**
+     * @return list<array{0: string, 1: float}>
+     */
+    public static function discountNotations(): array
+    {
+        return [
+            'доля из выгрузки' => ['0,3', 0.3],
+            'процент со знаком' => ['30 %', 0.3],
+            'процент без знака' => ['30', 0.3],
+        ];
+    }
+
+    /**
+     * Колонка «Скидки» принимает и долю, и процент — оператор правит строку так, как
+     * читает её в таблице, а в карточку всё равно ложится доля.
+     */
+    #[DataProvider('discountNotations')]
+    public function test_a_discount_is_accepted_as_a_percent_or_a_fraction(string $written, float $stored): void
+    {
+        $row = $this->analyzeRow(['AA1002', '510030', '8011003993819', 'VERSACE BRIGHT CRYSTAL EDT 50ML', '2000.00', $written]);
+
+        $this->assertSame('ok', $row['type']);
+        $this->assertSame("30\u{00A0}%", $row['discount']);
+
+        $admin = $this->admin();
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => 'discounts.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $this->assertSame($stored, (float) Product::where('sku', '510030')->sole()->discount);
     }
 
     public function test_a_blank_main_code_is_a_warning_not_an_error(): void
@@ -265,6 +350,153 @@ class ImportTest extends TestCase
         ]);
     }
 
+    /**
+     * Прайс задаёт каталог целиком: товар, которого в файле не оказалось, удаляется
+     * вместе со своей историей цен — так заказчик и просил, поэтому окно подтверждения
+     * предлагает сначала забрать копию каталога.
+     */
+    public function test_confirming_deletes_products_the_file_does_not_mention(): void
+    {
+        $doomed = Product::factory()->create(['sku' => '999999', 'main_code' => 'AA9999', 'barcode' => '8011003990001']);
+        $doomed->priceHistories()->create([
+            'changed_at' => now(),
+            'author' => 'tester',
+            'reason' => 'ручная правка',
+            'price_from' => 100,
+            'price_to' => 200,
+        ]);
+
+        $file = $this->workbook([
+            ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+        ]);
+
+        $admin = $this->admin();
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
+
+        $this->assertSame(1, $props['obsolete']);
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertDatabaseCount('products', 1);
+        $this->assertDatabaseMissing('products', ['sku' => '999999']);
+        $this->assertDatabaseMissing('price_histories', ['product_id' => $doomed->id]);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'Удалены товары вне прайса',
+            'object' => 'price-list.xlsx',
+            'value_to' => '1 товаров',
+            'kind' => 'import',
+        ]);
+    }
+
+    /**
+     * Строка с ошибкой свой товар не спасает: заказчик выбрал «считать файл полным
+     * всегда» — не прошла строка, значит товара в прайсе нет.
+     */
+    public function test_a_product_whose_only_row_failed_validation_is_deleted_too(): void
+    {
+        Product::factory()->create(['sku' => '510028', 'main_code' => 'AA1001', 'barcode' => '8011003993802']);
+
+        $file = $this->workbook([
+            ['AA1002', '510030', '8011003993819', 'VERSACE BRIGHT CRYSTAL EDT 50ML', '1920.96', ''],
+            ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', 'цена не число', ''],
+        ]);
+
+        $admin = $this->admin();
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
+
+        $this->assertSame('err', $props['rows'][1]['type']);
+        $this->assertSame(1, $props['obsolete']);
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertDatabaseCount('products', 1);
+        $this->assertDatabaseHas('products', ['sku' => '510030']);
+    }
+
+    /**
+     * Страховка от испорченной загрузки: файл, из которого не прошла ни одна строка, —
+     * это не «каталог опустел», и стирать по нему всё нельзя.
+     */
+    public function test_a_file_where_every_row_failed_deletes_nothing(): void
+    {
+        Product::factory()->create(['sku' => '510028']);
+
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => 'broken.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [[
+                'row' => 4,
+                'mainCode' => 'AA1001',
+                'sku' => '',
+                'barcode' => '8011003993802',
+                'name' => 'VERSACE BRIGHT CRYSTAL EDT 30ML',
+                'retail' => '1415.88',
+                'discount' => '',
+            ]],
+        ])->assertRedirect('/import');
+
+        $this->assertDatabaseCount('products', 1);
+        $this->assertDatabaseHas('products', ['sku' => '510028']);
+    }
+
+    /**
+     * Переименованный поставщиком товар — не «новый вместо старого»: строка обновляет
+     * ту же карточку, и удалять после неё нечего.
+     */
+    public function test_a_renamed_article_is_kept_rather_than_deleted_and_recreated(): void
+    {
+        $existing = Product::factory()->create(['sku' => '999999', 'barcode' => '8011003993802']);
+
+        $file = $this->workbook([
+            ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+        ]);
+
+        $admin = $this->admin();
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
+
+        $this->assertSame(0, $props['obsolete']);
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertDatabaseCount('products', 1);
+        $this->assertSame('510028', Product::findOrFail($existing->id)->sku);
+    }
+
+    public function test_the_backup_download_returns_the_whole_catalog_as_backup1(): void
+    {
+        Product::factory()->count(2)->create();
+
+        $response = $this->actingAs($this->admin())->get('/import/backup');
+
+        $response->assertOk()->assertDownload('backup1.xlsx');
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'Резервная копия перед импортом',
+            'object' => 'backup1.xlsx',
+            'kind' => 'import',
+        ]);
+    }
+
+    public function test_a_seller_cannot_download_the_pre_import_backup(): void
+    {
+        $this->actingAs(User::factory()->create())->get('/import/backup')->assertForbidden();
+    }
+
     public function test_confirming_updates_an_existing_product_by_sku_and_leaves_status_untouched(): void
     {
         $existing = Product::factory()->hidden()->create([
@@ -292,7 +524,7 @@ class ImportTest extends TestCase
         $this->assertDatabaseCount('products', 1);
         $existing->refresh();
         $this->assertSame('NEW NAME', $existing->name);
-        $this->assertSame(1415.88, (float) $existing->price);
+        $this->assertSame(1416.0, (float) $existing->price);
         $this->assertSame('hidden', $existing->status->value);
 
         $this->assertDatabaseHas('price_histories', [
@@ -334,7 +566,7 @@ class ImportTest extends TestCase
         $existing->refresh();
         $this->assertSame('510028', $existing->sku);
         $this->assertSame('NEW NAME', $existing->name);
-        $this->assertSame(1415.88, (float) $existing->price);
+        $this->assertSame(1416.0, (float) $existing->price);
     }
 
     /**
@@ -390,7 +622,7 @@ class ImportTest extends TestCase
 
         $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
 
-        $this->assertSame('920,50', $props['rows'][0]['wholesale']);
+        $this->assertSame('921,00', $props['rows'][0]['wholesale']);
 
         $this->actingAs($admin)->post('/import/confirm', [
             'fileName' => $props['fileName'],
@@ -398,7 +630,7 @@ class ImportTest extends TestCase
             'rows' => $props['rows'],
         ])->assertRedirect('/import');
 
-        $this->assertSame('920.50', $existing->refresh()->wholesale_price);
+        $this->assertSame('921.00', $existing->refresh()->wholesale_price);
 
         $blank = $this->workbook([
             ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
@@ -412,7 +644,7 @@ class ImportTest extends TestCase
             'rows' => $props['rows'],
         ])->assertRedirect('/import');
 
-        $this->assertSame('920.50', $existing->refresh()->wholesale_price);
+        $this->assertSame('921.00', $existing->refresh()->wholesale_price);
     }
 
     public function test_a_non_numeric_wholesale_price_is_rejected(): void
@@ -517,6 +749,49 @@ class ImportTest extends TestCase
         ]);
 
         $this->assertFalse(Storage::exists($props['storedPath']));
+    }
+
+    /**
+     * Диск отказал в записи — в докере это чужой владелец у storage/app/private/imports.
+     * Разбор строк к этому моменту уже прошёл, но без сохранённого файла подтверждать
+     * нечего, поэтому мастер обязан сказать об этом сразу и по-русски: раньше false
+     * молча уезжал в storedPath, и оператор упирался в английское «must be a string»
+     * только на кнопке «Импортировать».
+     */
+    public function test_an_upload_the_disk_refuses_to_store_is_rejected_in_russian(): void
+    {
+        $disk = Mockery::mock(Filesystem::class);
+        $disk->shouldReceive('putFileAs')->once()->andReturnFalse();
+        Storage::set('local', $disk);
+
+        $file = $this->workbook([
+            ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+        ]);
+
+        $response = $this->actingAs($this->admin())->post('/import', ['file' => $file]);
+
+        $response->assertSessionHasErrors([
+            'file' => 'Файл разобран, но не сохранился на сервере: каталог storage/app/private/imports закрыт на запись. Проверьте права на папку и загрузите файл заново.',
+        ]);
+    }
+
+    /**
+     * Та же беда, пойманная на шаге подтверждения: путь не строка, потому что сохранить
+     * файл не удалось. Сообщение должно быть русским — оно уходит оператору в
+     * уведомление, см. resources/js/Pages/Import/Index.vue.
+     */
+    public function test_confirming_with_a_path_that_never_got_stored_is_rejected_in_russian(): void
+    {
+        $response = $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => false,
+            'rows' => [],
+        ]);
+
+        $response->assertSessionHasErrors([
+            'storedPath' => 'Файл прайса не сохранился на сервере, импортировать нечего. Начните заново с шага «Файл»: загрузите прайс ещё раз.',
+        ]);
+        $this->assertDatabaseCount('import_batches', 0);
     }
 
     public function test_confirming_with_a_missing_stored_file_fails_validation(): void

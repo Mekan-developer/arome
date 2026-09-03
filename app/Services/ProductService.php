@@ -164,10 +164,14 @@ class ProductService
      * Пустая колонка опта в файле оставляет оптовую цену карточки как есть — see
      * {@see ImportService::payload()}.
      *
+     * Возвращается сама карточка, а не «создано/обновлено»: импорт заменяет каталог
+     * целиком и по этим id решает, какие товары в прайсе не встретились и подлежат
+     * удалению. Что именно случилось со строкой, вызывающий читает из
+     * {@see Product::$wasRecentlyCreated}.
+     *
      * @param  array{mainCode: string, sku: string, barcode: string, name: string, price: float, discount: float, wholesalePrice?: float|null}  $row
-     * @return 'created'|'updated'
      */
-    public function upsertFromImport(array $row, ?Product $existing, string $actor): string
+    public function upsertFromImport(array $row, ?Product $existing, string $actor): Product
     {
         $wholesale = $row['wholesalePrice'] ?? null;
 
@@ -194,10 +198,10 @@ class ProductService
                 ]);
             }
 
-            return 'updated';
+            return $existing;
         }
 
-        Product::create([
+        return Product::create([
             'main_code' => $row['mainCode'] !== '' ? $row['mainCode'] : $this->products->nextMainCode(),
             'sku' => $row['sku'],
             'barcode' => $row['barcode'],
@@ -208,8 +212,6 @@ class ProductService
             'discount' => $row['discount'],
             'status' => ProductStatus::Active->value,
         ]);
-
-        return 'created';
     }
 
     /**

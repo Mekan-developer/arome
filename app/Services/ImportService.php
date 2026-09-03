@@ -22,6 +22,11 @@ use Illuminate\Support\Facades\DB;
  *    reports what step 3 of the wizard shows.
  *  - {@see self::apply()} re-validates (never trusting a client-supplied verdict) and
  *    writes everything that passes; rows still in error are skipped, not imported.
+ *
+ * Файл задаёт каталог целиком: товар, которого в прайсе не оказалось, удаляется вместе
+ * с историей цен, остатками и сканами. Оператора предупреждает окно подтверждения —
+ * число обречённых карточек считает {@see self::countObsolete()} ещё на разборе файла,
+ * и оттуда же предлагается забрать резервную копию каталога.
  */
 class ImportService
 {
@@ -33,11 +38,11 @@ class ImportService
     ) {}
 
     /**
-     * @return array{fileName: string, sheetNote: string, totalRows: int, rows: list<array<string, mixed>>, counters: array{total: int, ok: int, warn: int, err: int}}
+     * @return array{fileName: string, sheetNote: string, totalRows: int, rows: list<array<string, mixed>>, counters: array{total: int, ok: int, warn: int, err: int}, obsolete: int}
      */
     public function analyze(string $absolutePath, string $originalName): array
     {
-        [$rows] = $this->validateRows($this->extractRows($absolutePath));
+        [$rows, $bySku, $byBarcode, $byMainCode] = $this->validateRows($this->extractRows($absolutePath));
 
         return [
             'fileName' => $originalName,
@@ -45,6 +50,7 @@ class ImportService
             'totalRows' => count($rows),
             'rows' => $rows,
             'counters' => self::counters($rows),
+            'obsolete' => $this->countObsolete($rows, $bySku, $byBarcode, $byMainCode),
         ];
     }
 
@@ -55,7 +61,7 @@ class ImportService
      * a row's 'type' as the browser last saw it is never trusted.
      *
      * @param  list<array<string, mixed>>  $rawRows
-     * @return array{ok: int, failed: int, created: int, updated: int}
+     * @return array{ok: int, failed: int, created: int, updated: int, deleted: int}
      */
     public function apply(array $rawRows, string $fileName, string $actor): array
     {
@@ -65,6 +71,7 @@ class ImportService
             $created = 0;
             $updated = 0;
             $skipped = 0;
+            $kept = [];
 
             foreach ($rows as $row) {
                 if ($row['type'] === 'err') {
@@ -73,26 +80,28 @@ class ImportService
                     continue;
                 }
 
-                /*
-                 * Sku first, same as validateRow() judged it by. When the sku is new but
-                 * the barcode or main code already belongs to a product, that is a
-                 * renumbered article, not a new one — the row updates (and renames) it
-                 * instead of colliding with it.
-                 */
-                $existing = $bySku->get($row['sku'])
-                    ?? $byBarcode->get($row['barcode'])
-                    ?? ($row['mainCode'] !== '' ? $byMainCode->get($row['mainCode']) : null);
-
-                $action = $this->productService->upsertFromImport(
+                $product = $this->productService->upsertFromImport(
                     $this->payload($row),
-                    $existing,
+                    $this->existingFor($row, $bySku, $byBarcode, $byMainCode),
                     $actor,
                 );
 
-                $action === 'created' ? $created++ : $updated++;
+                $kept[] = $product->id;
+                $product->wasRecentlyCreated ? $created++ : $updated++;
             }
 
             $applied = $created + $updated;
+
+            /*
+             * Прайс — это каталог целиком: товар, которого в файле не оказалось, из базы
+             * уходит вместе с историей цен, остатками и сканами. Строки с ошибками свой
+             * товар не защищают — не прошла строка, значит товара в прайсе нет.
+             *
+             * Файл, из которого не прошла ни одна строка, каталог не меняет вовсе: это
+             * не «прайс опустел», а испорченная загрузка, и стирать по ней весь каталог
+             * нельзя. По той же причине здесь не двигается ревизия каталога.
+             */
+            $deleted = $applied > 0 ? $this->products->deleteExcept($kept) : 0;
 
             ImportBatch::create([
                 'file_name' => $fileName,
@@ -103,12 +112,15 @@ class ImportService
 
             $this->audit->record($actor, 'Импорт из Excel', $fileName, null, $applied.' строк', 'import');
 
-            /* Файл, из которого не прошла ни одна строка, каталог не менял. */
+            if ($deleted > 0) {
+                $this->audit->record($actor, 'Удалены товары вне прайса', $fileName, null, $deleted.' товаров', 'import');
+            }
+
             if ($applied > 0) {
                 $this->catalogVersion->bump();
             }
 
-            return ['ok' => $applied, 'failed' => $skipped, 'created' => $created, 'updated' => $updated];
+            return ['ok' => $applied, 'failed' => $skipped, 'created' => $created, 'updated' => $updated, 'deleted' => $deleted];
         });
     }
 
@@ -129,6 +141,61 @@ class ImportService
                 'failed' => $batch->rows_failed,
             ])
             ->all();
+    }
+
+    /**
+     * Какой карточке принадлежит строка. Sku первым — им же судил
+     * {@see self::validateRow()}. Когда артикул новый, а штрихкод или основной код уже
+     * за кем-то числятся, это перенумерованный поставщиком товар, а не новый: строка
+     * обновляет и переименовывает его, а не спорит с ним.
+     *
+     * @param  array<string, mixed>  $row
+     * @param  Collection<string, Product>  $bySku
+     * @param  Collection<string, Product>  $byBarcode
+     * @param  Collection<string, Product>  $byMainCode
+     */
+    private function existingFor(array $row, Collection $bySku, Collection $byBarcode, Collection $byMainCode): ?Product
+    {
+        return $bySku->get($row['sku'])
+            ?? $byBarcode->get($row['barcode'])
+            ?? ($row['mainCode'] !== '' ? $byMainCode->get($row['mainCode']) : null);
+    }
+
+    /**
+     * Сколько товаров каталога в файле не встретилось — их удалит {@see self::apply()},
+     * и это число мастер показывает в окне подтверждения до нажатия «Импортировать».
+     * Считается по тем же правилам, по которым потом идёт удаление: карточку сохраняет
+     * только строка, которая дойдёт до импорта.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @param  Collection<string, Product>  $bySku
+     * @param  Collection<string, Product>  $byBarcode
+     * @param  Collection<string, Product>  $byMainCode
+     */
+    private function countObsolete(array $rows, Collection $bySku, Collection $byBarcode, Collection $byMainCode): int
+    {
+        $kept = [];
+        $applicable = 0;
+
+        foreach ($rows as $row) {
+            if ($row['type'] === 'err') {
+                continue;
+            }
+
+            $applicable++;
+            $existing = $this->existingFor($row, $bySku, $byBarcode, $byMainCode);
+
+            if ($existing instanceof Product) {
+                $kept[$existing->id] = true;
+            }
+        }
+
+        /* Ни одной прошедшей строки — импорт ничего не удалит, см. apply(). */
+        if ($applicable === 0) {
+            return 0;
+        }
+
+        return max(0, $this->products->countAll() - count($kept));
     }
 
     /**
@@ -240,9 +307,9 @@ class ImportService
         $retailRaw = trim((string) ($raw['retail'] ?? ''));
         $discountRaw = trim((string) ($raw['discount'] ?? ''));
         $wholesaleRaw = trim((string) ($raw['wholesale'] ?? ''));
-        $retail = self::toFloat($retailRaw);
-        $discount = $discountRaw === '' ? 0.0 : self::toFloat($discountRaw);
-        $wholesale = $wholesaleRaw === '' ? null : self::toFloat($wholesaleRaw);
+        $retail = self::roundPrice(self::toFloat($retailRaw));
+        $discount = $discountRaw === '' ? 0.0 : self::toDiscount($discountRaw);
+        $wholesale = self::roundPrice($wholesaleRaw === '' ? null : self::toFloat($wholesaleRaw));
 
         /*
          * The prior claim on a barcode/main_code, split by source: a file-owner is an
@@ -283,7 +350,7 @@ class ImportService
         } elseif ($retail === null || $retail <= 0) {
             $issue = ['tag' => 'ЦЕНА', 'field' => 'retail', 'fix' => 'число', 'message' => 'Цена нечисловая или не больше нуля. Уберите лишние символы — колонка числовая, валюта всегда TMT.'];
         } elseif ($discount === null || $discount < 0 || $discount >= 1) {
-            $issue = ['tag' => 'СКИДКА', 'field' => 'discount', 'fix' => '0,2', 'message' => 'Скидка задана некорректно. В колонке «Скидки» ожидается доля от 0 до 1: например 0,2 или 20 % — не сумма и не больше единицы.'];
+            $issue = ['tag' => 'СКИДКА', 'field' => 'discount', 'fix' => '20 %', 'message' => 'Скидка задана некорректно. В колонке «Скидки» ожидается процент: например 20 % или 0,2 — не сумма скидки и не больше 100 %.'];
         } elseif ($wholesaleRaw !== '' && ($wholesale === null || $wholesale < 0)) {
             $issue = ['tag' => 'ОПТ', 'field' => 'wholesale', 'fix' => 'число', 'message' => 'Оптовая цена нечисловая или отрицательная. Колонка «Оптовая цена» числовая; оставьте её пустой, если опта у товара нет.'];
         } elseif (
@@ -311,7 +378,7 @@ class ImportService
                 'barcode' => $barcodeDigits !== '' ? $barcodeDigits : $barcodeRaw,
                 'name' => $name,
                 'retail' => $retail !== null ? self::money($retail) : $retailRaw,
-                'discount' => $discount !== null && $discountRaw !== '' ? self::fraction($discount) : $discountRaw,
+                'discount' => $discount !== null && $discountRaw !== '' ? self::percent($discount) : $discountRaw,
                 'final' => '',
                 'wholesale' => $wholesale !== null ? self::money($wholesale) : $wholesaleRaw,
                 'type' => 'err',
@@ -327,7 +394,7 @@ class ImportService
                 'barcode' => $barcodeDigits,
                 'name' => $name,
                 'retail' => self::money($retail),
-                'discount' => $discount > 0 ? self::fraction($discount) : '',
+                'discount' => $discount > 0 ? self::percent($discount) : '',
                 'final' => self::money(ProductService::finalPrice($retail, $discount)),
                 'wholesale' => $wholesale !== null ? self::money($wholesale) : '',
                 'type' => 'warn',
@@ -345,7 +412,7 @@ class ImportService
             'barcode' => $barcodeDigits,
             'name' => $name,
             'retail' => self::money($retail),
-            'discount' => $discount > 0 ? self::fraction($discount) : '',
+            'discount' => $discount > 0 ? self::percent($discount) : '',
             'final' => self::money(ProductService::finalPrice($retail, $discount)),
             'wholesale' => $wholesale !== null ? self::money($wholesale) : '',
             'type' => 'ok',
@@ -374,7 +441,7 @@ class ImportService
             'barcode' => (string) $row['barcode'],
             'name' => (string) $row['name'],
             'price' => self::toFloat((string) $row['retail']) ?? 0.0,
-            'discount' => $row['discount'] !== '' ? (self::toFloat((string) $row['discount']) ?? 0.0) : 0.0,
+            'discount' => $row['discount'] !== '' ? (self::toDiscount((string) $row['discount']) ?? 0.0) : 0.0,
             'wholesalePrice' => $wholesale !== '' ? self::toFloat($wholesale) : null,
         ];
     }
@@ -391,14 +458,50 @@ class ImportService
         return $normalized !== '' && is_numeric($normalized) ? (float) $normalized : null;
     }
 
+    /**
+     * Заказчик просил при импорте округлять цены до целого числа математически: от
+     * 0,5 и выше — вверх, ниже — вниз (round() по умолчанию считает именно так, half
+     * away from zero, а цены здесь всегда неотрицательны).
+     */
+    private static function roundPrice(?float $value): ?float
+    {
+        return $value !== null ? round($value) : null;
+    }
+
     private static function money(float $value): string
     {
         return number_format($value, 2, ',', ' ');
     }
 
-    private static function fraction(float $value): string
+    /**
+     * Скидка в карточке хранится долей (0,5), а оператор читает и пишет её процентом —
+     * колонка прайса принимает обе записи. «20 %» — процент явно; «20» без знака —
+     * тоже процент (доли больше единицы не бывает, а 20 в этой колонке всегда значило
+     * «двадцать процентов»); «0,2» — доля, как её кладёт в файл {@see ExportService}.
+     * Сумма скидки в манатах остаётся ошибкой: 120 — это 120 %, больше единицы, и
+     * {@see self::validateRow()} такую строку отклоняет.
+     */
+    private static function toDiscount(string $value): ?float
     {
-        return str_replace('.', ',', (string) round($value, 4));
+        $trimmed = trim($value);
+        $isPercent = str_ends_with($trimmed, '%');
+        $number = self::toFloat($isPercent ? substr($trimmed, 0, -1) : $trimmed);
+
+        if ($number === null) {
+            return null;
+        }
+
+        return $isPercent || $number > 1 ? $number / 100 : $number;
+    }
+
+    /**
+     * Обратная сторона {@see self::toDiscount()}: доля 0,5 показывается оператору как
+     * «50 %» — тем же процентом, что и в карточке товара. Пробел неразрывный, чтобы
+     * знак не отрывался от числа в узкой колонке.
+     */
+    private static function percent(float $value): string
+    {
+        return str_replace('.', ',', (string) round($value * 100, 2))."\u{00A0}%";
     }
 
     private static function digitsWord(int $count): string

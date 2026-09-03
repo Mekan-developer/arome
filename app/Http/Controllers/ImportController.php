@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ConfirmImportRequest;
 use App\Http\Requests\StoreImportFileRequest;
+use App\Models\Product;
+use App\Services\AuditService;
 use App\Services\CatalogSheetLayout;
 use App\Services\ExportService;
 use App\Services\ImportService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -27,6 +30,7 @@ class ImportController extends Controller
             'storedPath' => null,
             'rows' => [],
             'counters' => ['total' => 0, 'warn' => 0, 'err' => 0, 'ok' => 0],
+            'obsolete' => 0,
             'recent' => $this->import->recent(),
         ]);
     }
@@ -48,9 +52,23 @@ class ImportController extends Controller
             throw ValidationException::withMessages(['file' => $e->getMessage()]);
         }
 
+        /*
+         * Диск local настроен с 'throw' => false, поэтому неудачная запись возвращает
+         * false, а не исключение. Без этой проверки false уезжал в storedPath на клиент,
+         * шаг проверки открывался как ни в чём не бывало, и оператор узнавал о беде
+         * только на «Импортировать» — сообщением валидатора про тип поля.
+         */
+        $storedPath = $file->store('imports');
+
+        if (! is_string($storedPath)) {
+            throw ValidationException::withMessages([
+                'file' => 'Файл разобран, но не сохранился на сервере: каталог storage/app/private/imports закрыт на запись. Проверьте права на папку и загрузите файл заново.',
+            ]);
+        }
+
         return Inertia::render('Import/Index', [
             ...$analysis,
-            'storedPath' => $file->store('imports'),
+            'storedPath' => $storedPath,
             'recent' => $this->import->recent(),
         ]);
     }
@@ -69,12 +87,33 @@ class ImportController extends Controller
         return redirect()->route('import.index')->with('toast', [
             'name' => $payload['fileName'],
             'text' => sprintf(
-                'обработан: создано %d, обновлено %d, пропущено %d.',
+                'обработан: создано %d, обновлено %d, удалено %d, пропущено %d.',
                 $result['created'],
                 $result['updated'],
+                $result['deleted'],
                 $result['failed'],
             ),
         ]);
+    }
+
+    /**
+     * Резервная копия каталога — тот же лист, что отдаёт «Экспорт» в товарах, но без
+     * фильтров и всегда под одним именем. Оператор забирает её из окна подтверждения,
+     * пока импорт ещё не удалил всё, чего нет в прайсе: восстановить каталог потом
+     * можно только загрузив эту копию обратно.
+     */
+    public function backup(ExportService $export, AuditService $audit): BinaryFileResponse
+    {
+        /* Право то же, что и на сам импорт: копию берёт тот, кто вправе стереть каталог. */
+        Gate::authorize('create', Product::class);
+
+        $audit->record($this->actor(), 'Резервная копия перед импортом', 'backup1.xlsx', null, null, 'import');
+
+        return response()
+            ->download($export->write([], false), 'backup1.xlsx', [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ])
+            ->deleteFileAfterSend();
     }
 
     /**

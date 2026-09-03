@@ -36,6 +36,7 @@ Route::middleware('auth')->group(function (): void {
         Route::post('import', [ImportController::class, 'store'])->name('import.store');
         Route::post('import/confirm', [ImportController::class, 'confirm'])->name('import.confirm');
         Route::get('import/template', [ImportController::class, 'template'])->name('import.template');
+        Route::get('import/backup', [ImportController::class, 'backup'])->name('import.backup');
     });
 
     Route::get('users', [UserController::class, 'index'])->name('users.index');
