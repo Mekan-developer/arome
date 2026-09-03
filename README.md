@@ -55,7 +55,7 @@ docker compose run --rm artisan key:generate
 `docker compose run --rm artisan aroma:superadmin`.
 
 Сервисы: `php` (PHP-FPM 8.3), `nginx` (порт 8090), `db` (PostgreSQL 16, порт 5433),
-`redis` (порт 6369), `scheduler` (планировщик), `node` (Vite с HMR, порт 5163) и
+`redis` (порт 6369), `scheduler` (планировщик), `node` (Vite с HMR, порт 5183) и
 разовый `artisan` под профилем `tools`. В dev код примонтирован с хоста, а сборка
 кэшей и OPcache без revalidate выключены — правки видны сразу.
 
@@ -96,6 +96,11 @@ docker compose --env-file .env.production \
 ```
 
 Оба `-f` и `--env-file` обязательны — почему именно, расписано в
+[DEPLOY.md](DEPLOY.md#сокращение-команд). Команду без `-f docker-compose.prod.yml`
+(голый `docker compose up`) на сервере не запускать: без прод-оверлея контейнер
+попробует опубликоваться на `0.0.0.0:80`, а этот порт уже держит хостовый nginx —
+сборка упадёт на `address already in use`. Чтобы не набирать оба `-f` каждый раз,
+заведите алиас `dc` — команда и объяснение в
 [DEPLOY.md](DEPLOY.md#сокращение-команд).
 
 Обе внешние зависимости сборки заведены на зеркала, потому что напрямую наружу
@@ -206,8 +211,8 @@ tests/                  Feature и Unit (PHPUnit)
 
 Оформление задано CSS-переменными в `resources/css/app.css`. Ключевые правила:
 
-- Шрифты: Playfair Display (заголовки), IBM Plex Sans (интерфейс), IBM Plex Mono (все числа
-  и микро-заголовки, с `font-variant-numeric: tabular-nums`).
+- Шрифт — Roboto везде: заголовки, интерфейс и цифры (`--f-display`, `--f-body`,
+  `--f-data` в `resources/css/tokens.css` указывают на один и тот же семейство).
 - `border-radius` — только `2px` у инпутов, селектов и кнопок; всё остальное с прямыми углами.
 - Тени — только у модалок и выезжающей панели.
 - Разделители — волосяные линии: `--rule-soft` внутри таблиц, `--rule-strong` между зонами.
@@ -216,8 +221,7 @@ tests/                  Feature и Unit (PHPUnit)
 - `body` не скроллится: приложение `height: 100vh; overflow: hidden`, скроллятся только
   тела таблиц.
 
-Полная палитра, ограничения и чек-лист приёмки — в
-[AROMA-ADMIN-PROMPT.md](AROMA-ADMIN-PROMPT.md) (§2 и §15).
+Полная палитра и токены — в `resources/css/tokens.css`.
 
 ---
 
