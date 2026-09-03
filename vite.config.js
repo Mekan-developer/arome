@@ -37,7 +37,13 @@ export default defineConfig({
     server: {
         host: '0.0.0.0',
         port: 5173,
-        hmr: { host: 'localhost' },
+        /*
+         * Внутри контейнера Vite слушает 5173, наружу проброшен как 5183
+         * (docker-compose.override.yml). clientPort задаёт порт, который плагин
+         * пишет в public/hot и по которому браузер подключает HMR, — без него
+         * страница ссылается на недоступный localhost:5173 и остаётся пустой.
+         */
+        hmr: { host: 'localhost', clientPort: 5183 },
         watch: {
             ignored: ['**/storage/framework/views/**'],
         },
