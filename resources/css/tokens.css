@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&display=swap');
 
 :root{
   --ink:#1B1512; --ink-2:#3E3229; --ink-3:#7A6A5B; --ink-inv:#F6F1E6;
@@ -7,9 +7,9 @@
   --brass:#A2751E; --brass-dark:#6E4E10; --brass-tint:#EFE2C4;
   --danger:#93251C; --danger-tint:#F3DDD8; --ok:#4E6A46; --warn:#B07A16;
   --c-parfum:#5A2A0E; --c-edp:#8A3B12; --c-edt:#B4761F; --c-edc:#C9A96A;
-  --f-display:'Playfair Display',Georgia,serif;
-  --f-body:'IBM Plex Sans',system-ui,sans-serif;
-  --f-data:'IBM Plex Mono',ui-monospace,monospace;
+  --f-display:'Roboto',system-ui,sans-serif;
+  --f-body:'Roboto',system-ui,sans-serif;
+  --f-data:'Roboto',system-ui,sans-serif;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%}
