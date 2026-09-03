@@ -1,0 +1,98 @@
+/* ============================================================
+   AROME · база знаний — палитра панели
+   ============================================================ */
+   :root{
+    --ink:#1C1712;
+    --ink-2:#2A231C;
+    --ink-line:#332B23;
+    --ink-soft:#4A4038;
+    --mute:#8A7F70;
+    --paper:#F6F1E7;
+    --paper-2:#FBF8F2;
+    --line:#DCD2C2;
+    --gold:#B4762A;
+    --gold-soft:#E8D9BE;
+    --ok:#4F6B4A;
+    --warn:#A5442E;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --serif:"Iowan Old Style",Georgia,"Times New Roman",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--paper);color:var(--ink);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+  
+  /* ---------- шапка как в панели ---------- */
+  .top{
+    background:var(--ink);color:var(--paper);display:flex;align-items:center;gap:20px;
+    padding:13px 22px;
+  }
+  .logo{font-family:var(--serif);letter-spacing:.2em;font-size:17px;text-decoration:none;color:var(--paper)}
+  .logo span{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--gold);margin-left:8px}
+  .top-rule{flex:1;height:1px;background:var(--ink-line);margin:0 6px}
+  .top-back{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
+    color:#CFC5B6;text-decoration:none;border:1px solid var(--ink-soft);padding:8px 16px;
+    transition:border-color .2s,color .2s;
+  }
+  .top-back:hover{border-color:var(--gold);color:var(--paper)}
+  .top-strip{height:3px;background:var(--gold-soft)}
+  
+  /* ---------- главная ---------- */
+  .wrap{max-width:1120px;margin:0 auto;padding:52px 26px 80px}
+  .eyebrow{
+    font-family:var(--mono);font-size:10px;letter-spacing:.28em;text-transform:uppercase;
+    color:var(--gold);margin:0 0 14px;
+  }
+  h1.page{font-family:var(--serif);font-size:clamp(30px,5vw,44px);margin:0 0 16px;line-height:1.15}
+  .lede{font-size:15px;line-height:1.8;color:var(--ink-soft);max-width:62ch;margin:0 0 46px}
+  
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(288px,1fr));gap:22px}
+  .card{
+    display:block;text-decoration:none;color:inherit;position:relative;
+    background:var(--ink);overflow:hidden;
+    transition:transform .3s cubic-bezier(.2,.9,.3,1),box-shadow .3s;
+  }
+  .card:hover{transform:translateY(-4px);box-shadow:0 22px 46px -22px rgba(28,23,18,.6)}
+  .card:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+  
+  .card-art{height:172px;position:relative;overflow:hidden;background:linear-gradient(150deg,#2A231C,#14100C)}
+  .card-art::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(120% 90% at 78% 12%,rgba(180,118,42,.30),transparent 62%);
+  }
+  .card-art img{
+    position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center;
+    transition:transform .35s cubic-bezier(.2,.9,.3,1);
+  }
+  .card:hover .card-art img{transform:scale(1.05)}
+  
+  .card-cap{
+    position:absolute;left:0;right:0;bottom:0;padding:15px 17px;
+    background:linear-gradient(transparent,rgba(20,16,12,.73) 70%);
+    color:var(--paper);
+  }
+  .card-cap b{display:block;font-size:14.5px;font-weight:600;line-height:1.4}
+  .card-cap small{
+    display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--gold);margin-top:6px;
+  }
+  .card.soon{pointer-events:none}
+  .card.soon .card-art{filter:grayscale(1);opacity:.42}
+  .card.soon .card-cap small{color:var(--mute)}
+  
+  .foot{
+    margin-top:56px;padding-top:22px;border-top:1px solid var(--line);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;color:var(--mute);
+  }
+  
+  @media(max-width:640px){
+    .wrap{padding:34px 18px 60px}
+    .grid{grid-template-columns:1fr}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  }

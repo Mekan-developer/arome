@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Матрица прав · База знаний AROME</title>
+<link rel="stylesheet" href="../assets/base.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body class="lesson">
+
+<div id="intro">
+  <p class="kick">База знаний · Инструкция 3</p>
+  <h1>Матрица прав</h1>
+  <p class="lead">Какие поля карточки товара видит каждая роль в мобильном приложении. Как это проверить и как сохранить. Инструкция идёт сама — курсор нажимает, голос объясняет, текст дублируется субтитрами.</p>
+  <button id="go">Начать</button>
+</div>
+
+<div class="top">
+  <a class="logo" href="../index.html">AR&Ocirc;ME<span>База знаний</span></a>
+  <div class="top-rule"></div>
+  <a class="top-back" href="../index.html">← Все инструкции</a>
+</div>
+<div class="top-strip"></div>
+
+<div class="stage" id="stage">
+  <div class="scaler" id="scaler">
+    <div class="panel">
+
+      <div class="p-top">
+        <div class="p-logo">AR&Ocirc;ME<span>Каталог</span></div>
+        <div class="p-search">Штрихкод, артикул или название</div>
+        <div class="p-when">28.08.2026 · 14:26</div>
+        <div class="p-who"><div class="p-badge">A</div><div><b>Администратор</b><i>Администратор</i></div></div>
+        <div class="p-out">Выход</div>
+      </div>
+
+      <div class="p-tabs">
+        <div class="tab">Товары</div>
+        <div class="tab">Импорт</div>
+        <div class="tab">Пользователи</div>
+        <div class="tab on" data-tab="rights">Матрица прав</div>
+        <div class="tab">Синхронизация</div>
+        <div class="tab">Журнал действий</div>
+      </div>
+
+      <div class="p-body">
+        <div class="rights">
+
+          <div class="rights-main">
+            <div class="rights-head">
+              <div>
+                <h2 style="font-family:var(--serif);font-size:23px;margin:0 0 7px">Кто какие поля карточки видит</h2>
+                <p style="font-size:11.5px;line-height:1.6;color:var(--ink-soft);max-width:64ch;margin:0" data-el="intro">
+                  Администратор ведёт данные в этой панели, менеджер и продавец только заходят в мобильное
+                  приложение и получают их по API. Настраивается одно: какие поля карточки уходят каждой
+                  из этих двух ролей. Скрытое поле не приходит в приложение вообще, а не прячется на экране.
+                </p>
+              </div>
+              <div class="roles-n">Ролей в системе: 3</div>
+            </div>
+
+            <table class="mx">
+              <thead><tr>
+                <th></th>
+                <th>Основной код<u data-el="hideAll">скрыть всем</u></th>
+                <th>Номенклатура<u>скрыть всем</u></th>
+                <th>Артикул<u>скрыть всем</u></th>
+                <th>Штрихкод<u>скрыть всем</u></th>
+                <th>Розничная цена<u>скрыть всем</u></th>
+                <th>Оптовая цена<u>скрыть всем</u></th>
+                <th>Скидка и цена со скидкой<u>скрыть всем</u></th>
+              </tr></thead>
+              <tbody>
+                <tr data-el="rowAdmin">
+                  <td class="role"><b>Администратор</b><span>Веб-панель: каталог, цены, импорт, доступы. Менять нельзя</span><em>7 / 7 полей</em></td>
+                  <td><div class="cell locked">всегда</div></td><td><div class="cell locked">всегда</div></td>
+                  <td><div class="cell locked">всегда</div></td><td><div class="cell locked">всегда</div></td>
+                  <td><div class="cell locked">всегда</div></td><td><div class="cell locked">всегда</div></td>
+                  <td><div class="cell locked">всегда</div></td>
+                </tr>
+                <tr>
+                  <td class="role"><b>Менеджер</b><span>Мобильное приложение, как у продавца, но с оптовой ценой</span><em data-el="cntMgr">7 / 7 полей</em></td>
+                  <td><div class="cell see" data-el="mgrCode">видно</div></td><td><div class="cell see">видно</div></td>
+                  <td><div class="cell see">видно</div></td><td><div class="cell see">видно</div></td>
+                  <td><div class="cell see">видно</div></td><td><div class="cell see">видно</div></td>
+                  <td><div class="cell see">видно</div></td>
+                </tr>
+                <tr>
+                  <td class="role"><b>Продавец</b><span>Только мобильное приложение — данные из этой панели по API</span><em data-el="cntSel">6 / 7 полей</em></td>
+                  <td><div class="cell see">видно</div></td><td><div class="cell see">видно</div></td>
+                  <td><div class="cell see">видно</div></td><td><div class="cell see">видно</div></td>
+                  <td><div class="cell see">видно</div></td>
+                  <td><div class="cell hid" data-el="selOpt">скрыто</div></td>
+                  <td><div class="cell see">видно</div></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="legend">
+              <span><i style="background:var(--ink);border-color:var(--ink)"></i>видно</span>
+              <span><i style="background:#fff"></i>скрыто — поле не уходит в API</span>
+              <span><i style="background:var(--gold-soft);border-color:var(--gold)"></i>изменено, не сохранено</span>
+            </div>
+
+            <div class="rights-foot" data-el="foot">
+              <div class="saved-note">Политика сохранена 24.07.2026, Айнур Д.</div>
+              <div class="dirty-note">Есть несохранённые изменения. После сохранения приложения продавцов получат новую политику при следующей синхронизации.</div>
+              <div style="display:flex;gap:11px">
+                <div class="btn-ghost" data-el="revert">Вернуть как было</div>
+                <div class="btn-save" data-el="save">Сохранить политику</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rights-side">
+            <div class="side-kick">Проверка</div>
+            <h3 class="side-h">Карточка глазами роли</h3>
+            <div class="sel" data-el="who" style="min-width:100%">
+              <div class="sel-face">Администратор</div>
+              <div class="sel-list"><div class="pick">Администратор</div><div>Менеджер</div><div>Продавец</div></div>
+            </div>
+
+            <div class="card-view">
+              <div class="f-cap" style="margin-bottom:9px">Экран сканера · мобильное приложение</div>
+              <div class="cv-row"><div class="f-cap">Основной код</div><b data-el="vCode">AA1001</b></div>
+              <div class="cv-row"><div class="f-cap">Номенклатура</div><b>VERSACE BRIGHT CRYSTAL EDT 30ML</b></div>
+              <div class="cv-row"><div class="f-cap">Артикул</div><b>510028</b></div>
+              <div class="cv-row"><div class="f-cap">Штрихкод</div><b>8011003993802</b></div>
+              <div class="cv-row"><div class="f-cap">Розничная цена</div><b>1 415,88 ТМТ</b></div>
+              <div class="cv-row" data-el="vOptRow"><div class="f-cap">Оптовая цена</div><b data-el="vOpt">920,00 ТМТ</b></div>
+              <div class="cv-row"><div class="f-cap">Скидка и цена со скидкой</div><b>50 % · 757,62 ТМТ</b></div>
+            </div>
+
+            <p class="side-note" data-el="vNote">Роль «Администратор» видит карточку целиком.</p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div id="cursor">
+      <svg width="22" height="22" viewBox="0 0 22 22"><path d="M2 1l16 8.5-7 1.5-3.5 7z" fill="#1C1712" stroke="#F6F1E7" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <div class="ring" id="ring"></div>
+    </div>
+  </div>
+</div>
+
+<div class="subs"><p id="subs"></p></div>
+
+<div class="bar"><i id="bar"></i></div>
+<div class="controls">
+  <button class="ctl ctl-main" id="cPlay">Пауза</button>
+  <button class="ctl" id="cPrev">← Шаг назад</button>
+  <button class="ctl" id="cNext">Шаг вперёд →</button>
+  <button class="ctl" id="cAgain">Сначала</button>
+  <button class="ctl ctl-icon" id="cMute" aria-label="Выключить звук" aria-pressed="false">
+    <svg class="ico-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 010 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <svg class="ico-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+    <span class="ico-txt">Звук</span>
+  </button>
+  <div class="step-no" id="stepNo">01 / 14</div>
+</div>
+
+<script src="../assets/engine.js"></script>
+<script>
+"use strict";
+
+/* карточка глазами выбранной роли */
+function showAs(role){
+  const optRow = el('vOptRow'), opt = el('vOpt'), note = el('vNote');
+  const codeHidden = el('mgrCode').classList.contains('hid') || el('mgrCode').classList.contains('edited');
+
+  optRow.classList.remove('gone');
+  opt.textContent = '920,00 ТМТ';
+  el('vCode').parentElement.classList.remove('gone');
+  el('vCode').textContent = 'AA1001';
+
+  if(role === 'Продавец'){
+    optRow.classList.add('gone');
+    opt.textContent = 'поле скрыто для этой роли';
+    note.innerHTML = 'Скрыто полей: 1. Скрытые поля не приходят в <code>/api/v1/products</code> — их нельзя увидеть даже через перехват трафика.';
+  } else if(role === 'Менеджер'){
+    if(codeHidden){
+      el('vCode').parentElement.classList.add('gone');
+      el('vCode').textContent = 'поле скрыто для этой роли';
+      note.innerHTML = 'Скрыто полей: 1. Скрытые поля не приходят в <code>/api/v1/products</code> — их нельзя увидеть даже через перехват трафика.';
+    } else {
+      note.textContent = 'Роль «Менеджер» видит карточку целиком.';
+    }
+  } else {
+    note.textContent = 'Роль «Администратор» видит карточку целиком.';
+  }
+}
+
+const STEPS = [
+{
+  audio:"../audio/prava/prava-01.mp3", dur:9500,
+  text:"«Матрица прав» отвечает на один вопрос: какие поля карточки товара уходят в мобильное приложение каждой роли. Администратор работает в этой панели, менеджер и продавец — только в приложении.",
+  act: async () => { await moveTo(el('intro'), 700); await wait(1200); }
+},
+{
+  audio:"../audio/prava/prava-02.mp3", dur:8500,
+  text:"По горизонтали — поля карточки: код, название, артикул, штрихкод и три цены. По вертикали — роли. На пересечении видно, приходит поле этой роли или нет.",
+  act: async () => { await moveTo($('.mx thead'), 700); await wait(900); await moveTo($('.mx .role'), 600); await wait(700); }
+},
+{
+  audio:"../audio/prava/prava-03.mp3", dur:8000,
+  text:"Строка администратора закрыта: везде стоит «всегда». Он ведёт данные в панели и видит всё по определению — эту строку изменить нельзя.",
+  act: async () => { await moveTo(el('rowAdmin'), 650); await wait(1300); }
+},
+{
+  audio:"../audio/prava/prava-04.mp3", dur:9000,
+  text:"У продавца оптовая цена уже скрыта — светлая клетка. Это закупочная цена, продавцу в зале она не нужна. Слева у каждой роли счётчик: у продавца шесть полей из семи.",
+  act: async () => { await moveTo(el('selOpt'), 650); await wait(900); await moveTo(el('cntSel'), 550); el('cntSel').classList.add('lit'); await wait(1000); el('cntSel').classList.remove('lit'); }
+},
+{
+  audio:"../audio/prava/prava-05.mp3", dur:8500,
+  text:"Справа — самое полезное. «Карточка глазами роли» показывает, что человек увидит на экране телефона, когда отсканирует штрихкод. Сейчас выбран администратор: карточка целиком.",
+  act: async () => { await moveTo($('.card-view'), 700); await wait(1400); }
+},
+{
+  audio:"../audio/prava/prava-06.mp3", dur:6500,
+  text:"Переключаем на менеджера. Тоже всё на месте, включая оптовую цену — это и есть его отличие от продавца.",
+  act: async () => { await pickFrom('who','Менеджер'); showAs('Менеджер'); await wait(900); }
+},
+{
+  audio:"../audio/prava/prava-07.mp3", dur:10000,
+  text:"А теперь продавец. Оптовая цена бледнеет, вместо суммы написано «поле скрыто для этой роли». И внизу важное примечание: скрытые поля не приходят в API — их нельзя увидеть даже через перехват трафика.",
+  act: async () => {
+    await pickFrom('who','Продавец'); showAs('Продавец'); await wait(1000);
+    await moveTo(el('vNote'), 600); await wait(1500);
+  }
+},
+{
+  audio:"../audio/prava/prava-08.mp3", dur:8000,
+  text:"Теперь изменим настройку. Допустим, менеджеру не нужен основной код — это внутренний ключ каталога. Нажимаем на клетку.",
+  act: async () => {
+    await click(el('mgrCode'), 400);
+    el('mgrCode').classList.remove('see');
+    el('mgrCode').classList.add('edited');
+    el('mgrCode').textContent = 'скрыто';
+    el('cntMgr').textContent = '6 / 7 полей';
+    el('cntMgr').classList.add('lit');
+    await wait(900);
+  }
+},
+{
+  audio:"../audio/prava/prava-09.mp3", dur:8500,
+  text:"Клетка обведена рамкой — это значит «изменено, но не сохранено». Счётчик у менеджера сразу стал шесть из семи. В таблице ничего ещё не применилось.",
+  act: async () => { await moveTo(el('cntMgr'), 600); await wait(900); await moveTo($('.legend'), 600); await wait(1100); }
+},
+{
+  audio:"../audio/prava/prava-10.mp3", dur:8000,
+  text:"Внизу появилось предупреждение: есть несохранённые изменения, и приложения получат новую политику при следующей синхронизации. Кнопка «Сохранить политику» стала активной.",
+  act: async () => {
+    el('foot').classList.add('dirty');
+    await moveTo($('.dirty-note'), 650); await wait(1600);
+  }
+},
+{
+  audio:"../audio/prava/prava-11.mp3", dur:7000,
+  text:"Проверим, что получилось, не сохраняя. Переключаем панель справа на менеджера — основной код теперь скрыт и у него.",
+  act: async () => { await pickFrom('who','Менеджер'); showAs('Менеджер'); await moveTo(el('vCode'), 600); await wait(1100); }
+},
+{
+  audio:"../audio/prava/prava-12.mp3", dur:7500,
+  text:"Передумали — «Вернуть как было» отменяет всё несохранённое разом. Клетка возвращается в прежнее состояние, предупреждение внизу исчезает.",
+  act: async () => {
+    await click(el('revert'), 400);
+    el('mgrCode').classList.remove('edited');
+    el('mgrCode').classList.add('see');
+    el('mgrCode').textContent = 'видно';
+    el('cntMgr').textContent = '7 / 7 полей';
+    el('cntMgr').classList.remove('lit');
+    el('foot').classList.remove('dirty');
+    showAs('Менеджер');
+    await wait(1100);
+  }
+},
+{
+  audio:"../audio/prava/prava-13.mp3", dur:8500,
+  text:"В шапке каждой колонки есть ссылка «скрыть всем» — она закрывает поле сразу для менеджера и продавца. Удобно, когда решили, что поле не нужно никому в зале.",
+  act: async () => {
+    await moveTo(el('hideAll'), 650);
+    el('hideAll').classList.add('lit');
+    await wait(1600);
+    el('hideAll').classList.remove('lit');
+  }
+},
+{
+  audio:"../audio/prava/prava-14.mp3", dur:10000,
+  text:"Когда всё выставлено, нажимаем «Сохранить политику». Внизу появляется отметка, кто и когда сохранил. Изменения дойдут до телефонов не мгновенно, а при следующей синхронизации — это видно на соседней вкладке.",
+  act: async () => {
+    await click(el('mgrCode'), 300);
+    el('mgrCode').classList.remove('see');
+    el('mgrCode').classList.add('edited');
+    el('mgrCode').textContent = 'скрыто';
+    el('cntMgr').textContent = '6 / 7 полей';
+    el('foot').classList.add('dirty');
+    await wait(700);
+    await click(el('save'), 500);
+    el('mgrCode').classList.remove('edited');
+    el('mgrCode').classList.add('hid');
+    el('foot').classList.remove('dirty');
+    $('.saved-note').textContent = 'Политика сохранена 28.08.2026, Администратор';
+    await moveTo($('.saved-note'), 600);
+    await wait(1400);
+  }
+}
+];
+
+function RESET(){
+  closeModals();
+
+  const c = el('mgrCode');
+  c.className = 'cell see'; c.textContent = 'видно';
+  el('cntMgr').textContent = '7 / 7 полей';
+  el('cntMgr').classList.remove('lit');
+  el('cntSel').classList.remove('lit');
+  el('foot').classList.remove('dirty');
+  el('hideAll').classList.remove('lit');
+  $('.saved-note').textContent = 'Политика сохранена 24.07.2026, Айнур Д.';
+
+  const b = el('who');
+  b.classList.remove('open');
+  $('.sel-face', b).textContent = 'Администратор';
+  $$('.sel-list div', b).forEach((d,i)=>d.classList.toggle('pick', i===0));
+  showAs('Администратор');
+
+  const cur = $('#cursor');
+  cur.classList.remove('on');
+  cur.style.transition='none';
+  cur.style.transform='translate(150px,150px)';
+}
+
+startLesson({ steps: STEPS, reset: RESET });
+</script>
+</body>
+</html>

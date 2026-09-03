@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Синхронизация · База знаний AROME</title>
+<link rel="stylesheet" href="../assets/base.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body class="lesson">
+
+<div id="intro">
+  <p class="kick">База знаний · Инструкция 4</p>
+  <h1>Синхронизация устройств</h1>
+  <p class="lead">Как понять, что телефон продавца работает со свежими ценами, и что делать, если он отстал. История сканирований штрихкодов. Инструкция идёт сама — курсор нажимает кнопки, голос объясняет.</p>
+  <button id="go">Начать</button>
+</div>
+
+<div class="top">
+  <a class="logo" href="../index.html">AR&Ocirc;ME<span>База знаний</span></a>
+  <div class="top-rule"></div>
+  <a class="top-back" href="../index.html">← Все инструкции</a>
+</div>
+<div class="top-strip"></div>
+
+<div class="stage" id="stage">
+  <div class="scaler" id="scaler">
+    <div class="panel">
+
+      <div class="p-top">
+        <div class="p-logo">AR&Ocirc;ME<span>Каталог</span></div>
+        <div class="p-search">Штрихкод, артикул или название</div>
+        <div class="p-when">28.08.2026 · 15:01</div>
+        <div class="p-who"><div class="p-badge">A</div><div><b>Администратор</b><i>Администратор</i></div></div>
+        <div class="p-out">Выход</div>
+      </div>
+
+      <div class="p-tabs">
+        <div class="tab">Товары</div>
+        <div class="tab">Импорт</div>
+        <div class="tab">Пользователи</div>
+        <div class="tab">Матрица прав</div>
+        <div class="tab on" data-tab="sync">Синхронизация</div>
+        <div class="tab">Журнал действий</div>
+      </div>
+
+      <div class="p-body" style="padding:20px 24px">
+        <div class="sync-top">
+          <div>
+            <h2 style="font-family:var(--serif);font-size:23px;margin:0 0 7px">Синхронизация устройств</h2>
+            <p style="font-size:12px;line-height:1.6;color:var(--ink-soft);max-width:58ch;margin:0" data-el="intro">
+              Если устройство давно не выходило на связь, продавец торгует по старым ценам. Версия данных —
+              номер последней применённой ревизии каталога.
+            </p>
+          </div>
+          <div class="ver-box" data-el="verBox">
+            <div class="f-cap">Версия каталога на сервере</div>
+            <b data-el="verServer">10</b>
+          </div>
+        </div>
+
+        <table style="margin-top:14px">
+          <thead><tr>
+            <th class="c-who">Сотрудник</th><th class="c-dev">Устройство</th><th class="c-when">Последняя связь</th>
+            <th class="c-scans">Последние сканы</th><th class="c-ver" style="text-align:right">Версия данных</th>
+            <th class="c-lag" style="text-align:right">Отставание</th>
+          </tr></thead>
+        </table>
+
+        <div id="rows">
+          <div class="sync-row" data-el="rowArkach">
+            <div class="c-who"><div class="u-name">Arkach</div></div>
+            <div class="c-dev"><div class="u-dev" style="font-size:11px">POCO M2007J20CG</div><div class="u-dev">QKQ1.200512.002 · v1.0.0</div></div>
+            <div class="c-when"><div class="u-when">26.08.2026 14:40</div><div class="ago">2 дня назад · данные актуальны</div></div>
+            <div class="c-scans" data-el="scansArkach">
+              <div class="scan-line"><span class="scan-time">14:44</span><b>VERSACE YELLOW DIAMOND EDT 50ML</b></div>
+              <div class="scan-line"><span class="scan-time">14:44</span><b>VERSACE CRYSTAL EMERALD EDP 90ML</b></div>
+              <div class="scan-line"><span class="scan-time">14:44</span><b>VERSACE BRIGHT CRYSTAL ABSOLU EDP …</b></div>
+              <div class="scan-more" data-el="openArkach">ещё 1 — открыть</div>
+            </div>
+            <div class="c-ver"><span class="verno" data-el="verArkach">10</span></div>
+            <div class="c-lag"><span class="lag-ok" data-el="lagArkach">нет</span></div>
+          </div>
+
+          <div class="sync-row" data-el="rowSelbi">
+            <div class="c-who"><div class="u-name">Сельби Бусакова</div></div>
+            <div class="c-dev"><div class="u-dev" style="font-size:11px">samsung SM-S938B</div><div class="u-dev">BP2A.250605.031.A3 · v1.0.0</div></div>
+            <div class="c-when"><div class="u-when">26.08.2026 15:01</div><div class="ago">2 дня назад · данные актуальны</div></div>
+            <div class="c-scans"><div class="scan-empty">сканером ещё не пользовались</div></div>
+            <div class="c-ver"><span class="verno" data-el="verSelbi">10</span></div>
+            <div class="c-lag"><span class="lag-ok" data-el="lagSelbi">нет</span></div>
+          </div>
+
+          <div class="sync-row" data-el="rowAdmin">
+            <div class="c-who"><div class="u-name">Администратор</div></div>
+            <div class="c-dev"><div class="u-dev" style="font-size:11px">iPhone18,1</div><div class="u-dev">DEF79F52-41CB · v1.0.0</div></div>
+            <div class="c-when"><div class="u-when">28.08.2026 11:26</div><div class="ago">4 часа назад · данные актуальны</div></div>
+            <div class="c-scans"><div class="scan-empty">сканером ещё не пользовались</div></div>
+            <div class="c-ver"><span class="verno">10</span></div>
+            <div class="c-lag"><span class="lag-ok">нет</span></div>
+          </div>
+        </div>
+
+        <div class="mbg" id="mbg"></div>
+
+        <div class="modal narrow" id="mScan">
+          <div class="scan-modal-top">
+            <div class="scan-kick">История сканирований</div>
+            <div class="scan-dev">POCO M2007J20CG · QKQ1.200512.002</div>
+            <h3 style="font-family:var(--serif);font-size:20px;margin:8px 0 0">Arkach</h3>
+          </div>
+          <div class="m-body">
+            <p class="scan-lead">Товары, которые продавец открывал сканером. Повторный скан не добавляет строку — товар поднимается наверх, а счётчик растёт.</p>
+            <div class="scan-list" id="scanList">
+              <div class="scan-item"><div class="n">1</div><div class="name"><b>VERSACE YELLOW DIAMOND EDT 50ML</b><small>арт. 520030</small></div><div><div class="when">26.08.2026 14:44</div><div class="cnt">1 раз</div></div></div>
+              <div class="scan-item"><div class="n">2</div><div class="name"><b>VERSACE CRYSTAL EMERALD EDP 90ML</b><small>арт. 530032</small></div><div><div class="when">26.08.2026 14:44</div><div class="cnt">1 раз</div></div></div>
+              <div class="scan-item"><div class="n">3</div><div class="name"><b>VERSACE BRIGHT CRYSTAL ABSOLU EDP 90ML</b><small>арт. 511032</small></div><div><div class="when">26.08.2026 14:44</div><div class="cnt">1 раз</div></div></div>
+              <div class="scan-item"><div class="n">4</div><div class="name"><b>VERSACE BRIGHT CRYSTAL EDT 90ML</b><small>арт. 510032</small></div><div><div class="when">26.08.2026 14:40</div><div class="cnt">1 раз</div></div></div>
+            </div>
+          </div>
+          <div class="m-foot" style="justify-content:space-between">
+            <div class="scan-count" id="scanCount">строк: 4</div>
+            <div class="btn-ghost">Закрыть</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="cursor">
+      <svg width="22" height="22" viewBox="0 0 22 22"><path d="M2 1l16 8.5-7 1.5-3.5 7z" fill="#1C1712" stroke="#F6F1E7" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <div class="ring" id="ring"></div>
+    </div>
+  </div>
+</div>
+
+<div class="subs"><p id="subs"></p></div>
+
+<div class="bar"><i id="bar"></i></div>
+<div class="controls">
+  <button class="ctl ctl-main" id="cPlay">Пауза</button>
+  <button class="ctl" id="cPrev">← Шаг назад</button>
+  <button class="ctl" id="cNext">Шаг вперёд →</button>
+  <button class="ctl" id="cAgain">Сначала</button>
+  <button class="ctl ctl-icon" id="cMute" aria-label="Выключить звук" aria-pressed="false">
+    <svg class="ico-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 010 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <svg class="ico-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+    <span class="ico-txt">Звук</span>
+  </button>
+  <div class="step-no" id="stepNo">01 / 11</div>
+</div>
+
+<script src="../assets/engine.js"></script>
+<script>
+"use strict";
+
+const STEPS = [
+{
+  audio:"../audio/sync/sync-01.mp3", dur:8000,
+  text:"«Синхронизация» показывает, у кого из сотрудников телефон работает со свежими ценами, а у кого — с устаревшими. Если продавец давно не выходил на связь, он торгует по старым ценам.",
+  act: async () => { await moveTo(el('intro'), 700); await wait(1000); }
+},
+{
+  audio:"../audio/sync/sync-02.mp3", dur:8500,
+  text:"Справа сверху — версия каталога на сервере. Каждое изменение цены или товара поднимает этот номер. Сейчас на сервере версия десять.",
+  act: async () => { await moveTo(el('verBox'), 700); el('verBox').classList.add('lit'); await wait(1300); el('verBox').classList.remove('lit'); }
+},
+{
+  audio:"../audio/sync/sync-03.mp3", dur:9500,
+  text:"У каждого сотрудника своя строка: устройство, когда телефон последний раз выходил на связь, и какую версию каталога он у себя носит. Если версия совпадает с серверной — цветная полоса слева зелёная.",
+  act: async () => { await moveTo(el('rowArkach'), 700); await wait(900); await moveTo(el('verArkach'), 550); await wait(900); }
+},
+{
+  audio:"../audio/sync/sync-04.mp3", dur:11000,
+  text:"Обратите внимание: у Arkach последняя связь была два дня назад, но данные всё равно актуальны. Давность связи и свежесть данных — разные вещи. Важна не дата, а совпадение версии с той, что на сервере.",
+  act: async () => { await moveTo($('#rowArkach .ago'), 650); await wait(1200); await moveTo(el('lagArkach'), 550); await wait(1400); }
+},
+{
+  audio:"../audio/sync/sync-05.mp3", dur:9000,
+  text:"Средняя колонка — последние товары, которые продавец открывал сканером в приложении. Видно время и название. Если список длиннее трёх строк, появляется ссылка «ещё — открыть».",
+  act: async () => { await moveTo(el('scansArkach'), 700); await wait(1000); await moveTo(el('openArkach'), 550); await wait(700); }
+},
+{
+  audio:"../audio/sync/sync-06.mp3", dur:6500,
+  text:"Нажимаем на неё — открывается полная история сканирований этого сотрудника.",
+  act: async () => { await click(el('openArkach'), 400); openModal('mScan'); await wait(750); }
+},
+{
+  audio:"../audio/sync/sync-07.mp3", dur:9500,
+  text:"Здесь видно артикул каждого товара, когда его сканировали в последний раз и сколько раз всего. Повторный скан того же товара не создаёт новую строку — она просто поднимается наверх, а счётчик растёт.",
+  act: async () => { await moveTo($('#mScan .scan-list'), 700); await wait(1200); await moveTo($('#scanList .scan-item:first-child .cnt'), 550); await wait(1100); }
+},
+{
+  audio:"../audio/sync/sync-08.mp3", dur:8500,
+  text:"Например, если Arkach ещё раз отсканирует Yellow Diamond, эта строка останется первой, а счётчик станет «2 раза». Обновится и время последнего скана.",
+  act: async () => {
+    const first = $('#scanList .scan-item:first-child');
+    await moveTo(first, 600);
+    first.querySelector('.cnt').textContent = '2 раза';
+    first.querySelector('.cnt').classList.add('up');
+    first.querySelector('.when').textContent = '28.08.2026 15:01';
+    await tap(); await wait(1300);
+    first.querySelector('.cnt').classList.remove('up');
+  }
+},
+{
+  audio:"../audio/sync/sync-09.mp3", dur:6000,
+  text:"Внизу — общее число строк в истории. Закрываем окно.",
+  act: async () => { await moveTo($('#scanCount'), 500); await wait(700); await click($('#mScan .btn-ghost'), 350); closeModals(); await wait(500); }
+},
+{
+  audio:"../audio/sync/sync-10.mp3", dur:11500,
+  text:"А теперь представим: на сервере что-то изменили, и версия каталога стала одиннадцать. Пока телефон Сельби не выйдет на связь, он останется на версии десять. Полоса слева краснеет, в отставании появляется предупреждение.",
+  act: async () => {
+    await click(el('verServer'), 300);
+    el('verServer').textContent = '11';
+    el('verBox').classList.add('lit'); await wait(700); el('verBox').classList.remove('lit');
+    el('rowSelbi').classList.add('stale');
+    el('lagSelbi').className = 'lag-bad';
+    el('lagSelbi').textContent = 'на 1 версию';
+    await moveTo(el('rowSelbi'), 650); await wait(1600);
+  }
+},
+{
+  audio:"../audio/sync/sync-11.mp3", dur:9000,
+  text:"Как только продавец откроет приложение с интернетом, телефон подтянет новую версию сам — нажимать здесь ничего не нужно. Если отставание держится днями, стоит просто спросить у продавца, работает ли у него интернет.",
+  act: async () => {
+    await wait(700);
+    el('rowSelbi').classList.remove('stale');
+    el('lagSelbi').className = 'lag-ok';
+    el('lagSelbi').textContent = 'нет';
+    el('verSelbi').textContent = '11';
+    el('rowSelbi').classList.add('dim');
+    await moveTo(el('rowSelbi'), 600); await wait(300);
+    el('rowSelbi').classList.remove('dim');
+    await wait(1000);
+  }
+}
+];
+
+function RESET(){
+  closeModals();
+
+  el('verServer').textContent = '10';
+  el('verBox').classList.remove('lit');
+
+  el('rowSelbi').classList.remove('stale','dim');
+  el('lagSelbi').className = 'lag-ok';
+  el('lagSelbi').textContent = 'нет';
+  el('verSelbi').textContent = '10';
+
+  const first = $('#scanList .scan-item:first-child');
+  first.querySelector('.cnt').textContent = '1 раз';
+  first.querySelector('.cnt').classList.remove('up');
+  first.querySelector('.when').textContent = '26.08.2026 14:44';
+
+  const cur = $('#cursor');
+  cur.classList.remove('on');
+  cur.style.transition='none';
+  cur.style.transform='translate(150px,150px)';
+}
+
+startLesson({ steps: STEPS, reset: RESET });
+</script>
+</body>
+</html>

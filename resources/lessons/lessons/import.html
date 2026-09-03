@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Импорт прайса · База знаний AROME</title>
+<link rel="stylesheet" href="../assets/base.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body class="lesson">
+
+<div id="intro">
+  <p class="kick">База знаний · Инструкция 6</p>
+  <h1>Импорт прайса из Excel</h1>
+  <p class="lead">Как обновить цены всего каталога одним файлом: формат, шаблон, загрузка и история импортов. Инструкция идёт сама — курсор нажимает кнопки, голос объясняет.</p>
+  <p style="font-size:11px;color:#C99A6B;max-width:44ch;line-height:1.6"></p>
+  <button id="go">Начать</button>
+</div>
+
+<div class="top">
+  <a class="logo" href="../index.html">AR&Ocirc;ME<span>База знаний</span></a>
+  <div class="top-rule"></div>
+  <a class="top-back" href="../index.html">← Все инструкции</a>
+</div>
+<div class="top-strip"></div>
+
+<div class="stage" id="stage">
+  <div class="scaler" id="scaler">
+    <div class="panel">
+
+      <div class="p-top">
+        <div class="p-logo">AR&Ocirc;ME<span>Каталог</span></div>
+        <div class="p-search">Штрихкод, артикул или название</div>
+        <div class="p-when">28.08.2026 · 16:47</div>
+        <div class="p-who"><div class="p-badge">A</div><div><b>Администратор</b><i>Администратор</i></div></div>
+        <div class="p-out">Выход</div>
+      </div>
+
+      <div class="p-tabs">
+        <div class="tab">Товары</div>
+        <div class="tab on" data-tab="import">Импорт</div>
+        <div class="tab">Пользователи</div>
+        <div class="tab">Матрица прав</div>
+        <div class="tab">Синхронизация</div>
+        <div class="tab">Журнал действий</div>
+      </div>
+
+      <div class="p-body" style="padding:20px 24px">
+
+        <div class="steps-bar">
+          <div class="step-tab on" data-el="tab1"><i>1</i>Файл</div>
+          <div class="step-tab" data-el="tab2"><i>2</i>Проверка строк</div>
+        </div>
+
+        <div class="imp-wrap" data-el="screen1">
+          <h2 class="imp-h">Загрузка файла каталога</h2>
+          <p class="imp-lead" data-el="lead">
+            Прайс — единственный источник цен: панель ничего не придумывает сверх восьми колонок файла.
+            Формат всегда один и тот же — тот же, что отдаёт кнопка «Экспорт» в товарах.
+            Строки, которых нет в файле, останутся в каталоге без изменений.
+          </p>
+
+          <div class="drop" data-el="drop">
+            <div class="drop-kick">Перетащите файл сюда</div>
+            <div class="drop-h">или выберите на компьютере</div>
+            <p class="drop-cols" data-el="cols">.xlsx · колонки: основной код, артикул, штрихкод, номенклатура, розничная цена, скидки, цена со скидкой, оптовая цена</p>
+            <div class="drop-btn" data-el="pick">Выбрать файл</div>
+          </div>
+
+          <div class="imp-two">
+            <div class="imp-box" data-el="tplBox">
+              <div class="f-cap">Шаблон</div>
+              <p>Пустая книга с шапкой на своём месте — заполните и загрузите обратно, колонки уже там, где их ждёт панель.</p>
+              <div class="tpl-btn" data-el="tpl">Скачать шаблон .xlsx</div>
+            </div>
+            <div class="imp-box" data-el="logBox">
+              <div class="f-cap">Последние импорты</div>
+              <div class="imp-log">
+                <div class="head">строк загружено / с ошибками</div>
+                <div class="row" data-el="logRow"><span class="d">26.08.2026</span><span class="f">4545454.xlsx</span><span class="n"><b>133</b> / <b class="bad">4</b></span></div>
+                <div class="row"><span class="d">25.08.2026</span><span class="f">catalog-2026-08-04-0950.xlsx</span><span class="n"><b>5</b> / <b>0</b></span></div>
+                <div class="row"><span class="d">25.08.2026</span><span class="f">catalog-2026-08-04-0950.xlsx</span><span class="n"><b>5</b> / <b>0</b></span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!--
+          ЭКРАН «ПРОВЕРКА СТРОК» — реконструкция.
+          Скриншота этого экрана не было, только упоминание в задаче и
+          блок «строк загружено / с ошибками» с первого экрана.
+          Логика собрана по аналогии с остальной панелью: счётчики сверху,
+          таблица построчно, ошибка помечена и объяснена, ниже — кнопка
+          завершить загрузку. Проверьте на реальной панели перед тем,
+          как записывать озвучку для шагов 9-14.
+        -->
+        <div class="chk-wrap" data-el="screen2" style="display:none">
+          <h2 class="imp-h">Проверка строк</h2>
+          <p class="imp-lead">Файл прочитан. Строки с ошибкой не изменят каталог — остальные обновятся, как только вы подтвердите загрузку.</p>
+
+          <div class="chk-sum">
+            <div class="chk-stat"><div class="f-cap">Всего строк</div><b>133</b></div>
+            <div class="chk-stat"><div class="f-cap">Будет обновлено</div><b style="color:var(--ok)">129</b></div>
+            <div class="chk-stat bad" data-el="errStat"><div class="f-cap">С ошибкой</div><b>4</b></div>
+          </div>
+
+          <table class="chk-table">
+            <thead><tr><th style="width:26px"></th><th>Артикул</th><th>Номенклатура</th><th>Розничная цена</th><th>Статус</th></tr></thead>
+            <tbody>
+              <tr><td class="rn">1</td><td>510028</td><td>VERSACE BRIGHT CRYSTAL EDT 30ML</td><td>1 415,88</td><td><span class="chk-badge">ок</span></td></tr>
+              <tr><td class="rn">2</td><td>511028</td><td>VERSACE BRIGHT CRYSTAL ABSOLU 30ML</td><td>1 515,24</td><td><span class="chk-badge">ок</span></td></tr>
+              <tr class="err" data-el="errRow">
+                <td class="rn">3</td><td data-el="errArt">—</td><td>VERSACE EROS EDT 100ML</td>
+                <td><div class="chk-cell" data-el="errCell">1 8а0</div></td>
+                <td><span class="chk-badge bad">ошибка</span><div class="why" data-el="errWhy">розничная цена — не число</div></td>
+              </tr>
+              <tr><td class="rn">4</td><td>510050</td><td>VERSACE BRIGHT CRYSTAL BODY LOTION 200ML</td><td>788,90</td><td><span class="chk-badge">ок</span></td></tr>
+              <tr class="fix" data-el="fixRow" style="display:none">
+                <td class="rn">3</td><td>512055</td><td>VERSACE EROS EDT 100ML</td>
+                <td><div class="chk-cell">1 840,00</div></td>
+                <td><span class="chk-badge">ок</span></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="chk-foot">
+            <p class="chk-note" data-el="chkNote">Загрузить можно уже сейчас — 129 строк обновятся, а 4 с ошибкой останутся как были в каталоге.</p>
+            <div style="display:flex;gap:12px;flex-shrink:0">
+              <div class="btn-ghost">Отмена</div>
+              <div class="btn-go ready" data-el="chkGo">Загрузить 129 строк</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flyfile" data-el="fly"><i>XLSX</i><b>price-2026-08-28.xlsx</b></div>
+
+        <div class="mbg" id="mbg"></div>
+        <div class="modal xl-modal" id="mTpl">
+          <div class="xl-top">
+            <span class="name">catalog-template.xlsx · Защищённый просмотр</span>
+            <span class="warn">Будьте осторожны: файлы из интернета</span>
+          </div>
+          <div class="xl-tabs"><span>Главная</span><span>Вставка</span><span>Данные</span><span>Вид</span></div>
+          <div class="xl-body">
+            <div class="xl-grid">
+              <table class="xls">
+                <tr><td class="rn"></td><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th></tr>
+                <tr><td class="rn">1</td><td colspan="8"></td></tr>
+                <tr><td class="rn">2</td><td colspan="8"></td></tr>
+                <tr>
+                  <td class="rn">3</td>
+                  <th data-el="hCode">Основной код</th><th data-el="hArt">Артикул</th><th>Штрихкод</th><th>Номенклатура</th>
+                  <th>Розничная цена</th><th>Скидки</th><th>Цена со скидкой</th><th>Оптовая цена</th>
+                </tr>
+                <tr><td class="rn">4</td><td colspan="8"></td></tr>
+                <tr><td class="rn">5</td><td colspan="8"></td></tr>
+                <tr><td class="rn">6</td><td colspan="8"></td></tr>
+                <tr><td class="rn">7</td><td colspan="8"></td></tr>
+                <tr><td class="rn">8</td><td colspan="8"></td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="cursor">
+      <svg width="22" height="22" viewBox="0 0 22 22"><path d="M2 1l16 8.5-7 1.5-3.5 7z" fill="#1C1712" stroke="#F6F1E7" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <div class="ring" id="ring"></div>
+    </div>
+  </div>
+</div>
+
+<div class="subs"><p id="subs"></p></div>
+
+<div class="bar"><i id="bar"></i></div>
+<div class="controls">
+  <button class="ctl ctl-main" id="cPlay">Пауза</button>
+  <button class="ctl" id="cPrev">← Шаг назад</button>
+  <button class="ctl" id="cNext">Шаг вперёд →</button>
+  <button class="ctl" id="cAgain">Сначала</button>
+  <button class="ctl ctl-icon" id="cMute" aria-label="Выключить звук" aria-pressed="false">
+    <svg class="ico-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 010 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <svg class="ico-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+    <span class="ico-txt">Звук</span>
+  </button>
+  <div class="step-no" id="stepNo">01 / 14</div>
+</div>
+
+<script src="../assets/engine.js"></script>
+<script>
+"use strict";
+
+const STEPS = [
+{
+  audio:"../audio/import/import-01.mp3", dur:9000,
+  text:"«Импорт» нужен, когда в магазин приходит новая коллекция или партия товаров. Вместо того чтобы заводить каждую карточку вручную, загружаем один файл Excel.",
+  act: async () => { await moveTo(el('lead'), 700); await wait(1200); }
+},
+{
+  audio:"../audio/import/import-02.mp3", dur:8500,
+  text:"Загрузка идёт в два шага, они видны сверху. Сначала выбираем файл, потом панель проверяет строки и показывает, что получилось. Пока мы на первом шаге.",
+  act: async () => { await moveTo(el('tab1'), 600); await wait(800); await moveTo(el('tab2'), 550); await wait(1000); }
+},
+{
+  audio:"../audio/import/import-03.mp3", dur:10000,
+  text:"Главное правило: прайс — единственный источник цен. Панель не придумывает ничего сверх того, что есть в файле. И наоборот: строки, которых в файле нет, останутся в каталоге нетронутыми — импорт не стирает старое.",
+  act: async () => { await moveTo(el('lead'), 650); el('lead').style.background='var(--gold-soft)'; await wait(1800); el('lead').style.background=''; }
+},
+{
+  audio:"../audio/import/import-04.mp3", dur:10500,
+  text:"Файл должен быть в формате xlsx и содержать восемь колонок: основной код, артикул, штрихкод, номенклатура, розничная цена, скидки, цена со скидкой и оптовая цена. Порядок и названия менять нельзя.",
+  act: async () => { await moveTo(el('cols'), 650); el('cols').style.color='var(--ink)'; await wait(1900); el('cols').style.color=''; }
+},
+{
+  audio:"../audio/import/import-05.mp3", dur:12000,
+  text:"Если под рукой нет готового прайса в нужном виде — нажмите «Скачать шаблон». Откроется пустая книга Excel: восемь колонок ровно там, где их ждёт панель. Остаётся заполнить и загрузить обратно.",
+  act: async () => {
+    await moveTo(el('tplBox'), 650); await wait(700);
+    await click(el('tpl'), 500);
+    openModal('mTpl'); await wait(900);
+    await moveTo(el('hCode'), 650);
+    el('hCode').classList.add('lit'); await wait(1000); el('hCode').classList.remove('lit');
+    await moveTo(el('hArt'), 500);
+    el('hArt').classList.add('lit'); await wait(1000); el('hArt').classList.remove('lit');
+    await wait(600);
+    closeModals(); await wait(500);
+  }
+},
+{
+  audio:"../audio/import/import-06.mp3", dur:9500,
+  text:"Второй способ получить правильный файл — кнопка «Экспорт» на вкладке «Товары». Она отдаёт тот же самый формат, но уже заполненный вашим каталогом.",
+  act: async () => { await moveTo($('.p-tabs .tab'), 700); await wait(1700); }
+},
+{
+  audio:"../audio/import/import-07.mp3", dur:10000,
+  text:"Справа — история последних загрузок. Через дробь: сколько строк принято и сколько было с ошибками. Вот здесь из ста тридцати трёх строк четыре не прошли — значит в файле были опечатки.",
+  act: async () => {
+    await moveTo(el('logBox'), 650); await wait(800);
+    el('logRow').classList.add('lit');
+    await moveTo(el('logRow'), 550); await wait(1700);
+    el('logRow').classList.remove('lit');
+  }
+},
+{
+  audio:"../audio/import/import-08.mp3", dur:9000,
+  text:"Теперь сама загрузка. Файл можно перетащить мышкой прямо в рамку или нажать «Выбрать файл» и найти его на компьютере. После этого панель перейдёт ко второму шагу — проверке строк.",
+  act: async () => {
+    el('drop').classList.add('lit');
+    await moveTo(el('pick'), 650);
+    await wait(600);
+
+    const fly = el('fly');
+    fly.style.transition='none';
+    fly.style.transform='translate(560px, 330px)';
+    fly.classList.add('on');
+    await wait(320);
+    fly.style.transition='transform .9s cubic-bezier(.3,.9,.4,1)';
+    fly.style.transform='translate(300px, 150px)';
+    await wait(700);
+    el('drop').classList.add('over');
+    await wait(500);
+    fly.classList.remove('on');
+
+    await click(el('pick'), 500);
+    el('tab1').classList.remove('on');
+    el('tab2').classList.add('on');
+    el('screen1').style.display='none';
+    el('screen2').style.display='';
+    await moveTo(el('screen2'), 600);
+    await wait(1000);
+  }
+},
+{
+  audio:"../audio/import/import-09.mp3", dur:9500,
+  text:"Панель прочитала файл и показывает три числа: сколько строк всего, сколько обновится без вопросов и сколько попали в ошибку. У нас сто тридцать три строки, сто двадцать девять готовы, четыре — с ошибкой.",
+  act: async () => { await moveTo($('.chk-sum'), 700); await wait(900); await moveTo(el('errStat'), 550); await wait(1100); }
+},
+{
+  audio:"../audio/import/import-10.mp3", dur:9000,
+  text:"Ниже — построчная таблица. Хорошие строки помечены «ок» и показывают, что панель поняла из файла. Ошибочная строка подсвечена и подписана: почему именно она не прошла.",
+  act: async () => { await moveTo($('.chk-table thead'), 650); await wait(800); await moveTo(el('errRow'), 600); await wait(1100); }
+},
+{
+  audio:"../audio/import/import-11.mp3", dur:9500,
+  text:"Здесь причина в цене: вместо числа в ячейке случайно оказалась буква — «1 8а0» вместо «1840». Панель не пытается угадать, что имелось в виду, она просто не берёт эту строку в загрузку.",
+  act: async () => { await moveTo(el('errCell'), 650); await wait(900); await moveTo(el('errWhy'), 550); await wait(1200); }
+},
+{
+  audio:"../audio/import/import-12.mp3", dur:9000,
+  text:"Исправить можно двумя способами. Быстрый — загрузить файл как есть: сто двадцать девять строк обновятся, а четыре ошибочные останутся в каталоге без изменений, как будто их и не было в файле.",
+  act: async () => { await moveTo($('.chk-foot')); await wait(1200); await moveTo(el('chkGo'), 550); await wait(1000); }
+},
+{
+  audio:"../audio/import/import-13.mp3", dur:9500,
+  text:"Второй способ — вернуться к файлу, поправить опечатку в Excel и загрузить заново. Правильный способ зависит от того, критична ли для вас именно эта строка прямо сейчас.",
+  act: async () => {
+    el('errRow').style.display='none';
+    el('fixRow').style.display='';
+    el('errStat').querySelector('b').textContent='0';
+    el('errStat').classList.remove('bad');
+    await moveTo(el('fixRow'), 650); await wait(1500);
+  }
+},
+{
+  audio:"../audio/import/import-14.mp3", dur:9000,
+  text:"Мы загружаем как есть. Нажимаем кнопку — панель обновит каталог, а запись об этом импорте появится в списке «Последние импорты» и в журнале действий.",
+  act: async () => {
+    el('errRow').style.display='';
+    el('fixRow').style.display='none';
+    el('errStat').querySelector('b').textContent='4';
+    el('errStat').classList.add('bad');
+    await click(el('chkGo'), 500);
+    el('chkNote').textContent='Готово: 129 строк обновлено, 4 пропущены с ошибкой.';
+    await wait(1300);
+  }
+}
+];
+
+function RESET(){
+  closeModals();
+  el('tab1').classList.add('on');
+  el('tab2').classList.remove('on');
+  el('screen1').style.display='';
+  el('screen2').style.display='none';
+  el('drop').classList.remove('lit','over');
+  el('logRow').classList.remove('lit');
+  el('tpl').classList.remove('lit');
+  el('pick').classList.remove('lit');
+  el('lead').style.background='';
+  el('cols').style.color='';
+  el('hCode').classList.remove('lit');
+  el('hArt').classList.remove('lit');
+
+  el('errRow').style.display='';
+  el('fixRow').style.display='none';
+  el('errStat').querySelector('b').textContent='4';
+  el('errStat').classList.add('bad');
+  el('chkNote').textContent='Загрузить можно уже сейчас — 129 строк обновятся, а 4 с ошибкой останутся как были в каталоге.';
+
+  const fly = el('fly');
+  fly.classList.remove('on');
+  fly.style.transition='none';
+  fly.style.transform='translate(560px, 330px)';
+
+  const cur = $('#cursor');
+  cur.classList.remove('on');
+  cur.style.transition='none';
+  cur.style.transform='translate(150px,150px)';
+}
+
+startLesson({ steps: STEPS, reset: RESET });
+</script>
+</body>
+</html>

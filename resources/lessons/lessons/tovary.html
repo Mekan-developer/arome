@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Товары · База знаний AROME</title>
+<link rel="stylesheet" href="../assets/base.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body class="lesson">
+
+<div id="intro">
+  <p class="kick">База знаний · Инструкция 1</p>
+  <h1>Страница «Товары»</h1>
+  <p class="lead">Каталог, статусы, добавление товара и правка карточки. Инструкция идёт сама — курсор нажимает кнопки, голос объясняет, текст дублируется субтитрами.</p>
+  <button id="go">Начать</button>
+</div>
+
+<div class="top">
+  <a class="logo" href="../index.html">AR&Ocirc;ME<span>База знаний</span></a>
+  <div class="top-rule"></div>
+  <a class="top-back" href="../index.html">← Все инструкции</a>
+</div>
+<div class="top-strip"></div>
+
+<div class="stage" id="stage">
+  <div class="scaler" id="scaler">
+    <div class="panel">
+
+      <div class="p-top">
+        <div class="p-logo">AR&Ocirc;ME<span>Каталог</span></div>
+        <div class="p-search">Штрихкод, артикул или название</div>
+        <div class="p-when">28.08.2026 · 11:40</div>
+        <div class="p-who"><div class="p-badge">A</div><div><b>Администратор</b><i>Администратор</i></div></div>
+        <div class="p-out">Выход</div>
+      </div>
+
+      <div class="p-tabs">
+        <div class="tab on" data-tab="goods">Товары</div>
+        <div class="tab">Импорт</div>
+        <div class="tab">Пользователи</div>
+        <div class="tab">Матрица прав</div>
+        <div class="tab">Синхронизация</div>
+        <div class="tab">Журнал действий</div>
+      </div>
+
+      <div class="p-body">
+        <div class="bar-top">
+          <div>
+            <div class="f-cap">Статус</div>
+            <div class="sel" data-el="filter">
+              <div class="sel-face">Любой</div>
+              <div class="sel-list"><div class="pick">Любой</div><div>В продаже</div><div>Скрыт</div></div>
+            </div>
+          </div>
+          <div class="tools">
+            <div class="btn-dark" data-el="addBtn">+ Добавить товар</div>
+            <div class="btn-pale">Импорт из Excel</div>
+            <div class="btn-pale" data-el="expBtn">Экспорт</div>
+          </div>
+        </div>
+
+        <table>
+          <thead><tr>
+            <th style="width:33%">Номенклатура</th><th style="width:17%">Артикул · Штрихкод</th>
+            <th class="num">Розн., ТМТ</th><th class="num">Опт., ТМТ</th>
+            <th class="num">Скидка</th><th class="num">Со скидкой</th><th style="text-align:right">Статус</th>
+          </tr></thead>
+          <tbody id="rows">
+            <tr data-row data-el="rowEos">
+              <td><div class="g-name">EOS QUI UT EDT 50ML</div><div class="g-code">AA74471</div></td>
+              <td><div class="g-code" style="margin:0">1465110</div><div class="g-code">8011000734705</div></td>
+              <td class="num strike" data-el="eosRetail">502,11</td><td class="num">—</td>
+              <td class="num" data-el="eosDisc">30 %</td><td class="num" data-el="eosFinal">351,48</td>
+              <td style="text-align:right"><span class="st">в продаже</span></td>
+            </tr>
+            <tr data-row>
+              <td><div class="g-name">VERSACE BC SET (EDT50+BSG50+BL50)</div><div class="g-code">AA5001</div></td>
+              <td><div class="g-code" style="margin:0">V5100685</div><div class="g-code">8011003902750</div></td>
+              <td class="num">2 024,00</td><td class="num">—</td><td class="num">—</td><td class="num">2 024,00</td>
+              <td style="text-align:right"><span class="st">в продаже</span></td>
+            </tr>
+            <tr data-row>
+              <td><div class="g-name">VERSACE BRIGHT CRYSTAL ABSOLU EDP 30ML</div><div class="g-code">AA1008</div></td>
+              <td><div class="g-code" style="margin:0">511028</div><div class="g-code">8011003819423</div></td>
+              <td class="num strike">1 515,24</td><td class="num">—</td><td class="num">50 %</td><td class="num">757,62</td>
+              <td style="text-align:right"><span class="st">в продаже</span></td>
+            </tr>
+            <tr data-row>
+              <td><div class="g-name">VERSACE CRYSTAL NOIR EDT 30ML</div><div class="g-code">AA1042</div></td>
+              <td><div class="g-code" style="margin:0">510092</div><div class="g-code">8011003993611</div></td>
+              <td class="num">905,40</td><td class="num">—</td><td class="num">—</td><td class="num">905,40</td>
+              <td style="text-align:right"><span class="st off">скрыт</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="dl" data-el="dl">
+          <div class="ico">XLSX</div>
+          <div>
+            <b data-el="dlName">catalog-2026-08-28.xlsx</b>
+            <small data-el="dlNote">134 строки · 62 КБ</small>
+            <div class="dl-bar"><i data-el="dlBar"></i></div>
+          </div>
+        </div>
+
+        <div class="mbg" id="mbg"></div>
+
+        <!-- ------- новый товар ------- -->
+        <div class="modal" id="mNew">
+          <div class="m-top">
+            <div><h3>Новый товар</h3><div class="m-sub">основной код присвоится автоматически · AA13xx</div></div>
+            <div class="m-x">Отмена</div>
+          </div>
+          <div class="m-body">
+            <div class="f-lab">Номенклатура</div>
+            <div class="f-in ph" data-el="nName">VERSACE EROS EDT 100ML</div>
+            <div class="f-row">
+              <div><div class="f-lab">Артикул</div><div class="f-in mono ph" data-el="nArt">512055</div></div>
+              <div><div class="f-lab">Штрихкод</div><div class="f-in mono ph" data-el="nBar">8011003809202</div></div>
+              <div style="flex:0 0 auto;padding-top:20px"><div class="btn-gen" data-el="nGen">Сгенерировать</div></div>
+            </div>
+            <div class="f-lab">Цена</div>
+            <div class="f-div"></div>
+            <div class="f-row">
+              <div><div class="f-lab">Розничная, ТМТ</div><div class="f-in mono right ph" data-el="nRetail">&nbsp;</div></div>
+              <div style="flex:0 0 118px"><div class="f-lab">Скидка, %</div><div class="f-in mono right" data-el="nDisc">0</div></div>
+              <div><div class="f-calc" data-el="nCalc"><div class="f-cap">Со скидкой</div><b data-el="nCalcVal">0,00</b></div></div>
+            </div>
+            <div class="f-row">
+              <div style="flex:0 0 214px"><div class="f-lab">Оптовая, ТМТ</div><div class="f-in mono right ph" data-el="nOpt">—</div></div>
+              <div><p class="f-hint" style="margin-top:21px">Оптовую цену видит менеджер вместо розничной. Можно оставить пустой — тогда товар идёт только в розницу.</p></div>
+            </div>
+          </div>
+          <div class="m-foot">
+            <div class="left">
+              <div class="sel" data-el="nStatus" style="min-width:140px">
+                <div class="sel-face">В продаже</div>
+                <div class="sel-list"><div class="pick">В продаже</div><div>Скрыт</div></div>
+              </div>
+              <div class="foot-note">Продавец увидит розничную цену без скидки.</div>
+            </div>
+            <div class="right">
+              <div class="btn-ghost">Отмена</div>
+              <div class="btn-go" data-el="nSave">Сохранить и отправить в CMS</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ------- карточка товара ------- -->
+        <div class="modal" id="mEdit">
+          <div class="m-top">
+            <div><h3>EOS QUI UT EDT 50ML</h3><div class="m-sub">карточка AA74471 · изменения уйдут на устройства при синхронизации</div></div>
+            <div class="m-x">Отмена</div>
+          </div>
+          <div class="m-body">
+            <div class="f-lab">Номенклатура</div>
+            <div class="f-in">EOS QUI UT EDT 50ML</div>
+            <div class="f-row">
+              <div><div class="f-lab">Основной код</div><div class="f-in mono">AA74471</div></div>
+              <div><div class="f-lab">Артикул</div><div class="f-in mono">1465110</div></div>
+              <div><div class="f-lab">Штрихкод</div><div class="f-in mono">8011000734705</div></div>
+            </div>
+            <p class="f-hint">Основной код — ключ сопоставления при импорте прайса. Меняйте, только если он изменился у поставщика.</p>
+            <div class="f-lab">Цена</div>
+            <div class="f-div"></div>
+            <div class="f-row">
+              <div><div class="f-lab">Розничная, ТМТ</div><div class="f-in mono right" data-el="eRetail">502.11</div></div>
+              <div style="flex:0 0 118px"><div class="f-lab">Скидка, %</div><div class="f-in mono right" data-el="eDisc">30</div></div>
+              <div><div class="f-calc" data-el="eCalc"><div class="f-cap">Со скидкой</div><b data-el="eCalcVal">351,48</b></div></div>
+            </div>
+            <div class="f-row">
+              <div style="flex:0 0 214px"><div class="f-lab">Оптовая, ТМТ</div><div class="f-in mono right ph">—</div></div>
+              <div><p class="f-hint" style="margin-top:21px">Продавцу оптовая цена не уходит — колонка закрыта для него в матрице прав.</p></div>
+            </div>
+            <div class="f-lab" style="margin-top:6px">История цены</div>
+            <div class="f-div"></div>
+            <div class="hist" id="hist">
+              <div class="hist-row"><span class="w">25.08.2026</span><span class="who">Администратор · импорт</span><span class="val"><s>0,00</s> → <b>502,11</b></span></div>
+            </div>
+          </div>
+          <div class="m-foot">
+            <div class="left">
+              <div class="sel" data-el="eStatus" style="min-width:140px">
+                <div class="sel-face">В продаже</div>
+                <div class="sel-list"><div class="pick">В продаже</div><div>Скрыт</div></div>
+              </div>
+              <div class="foot-note">Товар выдаётся устройствам при синхронизации.</div>
+            </div>
+            <div class="right">
+              <div class="btn-kill" data-el="eKill">Удалить</div>
+              <div class="btn-ghost">Отмена</div>
+              <div class="btn-go ready" data-el="eSave">Сохранить изменения</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="cursor">
+      <svg width="22" height="22" viewBox="0 0 22 22"><path d="M2 1l16 8.5-7 1.5-3.5 7z" fill="#1C1712" stroke="#F6F1E7" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <div class="ring" id="ring"></div>
+    </div>
+  </div>
+</div>
+
+<div class="subs"><p id="subs"></p></div>
+
+<div class="bar"><i id="bar"></i></div>
+<div class="controls">
+  <button class="ctl ctl-main" id="cPlay">Пауза</button>
+  <button class="ctl" id="cPrev">← Шаг назад</button>
+  <button class="ctl" id="cNext">Шаг вперёд →</button>
+  <button class="ctl" id="cAgain">Сначала</button>
+  <button class="ctl ctl-icon" id="cMute" aria-label="Выключить звук" aria-pressed="false">
+    <svg class="ico-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 010 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <svg class="ico-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+    <span class="ico-txt">Звук</span>
+  </button>
+  <div class="step-no" id="stepNo">01 / 15</div>
+</div>
+
+<script src="../assets/engine.js"></script>
+<script>
+"use strict";
+
+/* ============================================================
+   СЦЕНАРИЙ УРОКА
+   Текст субтитров = текст для начитки.
+   audio — путь к вашей записи. Нет файла — шаг идёт по dur (мс).
+   ============================================================ */
+const STEPS = [
+{
+  audio:"../audio/tovary/tovary-01.mp3", dur:7500,
+  text:"«Товары» — это весь каталог магазина. Отсюда данные уходят в мобильное приложение: продавец подносит телефон к штрихкоду и видит карточку товара.",
+  act: async () => { await moveTo($('#rows'), 700); await wait(900); }
+},
+{
+  audio:"../audio/tovary/tovary-02.mp3", dur:9000,
+  text:"В строке видно всё сразу: название, артикул со штрихкодом, цены и статус. Если у товара есть скидка, розничная цена зачёркнута, а справа стоит та сумма, которую заплатит покупатель.",
+  act: async () => { await moveTo(el('eosRetail'), 650); await wait(900); await moveTo(el('eosFinal'), 500); await wait(700); }
+},
+{
+  audio:"../audio/tovary/tovary-03.mp3", dur:11000,
+  text:"Слева фильтр по статусу. «Любой» показывает весь каталог, «В продаже» — то, что сейчас продаётся, «Скрыт» — снятое с продажи. Скрытый товар остаётся в панели: его видят администратор и менеджер, а продавцу он не уходит.",
+  act: async () => { await pickFrom('filter','Скрыт'); await wait(400); await pickFrom('filter','Любой'); }
+},
+{
+  audio:"../audio/tovary/tovary-04.mp3", dur:6000,
+  text:"Товары можно загружать пачкой из Excel, а можно добавлять по одному. Нажимаем «Добавить товар».",
+  act: async () => { await click(el('addBtn')); openModal('mNew'); await wait(700); }
+},
+{
+  audio:"../audio/tovary/tovary-05.mp3", dur:7500,
+  text:"Основной код панель присвоит сама — придумывать его не нужно. Начинаем с номенклатуры: это название, которое увидит продавец на экране телефона.",
+  act: async () => { await moveTo(el('nName'), 520); await typeIn(el('nName'), 'VERSACE EROS EDT 100ML', 46); }
+},
+{
+  audio:"../audio/tovary/tovary-06.mp3", dur:8500,
+  text:"Артикул — номер товара у поставщика, по нему панель сопоставляет строки при импорте прайса. Штрихкод вводим с коробки или нажимаем «Сгенерировать», если своего штрихкода у товара нет.",
+  act: async () => { await moveTo(el('nArt'), 450); await typeIn(el('nArt'), '512055', 88); await click(el('nGen'), 250); await typeIn(el('nBar'), '8011003809202', 40); }
+},
+{
+  audio:"../audio/tovary/tovary-07.mp3", dur:5500,
+  text:"Розничная цена — та, по которой продаём. Вводим в манатах.",
+  act: async () => { await moveTo(el('nRetail'), 450); await typeIn(el('nRetail'), '1840,00', 88); el('nCalcVal').textContent='1 840,00'; }
+},
+{
+  audio:"../audio/tovary/tovary-08.mp3", dur:7500,
+  text:"Скидку задаём в процентах, и панель сразу пересчитывает итоговую цену. Считать в уме не нужно — поле «со скидкой» заполняется само.",
+  act: async () => {
+    await moveTo(el('nDisc'), 400);
+    el('nDisc').classList.add('lit'); el('nDisc').textContent=''; await wait(260);
+    el('nDisc').textContent='2'; await wait(400);
+    el('nDisc').textContent='20'; await wait(450);
+    el('nCalc').classList.add('lit'); el('nCalcVal').style.color='var(--gold)';
+    el('nCalcVal').textContent='1 472,00'; await wait(1000);
+    el('nCalc').classList.remove('lit'); el('nCalcVal').style.color=''; el('nDisc').classList.remove('lit');
+  }
+},
+{
+  audio:"../audio/tovary/tovary-09.mp3", dur:7000,
+  text:"Оптовую цену видит только менеджер — вместо розничной. Если товар продаётся исключительно в розницу, поле оставляем пустым.",
+  act: async () => { await moveTo(el('nOpt'), 450); await typeIn(el('nOpt'), '1150,00', 86); el('nSave').classList.add('ready'); }
+},
+{
+  audio:"../audio/tovary/tovary-10.mp3", dur:9000,
+  text:"Внизу выбираем статус. «В продаже» — товар уйдёт на телефоны при синхронизации. «Скрыт» — останется только в панели, например пока не привезли поставку. Ставим «В продаже» и сохраняем.",
+  act: async () => {
+    await pickFrom('nStatus','Скрыт'); await wait(500); await pickFrom('nStatus','В продаже');
+    await click(el('nSave'), 500);
+    closeModals(); await wait(500);
+    const tr = document.createElement('tr');
+    tr.className='fresh'; tr.dataset.row=''; tr.dataset.el='rowNew';
+    tr.setAttribute('data-el','rowNew');
+    tr.innerHTML =
+      '<td><div class="g-name">VERSACE EROS EDT 100ML</div><div class="g-code">AA1302</div></td>'+
+      '<td><div class="g-code" style="margin:0">512055</div><div class="g-code">8011003809202</div></td>'+
+      '<td class="num strike">1 840,00</td><td class="num">1 150,00</td>'+
+      '<td class="num">20 %</td><td class="num">1 472,00</td>'+
+      '<td style="text-align:right"><span class="st">в продаже</span></td>';
+    $('#rows').appendChild(tr);
+    await wait(800); await moveTo(tr, 600);
+  }
+},
+{
+  audio:"../audio/tovary/tovary-11.mp3", dur:6500,
+  text:"Товар появился в каталоге рядом с остальными. Теперь посмотрим, как его исправить. Нажимаем на любую строку — открывается карточка товара.",
+  act: async () => { await click(el('rowEos'), 400); openModal('mEdit'); await wait(700); }
+},
+{
+  audio:"../audio/tovary/tovary-12.mp3", dur:8500,
+  text:"Здесь те же поля плюс основной код и история цены — видно, кто и когда менял цену. Поменяем скидку с тридцати процентов на пятнадцать.",
+  act: async () => {
+    await moveTo($('#hist'), 650); await wait(900);
+    await moveTo(el('eDisc'), 500);
+    el('eDisc').classList.add('lit'); el('eDisc').textContent=''; await wait(240);
+    el('eDisc').textContent='1'; await wait(360);
+    el('eDisc').textContent='15'; await wait(420);
+    el('eCalc').classList.add('lit'); el('eCalcVal').style.color='var(--gold)';
+    el('eCalcVal').textContent='426,79'; await wait(900);
+    el('eCalc').classList.remove('lit'); el('eCalcVal').style.color=''; el('eDisc').classList.remove('lit');
+  }
+},
+{
+  audio:"../audio/tovary/tovary-13.mp3", dur:8500,
+  text:"В этом же окне есть кнопка «Удалить» — товар пропадёт из каталога и с телефонов. Нажимайте её только если товара действительно больше нет. Если он просто закончился, правильнее поставить статус «Скрыт».",
+  act: async () => { await moveTo(el('eKill'), 700); el('eKill').classList.add('lit'); await wait(1800); el('eKill').classList.remove('lit'); await wait(400); }
+},
+{
+  audio:"../audio/tovary/tovary-14.mp3", dur:8000,
+  text:"Нажимаем «Сохранить изменения». Новая цена записывается в историю, строка в каталоге обновляется, а на телефоны она уйдёт при следующей синхронизации.",
+  act: async () => {
+    await click(el('eSave'), 500);
+    const row = document.createElement('div');
+    row.className='hist-row fresh';
+    row.innerHTML='<span class="w">28.08.2026</span><span class="who">Администратор · вручную</span><span class="val"><s>351,48</s> → <b>426,79</b></span>';
+    $('#hist').prepend(row);
+    await wait(1100);
+    closeModals(); await wait(500);
+    el('eosDisc').textContent='15 %'; el('eosFinal').textContent='426,79';
+    el('rowEos').classList.add('lit');
+    await moveTo(el('rowEos'), 600); await wait(900);
+    el('rowEos').classList.remove('lit');
+  }
+},
+{
+  audio:"../audio/tovary/tovary-15.mp3", dur:11000,
+  text:"И последнее на этой странице — «Экспорт». Кнопка выгружает каталог в файл Excel: все товары с кодами, ценами и скидками. Это и резервная копия, и удобный способ проверить цены целиком. Тот же файл понимает вкладка «Импорт» — можно поправить цены в Excel и загрузить обратно.",
+  act: async () => {
+    await click(el('expBtn'), 400);
+    el('dl').classList.add('on');
+    el('dlNote').textContent = 'готовим файл…';
+    el('dlBar').style.width = '100%';
+    await wait(1500);
+    el('dlNote').textContent = '135 строк · 63 КБ';
+    await moveTo(el('dl'), 620);
+    await wait(1400);
+  }
+}
+];
+
+/* ---------- сброс сцены в начальное состояние ---------- */
+function RESET(){
+  closeModals();
+  $$('#rows tr').forEach((tr,i)=>{ if(i>3) tr.remove(); });
+
+  el('dl').classList.remove('on');
+  el('dlBar').style.transition='none';
+  el('dlBar').style.width='0';
+  el('dlNote').textContent='134 строки · 62 КБ';
+  requestAnimationFrame(()=>{ el('dlBar').style.transition=''; });
+  el('expBtn').classList.remove('lit');
+
+  el('nName').textContent='VERSACE EROS EDT 100ML'; el('nName').className='f-in ph';
+  el('nArt').textContent='512055';                  el('nArt').className='f-in mono ph';
+  el('nBar').textContent='8011003809202';           el('nBar').className='f-in mono ph';
+  el('nRetail').innerHTML='&nbsp;';                 el('nRetail').className='f-in mono right ph';
+  el('nDisc').textContent='0';                      el('nDisc').className='f-in mono right';
+  el('nOpt').textContent='—';                       el('nOpt').className='f-in mono right ph';
+  el('nCalcVal').textContent='0,00';                el('nCalcVal').style.color='';
+  el('nCalc').classList.remove('lit');
+  el('nSave').classList.remove('ready','lit');
+  el('nGen').classList.remove('lit');
+
+  el('eDisc').textContent='30';        el('eDisc').className='f-in mono right';
+  el('eRetail').textContent='502.11';
+  el('eCalcVal').textContent='351,48'; el('eCalcVal').style.color='';
+  el('eCalc').classList.remove('lit');
+  el('eKill').classList.remove('lit');
+  $('#hist').innerHTML='<div class="hist-row"><span class="w">25.08.2026</span><span class="who">Администратор · импорт</span><span class="val"><s>0,00</s> → <b>502,11</b></span></div>';
+
+  el('eosDisc').textContent='30 %'; el('eosFinal').textContent='351,48';
+  el('rowEos').classList.remove('lit');
+
+  ['filter','nStatus','eStatus'].forEach(n=>{
+    const b = el(n); if(!b) return;
+    b.classList.remove('open');
+    const first = $('.sel-list div', b);
+    $('.sel-face', b).textContent = first.textContent;
+    $$('.sel-list div', b).forEach((d,i)=>d.classList.toggle('pick', i===0));
+  });
+
+  const cur = $('#cursor');
+  cur.classList.remove('on');
+  cur.style.transition='none';
+  cur.style.transform='translate(140px,140px)';
+}
+
+startLesson({ steps: STEPS, reset: RESET });
+</script>
+</body>
+</html>

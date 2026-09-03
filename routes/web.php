@@ -4,6 +4,7 @@ use App\Http\Controllers\AuditController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\ImportController;
+use App\Http\Controllers\LessonController;
 use App\Http\Controllers\PointController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RightsController;
@@ -45,6 +46,9 @@ Route::middleware('auth')->group(function (): void {
 
     Route::get('rights', [RightsController::class, 'index'])->name('rights.index');
     Route::put('rights', [RightsController::class, 'update'])->name('rights.update');
+
+    Route::get('lessons', [LessonController::class, 'index'])->name('lessons.index');
+    Route::get('lessons/{path}', [LessonController::class, 'show'])->where('path', '.*')->name('lessons.show');
 
     Route::get('points', [PointController::class, 'index'])->middleware('module:points')->name('points.index');
     Route::get('devices', [DeviceController::class, 'index'])->middleware('module:devices')->name('devices.index');

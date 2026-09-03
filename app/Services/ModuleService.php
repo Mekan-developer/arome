@@ -60,18 +60,22 @@ class ModuleService
 
     /**
      * Panel sections in tab order. `module` names the flag that hides the section,
-     * `staffOnly` marks the one section closed by role instead of by a flag.
+     * `staffOnly` marks the one section closed by role instead of by a flag,
+     * `external` — the tab that leaves the SPA and is followed by a plain link.
      *
-     * @var list<array{key: string, title: string, href: string, module: string|null, staffOnly: bool}>
+     * @var list<array{key: string, title: string, href: string, module: string|null, staffOnly: bool, external: bool}>
      */
     public const SECTIONS = [
-        ['key' => 'products', 'title' => 'Товары', 'href' => '/products', 'module' => null, 'staffOnly' => false],
-        ['key' => 'import', 'title' => 'Импорт', 'href' => '/import', 'module' => 'import', 'staffOnly' => false],
-        ['key' => 'users', 'title' => 'Пользователи', 'href' => '/users', 'module' => null, 'staffOnly' => true],
-        ['key' => 'rights', 'title' => 'Матрица прав', 'href' => '/rights', 'module' => null, 'staffOnly' => false],
-        ['key' => 'points', 'title' => 'Точки и склады', 'href' => '/points', 'module' => 'points', 'staffOnly' => false],
-        ['key' => 'devices', 'title' => 'Синхронизация', 'href' => '/devices', 'module' => 'devices', 'staffOnly' => false],
-        ['key' => 'audit', 'title' => 'Журнал действий', 'href' => '/audit', 'module' => 'audit', 'staffOnly' => false],
+        ['key' => 'products', 'title' => 'Товары', 'href' => '/products', 'module' => null, 'staffOnly' => false, 'external' => false],
+        ['key' => 'import', 'title' => 'Импорт', 'href' => '/import', 'module' => 'import', 'staffOnly' => false, 'external' => false],
+        ['key' => 'users', 'title' => 'Пользователи', 'href' => '/users', 'module' => null, 'staffOnly' => true, 'external' => false],
+        ['key' => 'rights', 'title' => 'Матрица прав', 'href' => '/rights', 'module' => null, 'staffOnly' => false, 'external' => false],
+        ['key' => 'points', 'title' => 'Точки и склады', 'href' => '/points', 'module' => 'points', 'staffOnly' => false, 'external' => false],
+        ['key' => 'devices', 'title' => 'Синхронизация', 'href' => '/devices', 'module' => 'devices', 'staffOnly' => false, 'external' => false],
+        ['key' => 'audit', 'title' => 'Журнал действий', 'href' => '/audit', 'module' => 'audit', 'staffOnly' => false, 'external' => false],
+        // База знаний — отдельный статический сайт со своей шапкой и кнопкой
+        // возврата, а не страница Inertia: вкладка уводит из SPA целиком.
+        ['key' => 'lessons', 'title' => 'Обучение', 'href' => '/lessons', 'module' => null, 'staffOnly' => false, 'external' => true],
     ];
 
     /**
@@ -138,7 +142,7 @@ class ModuleService
      * Sections the viewer can actually reach right now: the flags decide most of the
      * strip, the role decides «Пользователи».
      *
-     * @return list<array{key: string, title: string, href: string, module: string|null, staffOnly: bool, visible: bool}>
+     * @return list<array{key: string, title: string, href: string, module: string|null, staffOnly: bool, external: bool, visible: bool}>
      */
     public function sections(?User $viewer): array
     {

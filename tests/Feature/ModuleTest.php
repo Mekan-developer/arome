@@ -87,7 +87,7 @@ class ModuleTest extends TestCase
 
         $visible = collect($this->modules->sections($this->admin()))->where('visible', true)->pluck('key')->all();
 
-        $this->assertSame(['products', 'users', 'rights', 'devices', 'audit'], $visible);
+        $this->assertSame(['products', 'users', 'rights', 'devices', 'audit', 'lessons'], $visible);
     }
 
     public function test_module_state_is_shared_with_every_page(): void

@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Пользователи · База знаний AROME</title>
+<link rel="stylesheet" href="../assets/base.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body class="lesson">
+
+<div id="intro">
+  <p class="kick">База знаний · Инструкция 2</p>
+  <h1>Сотрудники и доступ</h1>
+  <p class="lead">Как завести учётную запись, сменить пароль, поменять роль и заблокировать доступ.  Инструкция идёт сама — курсор нажимает кнопки, голос объясняет, текст дублируется субтитрами.</p>
+  <button id="go">Начать</button>
+</div>
+
+<div class="top">
+  <a class="logo" href="../index.html">AR&Ocirc;ME<span>База знаний</span></a>
+  <div class="top-rule"></div>
+  <a class="top-back" href="../index.html">← Все инструкции</a>
+</div>
+<div class="top-strip"></div>
+
+<div class="stage" id="stage">
+  <div class="scaler" id="scaler">
+    <div class="panel">
+
+      <div class="p-top">
+        <div class="p-logo">AR&Ocirc;ME<span>Каталог</span></div>
+        <div class="p-search">Штрихкод, артикул или название</div>
+        <div class="p-when">28.08.2026 · 13:10</div>
+        <div class="p-who"><div class="p-badge">A</div><div><b>Администратор</b><i>Администратор</i></div></div>
+        <div class="p-out">Выход</div>
+      </div>
+
+      <div class="p-tabs">
+        <div class="tab">Товары</div>
+        <div class="tab">Импорт</div>
+        <div class="tab on" data-tab="users">Пользователи</div>
+        <div class="tab">Матрица прав</div>
+        <div class="tab">Синхронизация</div>
+        <div class="tab">Журнал действий</div>
+      </div>
+
+      <div class="p-body">
+        <div class="bar-top">
+          <div>
+            <h2 style="font-family:var(--serif);font-size:25px;margin:0 0 8px">Сотрудники и доступ</h2>
+            <p style="font-size:12.5px;line-height:1.65;color:var(--ink-soft);max-width:58ch;margin:0">
+              Учётные записи выдаёте вы: самостоятельной регистрации в приложении нет.
+              Ролей три — администратор работает в этой панели, менеджер и продавец заходят
+              только в мобильное приложение и получают данные по API.
+            </p>
+          </div>
+          <div class="btn-dark" data-el="addBtn">+ Новый сотрудник</div>
+        </div>
+
+        <table>
+          <thead><tr>
+            <th style="width:31%">Сотрудник</th><th style="width:19%">Роль</th>
+            <th style="width:28%">Последний вход</th><th style="text-align:right">Доступ</th>
+          </tr></thead>
+          <tbody id="rows">
+            <tr data-row>
+              <td><div class="u-name">Администратор</div><div class="u-login">admin</div></td>
+              <td>Администратор</td>
+              <td><div class="u-when">28.08.2026 10:41</div><div class="u-dev">samsung SM-A566E · BP4A.251205.006</div></td>
+              <td style="text-align:right"><span class="chip">Пароль</span> <span class="chip-me">это вы</span></td>
+            </tr>
+            <tr data-row data-el="rowSelbi">
+              <td><div class="u-name">Сельби Бусакова</div><div class="u-login">selbib</div></td>
+              <td data-el="selbiRole">Продавец</td>
+              <td><div class="u-when">26.08.2026 15:01</div><div class="u-dev">samsung SM-S938B · BP2A.250605.031.A3</div></td>
+              <td style="text-align:right">
+                <span class="chip" data-el="selbiPass">Пароль</span>
+                <span class="chip-on" data-el="selbiState">активен</span>
+              </td>
+            </tr>
+            <tr data-row>
+              <td><div class="u-name">Arkach</div><div class="u-login">arkachm</div></td>
+              <td>Продавец</td>
+              <td><div class="u-when">26.08.2026 14:40</div><div class="u-dev">POCO M2007J20CG · QKQ1.200512.002</div></td>
+              <td style="text-align:right"><span class="chip">Пароль</span> <span class="chip-on">активен</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="mbg" id="mbg"></div>
+
+        <!-- ---------- боковая панель: новый сотрудник ---------- -->
+        <div class="drawer" id="dNew">
+          <div class="m-top">
+            <h3>Новый сотрудник</h3>
+            <div class="m-x">Закрыть</div>
+          </div>
+          <div class="m-body">
+            <div class="f-lab">Имя и фамилия</div>
+            <div class="f-in ph" data-el="nName">Огулджан Мурадова</div>
+            <div class="f-lab">Логин</div>
+            <div class="f-in mono ph" data-el="nLogin">oguljan</div>
+            <div class="f-lab">Роль</div>
+            <div class="sel" data-el="nRole">
+              <div class="sel-face">Продавец</div>
+              <div class="sel-list"><div class="pick">Продавец</div><div>Менеджер</div><div>Администратор</div></div>
+            </div>
+            <p class="f-hint" style="margin-top:12px">Продавец — только вход в мобильное приложение. Менеджер — то же приложение, но с оптовой ценой товара. Администратор — вся эта панель: каталог, цены, импорт, сотрудники.</p>
+            <div class="f-lab">Пароль</div>
+            <div class="seg">
+              <div class="on" data-el="nManual">Задать вручную</div>
+              <div data-el="nGen">Сгенерировать</div>
+            </div>
+            <div class="f-in mono ph" data-el="nPass">минимум 8 символов</div>
+            <ul class="rules" style="list-style:none;padding:0;margin:0;font-size:11px;color:var(--mute);line-height:1.9">
+              <li>· не короче 8 символов</li><li>· есть латинская буква и цифра</li><li>· без пробелов</li>
+            </ul>
+          </div>
+          <div class="m-foot" style="justify-content:flex-end">
+            <div class="right">
+              <div class="btn-ghost">Отмена</div>
+              <div class="btn-go" data-el="nSave">Создать и выдать доступ</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------- смена пароля ---------- -->
+        <div class="modal narrow" id="mPass">
+          <div class="m-top" style="display:block">
+            <div class="m-kick">Смена пароля</div>
+            <h3>Новый пароль для Сельби Бусакова</h3>
+          </div>
+          <div class="m-body">
+            <p class="m-lead">Логин <span style="font-family:var(--mono)">selbib</span> не меняется. Старый пароль перестанет работать сразу после сохранения.</p>
+            <div class="seg">
+              <div data-el="pManual">Задать вручную</div>
+              <div class="on" data-el="pGen">Сгенерировать</div>
+            </div>
+            <div class="pw-box">
+              <div class="f-cap">Пароль для выдачи</div>
+              <div class="pw-val" data-el="pVal">zeda-kole-278</div>
+              <div class="pw-acts">
+                <div class="btn-ghost" data-el="pOther">Другой пароль</div>
+                <div class="btn-ghost" data-el="pCopy">Скопировать</div>
+              </div>
+            </div>
+            <div class="after">
+              <div class="f-cap">После сохранения</div>
+              <div class="chk">
+                <i data-el="pChk">✓</i>
+                <div>
+                  <b>Завершить активные сессии</b>
+                  <small>Устройство samsung SM-S938B · BP2A.250605.031.A3 выйдет на экран входа.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="m-foot" style="justify-content:flex-end">
+            <div class="right">
+              <div class="btn-ghost">Отмена</div>
+              <div class="btn-go ready" data-el="pSave">Сменить пароль</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------- данные сотрудника ---------- -->
+        <div class="modal narrow" id="mEdit">
+          <div class="m-top" style="display:block">
+            <div class="m-kick">Данные сотрудника</div>
+            <h3>Сельби Бусакова</h3>
+          </div>
+          <div class="m-body">
+            <div class="f-lab">Имя и фамилия</div>
+            <div class="f-in">Сельби Бусакова</div>
+            <div class="f-lab">Логин</div>
+            <div class="f-in mono">selbib</div>
+            <div class="f-lab">Роль</div>
+            <div class="sel" data-el="eRole">
+              <div class="sel-face">Продавец</div>
+              <div class="sel-list"><div class="pick">Продавец</div><div>Менеджер</div><div>Администратор</div></div>
+            </div>
+          </div>
+          <div class="m-foot" style="justify-content:flex-end">
+            <div class="right">
+              <div class="btn-ghost">Отмена</div>
+              <div class="btn-go ready" data-el="eSave">Сохранить</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------- блокировка ---------- -->
+        <div class="modal narrow" id="mBlock" style="width:520px">
+          <div class="m-top" style="display:block">
+            <div class="m-kick bad">Блокировка доступа</div>
+            <h3>Заблокировать Сельби Бусакова?</h3>
+          </div>
+          <div class="m-body">
+            <p class="m-lead">Сессия в мобильном приложении будет завершена немедленно — устройство samsung SM-S938B · BP2A.250605.031.A3 выкинет на экран входа, даже если приложение открыто прямо сейчас.</p>
+            <div class="why">
+              <div class="f-cap">Что произойдёт сразу</div>
+              <ul>
+                <li>токен доступа отзывается, офлайн-кэш каталога на устройстве стирается</li>
+                <li>незакрытые продажи с устройства не отправятся</li>
+                <li>запись о блокировке уйдёт в журнал действий</li>
+              </ul>
+            </div>
+          </div>
+          <div class="m-foot" style="justify-content:flex-end">
+            <div class="right">
+              <div class="btn-ghost">Отмена</div>
+              <div class="btn-danger" data-el="bGo">Заблокировать и завершить сессию</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="cursor">
+      <svg width="22" height="22" viewBox="0 0 22 22"><path d="M2 1l16 8.5-7 1.5-3.5 7z" fill="#1C1712" stroke="#F6F1E7" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <div class="ring" id="ring"></div>
+    </div>
+  </div>
+</div>
+
+<div class="subs"><p id="subs"></p></div>
+
+<div class="bar"><i id="bar"></i></div>
+<div class="controls">
+  <button class="ctl ctl-main" id="cPlay">Пауза</button>
+  <button class="ctl" id="cPrev">← Шаг назад</button>
+  <button class="ctl" id="cNext">Шаг вперёд →</button>
+  <button class="ctl" id="cAgain">Сначала</button>
+  <button class="ctl ctl-icon" id="cMute" aria-label="Выключить звук" aria-pressed="false">
+    <svg class="ico-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 010 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <svg class="ico-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+    <span class="ico-txt">Звук</span>
+  </button>
+  <div class="step-no" id="stepNo">01 / 15</div>
+</div>
+
+<script src="../assets/engine.js"></script>
+<script>
+"use strict";
+
+const STEPS = [
+{
+  audio:"../audio/polzovateli/polzovateli-01.mp3", dur:8500,
+  text:"«Пользователи» — это список всех, кто может войти в систему. Сотрудник не регистрируется сам: учётную запись всегда заводит администратор, здесь, в панели.",
+  act: async () => { await moveTo($('#rows'), 700); await wait(900); }
+},
+{
+  audio:"../audio/polzovateli/polzovateli-02.mp3", dur:9000,
+  text:"В строке видно имя, логин, роль и когда человек последний раз заходил — с какого именно телефона. Справа кнопка смены пароля и отметка, работает доступ или нет.",
+  act: async () => { await moveTo(el('rowSelbi'), 650); await wait(1000); await moveTo(el('selbiState'), 550); await wait(800); }
+},
+{
+  audio:"../audio/polzovateli/polzovateli-03.mp3", dur:7000,
+  text:"Ролей три, и создать новую нельзя. Кому какие поля карточки видны — настраивается отдельно, на вкладке «Матрица прав». Об этом будет свой урок.",
+  act: async () => { await moveTo($('.bar-top p'), 700); await wait(900); }
+},
+{
+  audio:"../audio/polzovateli/polzovateli-04.mp3", dur:5500,
+  text:"Заводим нового человека. Нажимаем «Новый сотрудник» — справа выезжает форма.",
+  act: async () => { await click(el('addBtn')); openModal('dNew'); await wait(800); }
+},
+{
+  audio:"../audio/polzovateli/polzovateli-05.mp3", dur:7000,
+  text:"Имя и фамилия — как человека зовут на самом деле. Это имя вы потом увидите в журнале действий и на странице синхронизации.",
+  act: async () => { await moveTo(el('nName'), 520); await typeIn(el('nName'), 'Огулджан Мурадова', 48); }
+},
+{
+  audio:"../audio/polzovateli/polzovateli-06.mp3", dur:7500,
+  text:"Логин — то, что человек вводит при входе в приложение. Только латиница, без пробелов. Обычно берут имя и первую букву фамилии.",
+  act: async () => { await moveTo(el('nLogin'), 450); await typeIn(el('nLogin'), 'oguljan', 92); }
+},
+{
+  audio:"../audio/polzovateli/polzovateli-07.mp3", dur:7000,
+  text:"Выбираем роль. Если сомневаетесь — ставьте продавца: расширить доступ можно в любой момент, а лишние права лучше не раздавать.",
+  act: async () => { await pickFrom('nRole','Менеджер'); await wait(500); await pickFrom('nRole','Продавец'); }
+},
+{
+  audio:"../audio/polzovateli/polzovateli-08.mp3", dur:9000,
+  text:"Пароль можно придумать самому или нажать «Сгенерировать». Требования простые: не короче восьми символов, латинская буква и цифра, без пробелов.",
+  act: async () => {
+    await click(el('nGen'), 260);
+    el('nManual').classList.remove('on'); el('nGen').classList.add('on');
+    await wait(320);
+    await typeIn(el('nPass'), 'kv7Rn2ap', 95);
+    el('nSave').classList.add('ready');
+  }
+},
+{
+  audio:"../audio/polzovateli/polzovateli-09.mp3", dur:8000,
+  text:"Нажимаем «Создать и выдать доступ». Сотрудник появляется в списке и сразу может войти. Пароль передайте лично — панель не отправляет его ни в почту, ни в сообщения.",
+  act: async () => {
+    await click(el('nSave'), 500);
+    closeModals(); await wait(500);
+    const tr = document.createElement('tr');
+    tr.className='fresh'; tr.setAttribute('data-row','');
+    tr.innerHTML =
+      '<td><div class="u-name">Огулджан Мурадова</div><div class="u-login">oguljan</div></td>'+
+      '<td>Продавец</td>'+
+      '<td><div class="u-when">ещё не заходила</div><div class="u-dev">—</div></td>'+
+      '<td style="text-align:right"><span class="chip">Пароль</span> <span class="chip-on">активен</span></td>';
+    $('#rows').appendChild(tr);
+    await wait(800); await moveTo(tr, 600);
+  }
+},
+{
+  audio:"../audio/polzovateli/polzovateli-10.mp3", dur:6500,
+  text:"Человек забыл пароль — это обычное дело. Нажимаем «Пароль» в его строке.",
+  act: async () => { await click(el('selbiPass'), 400); openModal('mPass'); await wait(750); }
+},
+{
+  audio:"../audio/polzovateli/polzovateli-11.mp3", dur:9500,
+  text:"Панель предлагает готовый пароль — три части через дефис, такой легко продиктовать по телефону. Не нравится — «Другой пароль». Кнопка «Скопировать» кладёт его в буфер обмена.",
+  act: async () => {
+    await moveTo(el('pVal'), 600); await wait(700);
+    await click(el('pOther'), 260);
+    el('pVal').classList.add('swap'); await wait(220);
+    el('pVal').textContent='muhi-sada-914';
+    el('pVal').classList.remove('swap'); await wait(900);
+    await click(el('pCopy'), 400);
+  }
+},
+{
+  audio:"../audio/polzovateli/polzovateli-12.mp3", dur:10000,
+  text:"Ниже важная галочка — «Завершить активные сессии». Если её поставить, телефон сотрудника выйдет на экран входа сразу. Ставьте, когда пароль мог попасть в чужие руки. Если человек просто забыл — можно не трогать.",
+  act: async () => {
+    await moveTo(el('pChk'), 600); await wait(600);
+    el('pChk').classList.add('on'); await tap(); await wait(1200);
+    await click(el('pSave'), 500);
+    closeModals(); await wait(600);
+  }
+},
+{
+  audio:"../audio/polzovateli/polzovateli-13.mp3", dur:8500,
+  text:"Чтобы поправить имя или поменять роль, нажимаем прямо на строку сотрудника. Открывается карточка. Повысим Сельби до менеджера — теперь она будет видеть оптовую цену.",
+  act: async () => {
+    await click(el('rowSelbi'), 400); openModal('mEdit'); await wait(700);
+    await pickFrom('eRole','Менеджер');
+    await click(el('eSave'), 500);
+    closeModals(); await wait(500);
+    el('selbiRole').textContent='Менеджер';
+    el('rowSelbi').classList.add('lit'); await wait(800);
+    el('rowSelbi').classList.remove('lit');
+  }
+},
+{
+  audio:"../audio/polzovateli/polzovateli-14.mp3", dur:10500,
+  text:"Сотрудник уволился — доступ нужно закрыть. Нажимаем на отметку «активен». Панель честно предупреждает, что произойдёт: телефон выкинет на экран входа немедленно, кэш каталога сотрётся, а незакрытые продажи с устройства не отправятся.",
+  act: async () => {
+    await click(el('selbiState'), 400); openModal('mBlock'); await wait(800);
+    await moveTo($('#mBlock .why'), 650); await wait(1600);
+  }
+},
+{
+  audio:"../audio/polzovateli/polzovateli-15.mp3", dur:9000,
+  text:"Нажимаем «Заблокировать и завершить сессию». Отметка меняется на «заблокирован», запись уходит в журнал действий. Вернуть доступ можно тем же нажатием — учётная запись не удаляется.",
+  act: async () => {
+    await click(el('bGo'), 500);
+    closeModals(); await wait(500);
+    const s = el('selbiState');
+    s.className='chip-off'; s.textContent='заблокирован';
+    el('rowSelbi').classList.add('dim');
+    await moveTo(s, 600); await wait(1300);
+  }
+}
+];
+
+function RESET(){
+  closeModals();
+  $$('#rows tr').forEach((tr,i)=>{ if(i>2) tr.remove(); });
+
+  el('nName').textContent='Огулджан Мурадова'; el('nName').className='f-in ph';
+  el('nLogin').textContent='oguljan';          el('nLogin').className='f-in mono ph';
+  el('nPass').textContent='минимум 8 символов';el('nPass').className='f-in mono ph';
+  el('nManual').classList.add('on'); el('nGen').classList.remove('on');
+  el('nSave').classList.remove('ready','lit');
+
+  el('pVal').textContent='zeda-kole-278'; el('pVal').classList.remove('swap');
+  el('pChk').classList.remove('on');
+  el('pManual').classList.remove('on'); el('pGen').classList.add('on');
+
+  const s = el('selbiState');
+  s.className='chip-on'; s.textContent='активен';
+  el('selbiRole').textContent='Продавец';
+  el('rowSelbi').classList.remove('lit','dim');
+
+  ['nRole','eRole'].forEach(n=>{
+    const b = el(n); if(!b) return;
+    b.classList.remove('open');
+    const first = $('.sel-list div', b);
+    $('.sel-face', b).textContent = first.textContent;
+    $$('.sel-list div', b).forEach((d,i)=>d.classList.toggle('pick', i===0));
+  });
+
+  const cur = $('#cursor');
+  cur.classList.remove('on');
+  cur.style.transition='none';
+  cur.style.transform='translate(140px,140px)';
+}
+
+startLesson({ steps: STEPS, reset: RESET });
+</script>
+</body>
+</html>

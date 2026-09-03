@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Журнал действий · База знаний AROME</title>
+<link rel="stylesheet" href="../assets/base.css">
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body class="lesson">
+
+<div id="intro">
+  <p class="kick">База знаний · Инструкция 5</p>
+  <h1>Журнал действий</h1>
+  <p class="lead">Кто и что менял в панели: цены, права, сотрудники, товары. Как искать нужное событие через фильтр. Инструкция идёт сама — курсор нажимает кнопки, голос объясняет.</p>
+  <button id="go">Начать</button>
+</div>
+
+<div class="top">
+  <a class="logo" href="../index.html">AR&Ocirc;ME<span>База знаний</span></a>
+  <div class="top-rule"></div>
+  <a class="top-back" href="../index.html">← Все инструкции</a>
+</div>
+<div class="top-strip"></div>
+
+<div class="stage" id="stage">
+  <div class="scaler" id="scaler">
+    <div class="panel">
+
+      <div class="p-top">
+        <div class="p-logo">AR&Ocirc;ME<span>Каталог</span></div>
+        <div class="p-search">Штрихкод, артикул или название</div>
+        <div class="p-when">28.08.2026 · 16:13</div>
+        <div class="p-who"><div class="p-badge">A</div><div><b>Администратор</b><i>Администратор</i></div></div>
+        <div class="p-out">Выход</div>
+      </div>
+
+      <div class="p-tabs">
+        <div class="tab">Товары</div>
+        <div class="tab">Импорт</div>
+        <div class="tab">Пользователи</div>
+        <div class="tab">Матрица прав</div>
+        <div class="tab">Синхронизация</div>
+        <div class="tab on" data-tab="audit">Журнал действий</div>
+      </div>
+
+      <div class="p-body" style="padding:20px 24px">
+        <div class="log-top">
+          <div>
+            <h2 style="font-family:var(--serif);font-size:23px;margin:0 0 7px">Журнал действий</h2>
+            <p style="font-size:12px;line-height:1.6;color:var(--ink-soft);margin:0" data-el="intro">
+              Записи не удаляются и не правятся. Хранение — 24 месяца.
+            </p>
+          </div>
+          <div class="sel" data-el="kind" style="min-width:168px">
+            <div class="sel-face">Все события</div>
+            <div class="sel-list">
+              <div class="pick">Все события</div><div>Цены</div><div>Права</div><div>Сотрудники</div><div>Товары</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="rows">
+          <div class="log-row" data-kind="tovar товары" data-el="rExport1">
+            <div class="l-when">28.08.2026<br>12:14</div>
+            <div class="l-who">Администратор</div>
+            <div class="l-what"><span class="l-kind">товар</span><div class="l-title">Выгрузка каталога</div></div>
+            <div class="l-detail">Строк: 134</div>
+            <div class="l-result"><a>→ весь каталог</a></div>
+          </div>
+          <div class="log-row" data-kind="tovar товары">
+            <div class="l-when">28.08.2026<br>11:42</div>
+            <div class="l-who">Администратор</div>
+            <div class="l-what"><span class="l-kind">товар</span><div class="l-title">Выгрузка каталога</div></div>
+            <div class="l-detail">Строк: 134</div>
+            <div class="l-result"><a>→ весь каталог</a></div>
+          </div>
+          <div class="log-row" data-kind="prava права" data-el="rRights">
+            <div class="l-when">24.08.2026<br>19:17</div>
+            <div class="l-who">Администратор</div>
+            <div class="l-what"><span class="l-kind">права</span><div class="l-title">Права роли изменены</div></div>
+            <div class="l-detail">Менеджер · Оптовая цена</div>
+            <div class="l-result">скрыто → <b>видно</b></div>
+          </div>
+          <div class="log-row" data-kind="sotrudnik сотрудники" data-el="rUser">
+            <div class="l-when">26.08.2026<br>14:35</div>
+            <div class="l-who">Администратор</div>
+            <div class="l-what"><span class="l-kind">сотрудник</span><div class="l-title">Создан сотрудник</div></div>
+            <div class="l-detail">arkachm · Arkach</div>
+            <div class="l-result">→ активен</div>
+          </div>
+          <div class="log-row" data-kind="tovar товары" data-el="rDelete1">
+            <div class="l-when">26.08.2026<br>13:03</div>
+            <div class="l-who">Администратор</div>
+            <div class="l-what"><span class="l-kind">товар</span><div class="l-title">Удалён товар</div></div>
+            <div class="l-detail">AA61744 · TENETUR INVENTORE MOLESTIAS EDT 50ML</div>
+            <div class="l-result">—</div>
+          </div>
+          <div class="log-row" data-kind="tovar товары" data-el="rDelete">
+            <div class="l-when">26.08.2026<br>13:03</div>
+            <div class="l-who">Администратор</div>
+            <div class="l-what"><span class="l-kind">товар</span><div class="l-title">Удалён товар</div></div>
+            <div class="l-detail">AA92352 · AB ET LABORUM EDT 50ML</div>
+            <div class="l-result">—</div>
+          </div>
+          <div class="log-row" data-kind="vhod вход" data-el="rSync">
+            <div class="l-when">26.08.2026<br>18:22</div>
+            <div class="l-who">Администратор</div>
+            <div class="l-what"><span class="l-kind">вход</span><div class="l-title">Синхронизация устройства</div></div>
+            <div class="l-detail">iPhone18,1 · DEF79F52-41CB</div>
+            <div class="l-result">6 → 10</div>
+          </div>
+          <div class="log-row" data-kind="vhod вход">
+            <div class="l-when">26.08.2026<br>18:17</div>
+            <div class="l-who">Администратор</div>
+            <div class="l-what"><span class="l-kind">вход</span><div class="l-title">Вход в панель</div></div>
+            <div class="l-detail">—</div>
+            <div class="l-result">—</div>
+          </div>
+        </div>
+
+        <div class="log-empty" id="empty" style="display:none">
+          По этому типу событий записей пока нет. Смените фильтр — журнал ведётся всегда.
+        </div>
+
+      </div>
+    </div>
+
+    <div id="cursor">
+      <svg width="22" height="22" viewBox="0 0 22 22"><path d="M2 1l16 8.5-7 1.5-3.5 7z" fill="#1C1712" stroke="#F6F1E7" stroke-width="1.4" stroke-linejoin="round"/></svg>
+      <div class="ring" id="ring"></div>
+    </div>
+  </div>
+</div>
+
+<div class="subs"><p id="subs"></p></div>
+
+<div class="bar"><i id="bar"></i></div>
+<div class="controls">
+  <button class="ctl ctl-main" id="cPlay">Пауза</button>
+  <button class="ctl" id="cPrev">← Шаг назад</button>
+  <button class="ctl" id="cNext">Шаг вперёд →</button>
+  <button class="ctl" id="cAgain">Сначала</button>
+  <button class="ctl ctl-icon" id="cMute" aria-label="Выключить звук" aria-pressed="false">
+    <svg class="ico-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 010 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M19 6a8.5 8.5 0 010 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <svg class="ico-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4z"/><path d="M16 9.5l5 5M21 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+    <span class="ico-txt">Звук</span>
+  </button>
+  <div class="step-no" id="stepNo">01 / 10</div>
+</div>
+
+<script src="../assets/engine.js"></script>
+<script>
+"use strict";
+
+function filterRows(word){
+  $$('#rows .log-row').forEach(r=>{
+    const show = word==='' || r.dataset.kind.includes(word);
+    r.style.display = show ? '' : 'none';
+  });
+  const anyVisible = $$('#rows .log-row').some(r=>r.style.display!=='none');
+  $('#empty').style.display = anyVisible ? 'none' : 'block';
+}
+
+const STEPS = [
+{
+  audio:"../audio/audit/audit-01.mp3", dur:8000,
+  text:"«Журнал действий» — это неизменяемая летопись панели: кто и что сделал, когда именно. Записи нельзя удалить или поправить, они хранятся два года.",
+  act: async () => { await moveTo(el('intro'), 700); await wait(1200); }
+},
+{
+  audio:"../audio/audit/audit-02.mp3", dur:9000,
+  text:"В каждой строке пять частей: время, кто сделал, что произошло, детали события и результат. Результат часто показывает, что было и что стало — например старую и новую версию каталога на устройстве.",
+  act: async () => { await moveTo(el('rSync'), 700); await wait(900); await moveTo($('#rSync .l-result'), 550); await wait(900); }
+},
+{
+  audio:"../audio/audit/audit-03.mp3", dur:8500,
+  text:"Записей может накопиться много, поэтому справа есть фильтр по типу события. Открываем список.",
+  act: async () => { await moveTo(el('kind'), 600); el('kind').classList.add('open'); await tap(); await wait(1000); }
+},
+{
+  audio:"../audio/audit/audit-04.mp3", dur:9000,
+  text:"Четыре типа: цены, права, сотрудники и товары. Плюс «Все события» — общая лента без разбора. Выбираем «Права».",
+  act: async () => {
+    const opt = $$('.sel-list div', el('kind')).find(d=>d.textContent.trim()==='Права');
+    $$('.sel-list div', el('kind')).forEach(d=>d.classList.remove('pick'));
+    opt.classList.add('pick');
+    await moveTo(opt, 500); await tap();
+    $('.sel-face', el('kind')).textContent='Права';
+    el('kind').classList.remove('open');
+    await wait(400);
+    filterRows('права');
+    await wait(600);
+  }
+},
+{
+  audio:"../audio/audit/audit-05.mp3", dur:8000,
+  text:"Список сузился до одной записи: как раз то изменение, которое мы делали в уроке про матрицу прав — менеджеру открыли оптовую цену.",
+  act: async () => { await moveTo(el('rRights'), 650); await wait(1300); }
+},
+{
+  audio:"../audio/audit/audit-06.mp3", dur:8500,
+  text:"Переключим фильтр на «Товары». Здесь окажется больше: и создание, и удаление, и выгрузка каталога в Excel.",
+  act: async () => {
+    await pickFrom('kind','Товары');
+    filterRows('товары');
+    await wait(800);
+    await moveTo(el('rExport1'), 600); await wait(1000);
+  }
+},
+{
+  audio:"../audio/audit/audit-07.mp3", dur:7500,
+  text:"У смены цены есть свой фильтр — «Цены». Здесь, во вкладке «Товары», видны только создание, удаление товара и выгрузка или загрузка Excel-файлов.",
+  act: async () => { await moveTo(el('rExport1'), 650); await wait(1300); }
+},
+{
+  audio:"../audio/audit/audit-08.mp3", dur:7500,
+  text:"Удаление товара тоже видно: остаётся код и название того, что удалили, а в результате — прочерк, ведь возвращать уже нечего.",
+  act: async () => { await moveTo(el('rDelete'), 650); await wait(1300); }
+},
+{
+  audio:"../audio/audit/audit-09.mp3", dur:8500,
+  text:"Проверим фильтр «Цены» отдельно. Мы ещё не меняли цену товара через панель, поэтому по этому типу событий записей пока нет вообще.",
+  act: async () => { await pickFrom('kind','Цены'); filterRows('цены'); await wait(1000); await moveTo(el('empty'), 600); await wait(1000); }
+},
+{
+  audio:"../audio/audit/audit-10.mp3", dur:8000,
+  text:"Панель честно говорит: записей нет, но журнал ведётся всегда — просто такое событие ещё не случалось. Возвращаем «Все события», чтобы видеть полную картину.",
+  act: async () => { await pickFrom('kind','Все события'); filterRows(''); await wait(700); await moveTo($('#rows'), 600); await wait(900); }
+}
+];
+
+function RESET(){
+  closeModals();
+  const b = el('kind');
+  b.classList.remove('open');
+  $('.sel-face', b).textContent = 'Все события';
+  $$('.sel-list div', b).forEach((d,i)=>d.classList.toggle('pick', i===0));
+  filterRows('');
+
+  const cur = $('#cursor');
+  cur.classList.remove('on');
+  cur.style.transition='none';
+  cur.style.transform='translate(150px,150px)';
+}
+
+startLesson({ steps: STEPS, reset: RESET });
+</script>
+</body>
+</html>

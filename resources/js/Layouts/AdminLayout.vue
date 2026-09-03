@@ -97,8 +97,14 @@ onBeforeUnmount(() => {
             <Link href="/logout" method="post" as="button" class="top__exit">Выход</Link>
         </header>
 
+        <!--
+            «Обучение» — статический сайт, а не страница Inertia: визит вернул бы
+            обычный HTML вместо ответа Inertia, поэтому такая вкладка уходит
+            простой ссылкой и грузит страницу целиком.
+        -->
         <nav class="tabs">
-            <Link
+            <component
+                :is="section.external ? 'a' : Link"
                 v-for="section in sections"
                 :key="section.key"
                 :href="section.href"
@@ -106,7 +112,7 @@ onBeforeUnmount(() => {
                 :class="{ 'tabs__item--on': current === section.href }"
             >
                 {{ section.title }}
-            </Link>
+            </component>
         </nav>
 
         <main class="body">
