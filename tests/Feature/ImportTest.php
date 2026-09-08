@@ -74,27 +74,109 @@ class ImportTest extends TestCase
         $this->assertTrue(Storage::exists($props['storedPath']));
     }
 
-    public function test_a_blank_article_is_rejected(): void
+    /**
+     * Артикул бывает пустым и в прайсе поставщика. Строка не отклоняется: товар
+     * сохраняется без артикула, а сопоставляется по штрихкоду или основному коду.
+     */
+    public function test_a_blank_article_is_a_warning_not_an_error(): void
     {
         $row = $this->analyzeRow(['AA1001', '', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '']);
 
-        $this->assertSame('err', $row['type']);
-        $this->assertSame('АРТИКУЛ', $row['tag']);
-        $this->assertSame('sku', $row['field']);
+        $this->assertSame('warn', $row['type']);
+        $this->assertStringContainsString('Артикул пуст', $row['message']);
     }
 
-    public function test_a_duplicate_article_in_the_file_is_flagged_on_the_second_occurrence(): void
+    public function test_a_blank_article_saves_the_product_without_one(): void
+    {
+        $row = $this->analyzeRow(['AA1001', '', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '']);
+
+        $admin = $this->admin();
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $this->assertNull(Product::where('barcode', '8011003993802')->sole()->sku);
+    }
+
+    /**
+     * Повторившийся в файле артикул — это второй товар, а не спор двух строк за одну
+     * карточку: обе сохраняются, вторая получает свой основной код.
+     */
+    public function test_a_duplicate_article_in_the_file_creates_a_second_product(): void
     {
         $file = $this->workbook([
             ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
             ['AA1002', '510028', '8011003993819', 'VERSACE BRIGHT CRYSTAL EDT 50ML', '1920.96', ''],
         ]);
 
-        $props = $this->props($this->actingAs($this->admin())->post('/import', ['file' => $file]));
+        $admin = $this->admin();
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
 
         $this->assertSame('ok', $props['rows'][0]['type']);
-        $this->assertSame('err', $props['rows'][1]['type']);
+        $this->assertSame('warn', $props['rows'][1]['type']);
         $this->assertSame('ДУБЛЬ', $props['rows'][1]['tag']);
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertSame(2, Product::where('sku', '510028')->count());
+        $this->assertSame(2, Product::where('sku', '510028')->distinct()->count('main_code'));
+    }
+
+    /**
+     * Тот же прайс, загруженный второй раз, не должен падать: строка легко попадает на
+     * соседнюю карточку дубля, и основной код у неё уже занят. Забирать чужой код она
+     * не имеет права — уникальным он остаётся.
+     */
+    public function test_re_importing_a_file_with_duplicates_does_not_collide_on_the_main_code(): void
+    {
+        $rows = [
+            ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+            ['AA1002', '510028', '8011003993819', 'VERSACE BRIGHT CRYSTAL EDT 50ML', '1920.96', ''],
+        ];
+
+        $admin = $this->admin();
+
+        foreach (range(1, 2) as $ignored) {
+            $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $this->workbook($rows)]));
+
+            $this->actingAs($admin)->post('/import/confirm', [
+                'fileName' => $props['fileName'],
+                'storedPath' => $props['storedPath'],
+                'rows' => $props['rows'],
+            ])->assertRedirect('/import');
+        }
+
+        $this->assertSame(2, Product::where('sku', '510028')->count());
+        $this->assertSame(2, Product::distinct()->count('main_code'));
+    }
+
+    /**
+     * Строка, повторённая в прайсе целиком, тоже заводит вторую карточку — штрихкод у
+     * них общий, уникальным он больше не считается.
+     */
+    public function test_a_fully_duplicated_row_creates_a_second_product(): void
+    {
+        $file = $this->workbook([
+            ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+            ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+        ]);
+
+        $admin = $this->admin();
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertSame(2, Product::where('barcode', '8011003993802')->count());
     }
 
     public function test_a_blank_name_is_rejected(): void
@@ -413,7 +495,7 @@ class ImportTest extends TestCase
         $file = $this->workbook([
             ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
             ['AA1002', '510030', '8011003993819', 'VERSACE BRIGHT CRYSTAL EDT 50ML', '1920.96', '0,5'],
-            ['AA1003', '', '8011003993826', 'VERSACE BRIGHT CRYSTAL EDT 90ML', '2426.04', ''],
+            ['AA1003', '510032', '8011003993826', '', '2426.04', ''],
         ]);
 
         $admin = $this->admin();
@@ -534,9 +616,9 @@ class ImportTest extends TestCase
             'rows' => [[
                 'row' => 4,
                 'mainCode' => 'AA1001',
-                'sku' => '',
+                'sku' => '510028',
                 'barcode' => '8011003993802',
-                'name' => 'VERSACE BRIGHT CRYSTAL EDT 30ML',
+                'name' => '',
                 'retail' => '1415.88',
                 'discount' => '',
             ]],
@@ -787,9 +869,9 @@ class ImportTest extends TestCase
             'rows' => [[
                 'row' => 4,
                 'mainCode' => 'AA1001',
-                'sku' => '',
+                'sku' => '510028',
                 'barcode' => '8011003993802',
-                'name' => 'VERSACE BRIGHT CRYSTAL EDT 30ML',
+                'name' => '',
                 'retail' => '1415.88',
                 'discount' => '',
                 'type' => 'ok',

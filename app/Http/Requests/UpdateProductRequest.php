@@ -22,9 +22,9 @@ class UpdateProductRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255'],
-            'main_code' => ['required', 'string', 'max:16', Rule::unique('products', 'main_code')->ignore($id)],
-            'sku' => ['required', 'regex:/^\d{4,}$/', Rule::unique('products', 'sku')->ignore($id)],
-            'barcode' => ['nullable', 'string', 'max:64', Rule::unique('products', 'barcode')->ignore($id)],
+            'main_code' => ['required', 'string', 'max:64', Rule::unique('products', 'main_code')->ignore($id)],
+            'sku' => ['nullable', 'string', 'max:64'],
+            'barcode' => ['nullable', 'string', 'max:64'],
             'price' => ['required', 'numeric', 'gt:0'],
             'wholesale_price' => ['nullable', 'numeric', 'gte:0'],
             'discount' => ['required', 'numeric', 'between:0,90'],
@@ -39,11 +39,7 @@ class UpdateProductRequest extends FormRequest
     {
         return [
             'name.required' => 'Не заполнена номенклатура — без названия продавец не поймёт, что за товар.',
-            'sku.required' => 'Артикул должен быть числом из 4 и более цифр — по нему сопоставляется прайс при импорте.',
-            'sku.regex' => 'Артикул должен быть числом из 4 и более цифр — по нему сопоставляется прайс при импорте.',
-            'sku.unique' => 'Артикул '.$this->input('sku').' уже есть в каталоге.',
             'barcode.max' => 'Штрихкод не длиннее 64 символов.',
-            'barcode.unique' => 'Штрихкод '.$this->input('barcode').' уже занят другим товаром.',
             'price.required' => 'Розничная цена должна быть больше нуля.',
             'price.numeric' => 'Розничная цена должна быть больше нуля.',
             'price.gt' => 'Розничная цена должна быть больше нуля.',
@@ -55,20 +51,21 @@ class UpdateProductRequest extends FormRequest
     }
 
     /**
-     * Пустое поле штрихкода уходит в базу как NULL, а не пустой строкой: пустых строк
-     * уникальный индекс терпит только одну, а товаров без штрихкода в каталоге много.
+     * Пустые артикул и штрихкод уходят в базу как NULL, а не пустой строкой: так их
+     * не путает поиск и не склеивает сопоставление при импорте.
      *
-     * @return array{name: string, main_code: string, sku: string, barcode: string|null, price: float, wholesale_price: float|null, discount: float, status: string}
+     * @return array{name: string, main_code: string, sku: string|null, barcode: string|null, price: float, wholesale_price: float|null, discount: float, status: string}
      */
     public function payload(): array
     {
         $validated = $this->validated();
         $barcode = trim((string) ($validated['barcode'] ?? ''));
+        $sku = trim((string) ($validated['sku'] ?? ''));
 
         return [
             'name' => $validated['name'],
             'main_code' => $validated['main_code'],
-            'sku' => (string) $validated['sku'],
+            'sku' => $sku !== '' ? $sku : null,
             'barcode' => $barcode !== '' ? $barcode : null,
             'price' => (float) $validated['price'],
             'wholesale_price' => isset($validated['wholesale_price']) ? (float) $validated['wholesale_price'] : null,

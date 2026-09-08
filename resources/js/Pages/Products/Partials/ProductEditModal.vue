@@ -23,7 +23,7 @@ const STATUS_HINTS = {
 const form = useForm({
     name: props.card.name,
     main_code: props.card.mainCode,
-    sku: props.card.sku,
+    sku: props.card.sku ?? '',
     barcode: props.card.barcode ?? '',
     price: props.card.price,
     wholesale_price: props.card.wholesalePrice ?? '',

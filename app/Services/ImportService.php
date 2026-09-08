@@ -73,6 +73,7 @@ class ImportService
             $updated = 0;
             $skipped = 0;
             $kept = [];
+            $claimedMainCodes = [];
 
             foreach ($rows as $row) {
                 if ($row['type'] === 'err') {
@@ -81,13 +82,38 @@ class ImportService
                     continue;
                 }
 
-                $product = $this->productService->upsertFromImport(
-                    $this->payload($row),
-                    $this->existingFor($row, $bySku, $byBarcode, $byMainCode),
-                    $actor,
-                );
+                /*
+                 * Карточку занимает первая же строка, которая на неё легла: повтор
+                 * артикула в прайсе — это второй товар, а не спор за один и тот же, и
+                 * перезаписывать им первую строку нельзя.
+                 */
+                $existing = $this->existingFor($row, $bySku, $byBarcode, $byMainCode);
 
-                $kept[] = $product->id;
+                if ($existing instanceof Product && isset($kept[$existing->id])) {
+                    $existing = null;
+                }
+
+                $payload = $this->payload($row);
+
+                /*
+                 * Основной код — код самой панели, и уникальным он остаётся. Если тот,
+                 * что стоит в строке, уже занят другой карточкой, строка его не отбирает:
+                 * новый товар получает следующий свободный, а обновляемый остаётся при
+                 * своём. Иначе повторный импорт того же прайса с дублями падал бы на
+                 * уникальном индексе.
+                 */
+                $owner = $payload['mainCode'] !== '' ? $byMainCode->get($payload['mainCode']) : null;
+                $takenByOther = isset($claimedMainCodes[$payload['mainCode']])
+                    || ($owner instanceof Product && ($existing === null || $owner->id !== $existing->id));
+
+                if ($payload['mainCode'] !== '' && $takenByOther) {
+                    $payload['mainCode'] = '';
+                }
+
+                $product = $this->productService->upsertFromImport($payload, $existing, $actor);
+
+                $kept[$product->id] = true;
+                $claimedMainCodes[$product->main_code] = true;
                 $product->wasRecentlyCreated ? $created++ : $updated++;
             }
 
@@ -102,7 +128,7 @@ class ImportService
              * не «прайс опустел», а испорченная загрузка, и стирать по ней весь каталог
              * нельзя. По той же причине здесь не двигается ревизия каталога.
              */
-            $deleted = $applied > 0 ? $this->products->deleteExcept($kept) : 0;
+            $deleted = $applied > 0 ? $this->products->deleteExcept(array_keys($kept)) : 0;
 
             ImportBatch::create([
                 'file_name' => $fileName,
@@ -157,7 +183,7 @@ class ImportService
      */
     private function existingFor(array $row, Collection $bySku, Collection $byBarcode, Collection $byMainCode): ?Product
     {
-        return $bySku->get($row['sku'])
+        return ($row['sku'] !== '' ? $bySku->get($row['sku']) : null)
             ?? ($row['barcode'] !== '' ? $byBarcode->get($row['barcode']) : null)
             ?? ($row['mainCode'] !== '' ? $byMainCode->get($row['mainCode']) : null);
     }
@@ -260,11 +286,12 @@ class ImportService
             fn (string $barcode): bool => $barcode !== '',
         ));
 
-        $existing = $this->products->matchingImportKeys(
+        $skus = array_values(array_filter(
             array_map(fn (array $raw): string => trim((string) ($raw['sku'] ?? '')), $rawRows),
-            $barcodes,
-            $mainCodes,
-        );
+            fn (string $sku): bool => $sku !== '',
+        ));
+
+        $existing = $this->products->matchingImportKeys($skus, $barcodes, $mainCodes);
 
         $bySku = $existing->keyBy('sku');
         $byBarcode = $existing->keyBy('barcode');
@@ -323,24 +350,21 @@ class ImportService
          * database. Null means unclaimed; equal to this row's own sku means it is this
          * row's own product, not a clash.
          */
-        $skuExists = $bySku->has($sku);
-        /* Пустой штрихкод ничей: у товаров без него keyBy() кладёт всех под один пустой
-         * ключ, и без этой проверки строка без штрихкода спорила бы за него с чужой
-         * карточкой. */
+        /* Пустой артикул и пустой штрихкод ничьи: у товаров без них keyBy() кладёт всех
+         * под один пустой ключ, и без этих проверок пустая строка спорила бы за него с
+         * чужой карточкой. */
+        $skuExists = $sku !== '' && $bySku->has($sku);
         $fileBarcodeOwner = $barcodeDigits !== '' ? ($seen['barcode'][$barcodeDigits] ?? null) : null;
         $dbBarcodeOwner = $barcodeDigits !== '' ? $byBarcode->get($barcodeDigits)?->sku : null;
         $barcodeOwner = $fileBarcodeOwner ?? $dbBarcodeOwner;
-        $fileMainCodeOwner = $seen['mainCode'][$mainCode] ?? null;
-        $dbMainCodeOwner = $byMainCode->get($mainCode)?->sku;
+        $fileMainCodeOwner = $mainCode !== '' ? ($seen['mainCode'][$mainCode] ?? null) : null;
+        $dbMainCodeOwner = $mainCode !== '' ? $byMainCode->get($mainCode)?->sku : null;
         $mainCodeOwner = $fileMainCodeOwner ?? $dbMainCodeOwner;
+        $skuSeenInRow = $sku !== '' ? ($seen['sku'][$sku] ?? null) : null;
 
         $issue = null;
 
-        if ($sku === '') {
-            $issue = ['tag' => 'АРТИКУЛ', 'field' => 'sku', 'fix' => '510xxx', 'message' => 'Пустой артикул. Строка не сопоставляется с каталогом — артикул это ключ.'];
-        } elseif (isset($seen['sku'][$sku])) {
-            $issue = ['tag' => 'ДУБЛЬ', 'field' => 'retail', 'fix' => 'цена', 'message' => "Артикул «{$sku}» уже встречался в строке {$seen['sku'][$sku]}. Какая цена верная?"];
-        } elseif ($name === '') {
+        if ($name === '') {
             $issue = ['tag' => 'НОМЕНКЛАТУРА', 'field' => 'name', 'fix' => 'название', 'message' => 'Пустая номенклатура. Название обязательно — продавец ищет товар по нему.'];
         } elseif (
             $barcodeOwner !== null && $barcodeOwner !== $sku
@@ -367,7 +391,9 @@ class ImportService
             $issue = ['tag' => 'ОСНОВНОЙ КОД', 'field' => 'mainCode', 'fix' => 'AA####', 'message' => "Основной код «{$mainCode}» уже используется товаром с артикулом «{$mainCodeOwner}»."];
         }
 
-        $seen['sku'][$sku] = $number;
+        if ($sku !== '') {
+            $seen['sku'][$sku] ??= $number;
+        }
 
         if ($barcodeDigits !== '') {
             $seen['barcode'][$barcodeDigits] ??= $sku;
@@ -394,17 +420,26 @@ class ImportService
         }
 
         /*
-         * Ни пустой основной код, ни пустой штрихкод строку не отклоняют. Код карточке
-         * присвоится сам, а штрихкод так и останется пустым: прайс сохраняется как есть,
-         * ничего за поставщика не придумывается. Оператор видит это предупреждением —
-         * товар без штрихкода сканер в зале не найдёт.
+         * Ни пустой код, ни повтор артикула строку не отклоняют — прайс сохраняется как
+         * есть, ничего за поставщика не придумывается и ничего не отбрасывается. Оператор
+         * видит это предупреждением: основной код присвоится сам, товар без штрихкода не
+         * найдёт сканер, а повторившийся артикул заведёт вторую карточку.
          */
-        $warning = match (true) {
-            $mainCode === '' && $barcodeDigits === '' => 'Основной код пуст — присвоится автоматически. Штрихкод пуст — товар сохранится без него, сканер его не найдёт.',
-            $mainCode === '' => 'Основной код пуст — товар будет создан, код присвоится автоматически.',
-            $barcodeDigits === '' => 'Штрихкод пуст — товар сохранится без штрихкода, сканер в зале его не найдёт.',
-            default => null,
-        };
+        $notices = [];
+
+        if ($skuSeenInRow !== null) {
+            $notices[] = "Артикул «{$sku}» уже встречался в строке {$skuSeenInRow} — будет создан второй товар.";
+        } elseif ($sku === '') {
+            $notices[] = 'Артикул пуст — товар сохранится без него.';
+        }
+
+        if ($mainCode === '') {
+            $notices[] = 'Основной код пуст — присвоится автоматически.';
+        }
+
+        if ($barcodeDigits === '') {
+            $notices[] = 'Штрихкод пуст — сканер в зале товар не найдёт.';
+        }
 
         return [
             'row' => $number,
@@ -416,11 +451,15 @@ class ImportService
             'discount' => $discount > 0 ? self::percent($discount) : '',
             'final' => self::money(ProductService::finalPrice($retail, $discount)),
             'wholesale' => $wholesale !== null ? self::money($wholesale) : '',
-            'type' => $warning !== null ? 'warn' : 'ok',
-            'tag' => $warning !== null ? 'НОВЫЙ' : null,
+            'type' => $notices !== [] ? 'warn' : 'ok',
+            'tag' => match (true) {
+                $skuSeenInRow !== null => 'ДУБЛЬ',
+                $notices !== [] => 'НОВЫЙ',
+                default => null,
+            },
             'field' => null,
             'fix' => null,
-            'message' => $warning,
+            'message' => $notices !== [] ? implode(' ', $notices) : null,
         ];
     }
 

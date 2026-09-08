@@ -64,7 +64,7 @@ class ProductService
     }
 
     /**
-     * @param  array{name: string, sku: string, barcode: string|null, price: float, wholesale_price?: float|null, discount: float, status: string, kind?: string}  $data
+     * @param  array{name: string, sku: string|null, barcode: string|null, price: float, wholesale_price?: float|null, discount: float, status: string, kind?: string}  $data
      */
     public function create(array $data, string $actor): Product
     {
@@ -89,7 +89,7 @@ class ProductService
     }
 
     /**
-     * @param  array{name: string, main_code: string, sku: string, barcode: string|null, price: float, wholesale_price?: float|null, discount: float, status: string}  $data
+     * @param  array{name: string, main_code: string, sku: string|null, barcode: string|null, price: float, wholesale_price?: float|null, discount: float, status: string}  $data
      */
     public function update(Product $product, array $data, string $actor): Product
     {
@@ -164,9 +164,9 @@ class ProductService
      * main code instead, and that row's new sku must land on the record it renamed.
      *
      * Пустая колонка опта в файле оставляет оптовую цену карточки как есть — see
-     * {@see ImportService::payload()}. Так же и пустой штрихкод: у нового товара он
-     * остаётся пустым (файл сохраняется как есть, ничего не придумывается), а у уже
-     * заведённой карточки не стирает тот, по которому её ищет сканер.
+     * {@see ImportService::payload()}. Так же и пустые артикул со штрихкодом: у нового
+     * товара они остаются пустыми (файл сохраняется как есть, ничего не придумывается),
+     * а у уже заведённой карточки не стирают то, что в ней уже стоит.
      *
      * Возвращается сама карточка, а не «создано/обновлено»: импорт заменяет каталог
      * целиком и по этим id решает, какие товары в прайсе не встретились и подлежат
@@ -184,7 +184,7 @@ class ProductService
 
             $existing->update([
                 'main_code' => $row['mainCode'] !== '' ? $row['mainCode'] : $existing->main_code,
-                'sku' => $row['sku'],
+                'sku' => $row['sku'] !== '' ? $row['sku'] : $existing->sku,
                 'barcode' => $row['barcode'] !== '' ? $row['barcode'] : $existing->barcode,
                 'name' => $row['name'],
                 'price' => $row['price'],
@@ -207,7 +207,7 @@ class ProductService
 
         return Product::create([
             'main_code' => $row['mainCode'] !== '' ? $row['mainCode'] : $this->products->nextMainCode(),
-            'sku' => $row['sku'],
+            'sku' => $row['sku'] !== '' ? $row['sku'] : null,
             'barcode' => $row['barcode'] !== '' ? $row['barcode'] : null,
             'name' => $row['name'],
             'kind' => 'EDT',

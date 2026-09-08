@@ -47,21 +47,29 @@ class ProductValidationTest extends TestCase
         ]);
     }
 
-    public function test_the_article_must_be_four_or_more_digits(): void
+    /**
+     * Артикул у поставщика бывает какой угодно, и карточку, приехавшую из прайса, надо
+     * уметь открыть и сохранить — форма его формат больше не навязывает.
+     */
+    public function test_an_article_of_any_shape_is_accepted(): void
     {
-        $message = 'Артикул должен быть числом из 4 и более цифр — по нему сопоставляется прайс при импорте.';
-
-        $this->createProduct(['sku' => '123'])->assertSessionHasErrors(['sku' => $message]);
-        $this->createProduct(['sku' => 'abcd'])->assertSessionHasErrors(['sku' => $message]);
+        $this->createProduct(['sku' => '123'])->assertSessionHasNoErrors();
+        $this->createProduct(['sku' => 'AR-7001'])->assertSessionHasNoErrors();
     }
 
-    public function test_the_article_must_be_unique(): void
+    /**
+     * Артикул необязателен и не уникален: прайс задаёт каталог как есть, а в нём одна и
+     * та же позиция встречается дважды и бывает вовсе без артикула.
+     */
+    public function test_the_article_may_be_empty_or_repeated(): void
     {
         Product::factory()->create(['sku' => '512345']);
 
-        $this->createProduct(['sku' => '512345'])->assertSessionHasErrors([
-            'sku' => 'Артикул 512345 уже есть в каталоге.',
-        ]);
+        $this->createProduct(['sku' => '512345'])->assertSessionHasNoErrors();
+        $this->createProduct(['sku' => ''])->assertSessionHasNoErrors();
+
+        $this->assertSame(2, Product::where('sku', '512345')->count());
+        $this->assertSame(1, Product::whereNull('sku')->count());
     }
 
     public function test_a_barcode_of_any_length_is_accepted(): void
@@ -91,13 +99,17 @@ class ProductValidationTest extends TestCase
         ]);
     }
 
-    public function test_the_barcode_must_be_unique(): void
+    /**
+     * Штрихкод больше не уникален: прайс дублирует позицию вместе с ним, и обе карточки
+     * сохраняются как есть.
+     */
+    public function test_the_barcode_may_be_repeated(): void
     {
         Product::factory()->create(['barcode' => '8011003993802']);
 
-        $this->createProduct(['barcode' => '8011003993802'])->assertSessionHasErrors([
-            'barcode' => 'Штрихкод 8011003993802 уже занят другим товаром.',
-        ]);
+        $this->createProduct(['barcode' => '8011003993802'])->assertSessionHasNoErrors();
+
+        $this->assertSame(2, Product::where('barcode', '8011003993802')->count());
     }
 
     public function test_the_price_must_be_above_zero(): void
