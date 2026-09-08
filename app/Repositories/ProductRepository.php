@@ -184,13 +184,52 @@ class ProductRepository
     }
 
     /**
-     * Next free main code in the AA#### series.
+     * Следующий свободный код серии AA####.
+     *
+     * Считается только по кодам самой серии — «AA» и дальше одни цифры без ведущего
+     * нуля. Прайс поставщика приносит в колонку основного кода что угодно, и такое
+     * значение из счёта выбрасывается: «AA0000001» иначе читается как единица, серия
+     * откатывается к «AA2», и второй новый товар того же импорта падал на уникальном
+     * индексе — SQLSTATE 23505 вместо импорта.
+     *
+     * Проверка существования — страховка от кода, заведённого мимо серии: занять
+     * уникальный индекс второй раз всё равно нельзя, и лучше поискать свободный номер
+     * здесь, чем упасть на вставке.
      */
     public function nextMainCode(): string
     {
-        $last = Product::orderByRaw('length(main_code) desc, main_code desc')->value('main_code');
+        $number = $this->highestMainCodeNumber() + 1;
 
-        return 'AA'.(((int) substr((string) $last, 2) ?: 1000) + 1);
+        while (Product::where('main_code', 'AA'.$number)->exists()) {
+            $number++;
+        }
+
+        return 'AA'.$number;
+    }
+
+    /**
+     * Наибольший занятый номер серии, 1000 — если серии в каталоге ещё нет.
+     *
+     * Сортировка по (длина, строка) ставит наибольший код серии первым, а PHP берёт
+     * первый подходящий: курсор в обычном каталоге читает одну строку, а не весь
+     * список. Цифр не больше пятнадцати — так номер всегда остаётся целым числом
+     * PHP, а не превращается во float с экспонентой.
+     */
+    private function highestMainCodeNumber(): int
+    {
+        $codes = Product::query()
+            ->select('main_code')
+            ->where('main_code', 'like', 'AA%')
+            ->orderByRaw('length(main_code) desc, main_code desc')
+            ->cursor();
+
+        foreach ($codes as $product) {
+            if (preg_match('/^AA([1-9]\d{0,14})$/', (string) $product->main_code, $match) === 1) {
+                return (int) $match[1];
+            }
+        }
+
+        return 1000;
     }
 
     /**

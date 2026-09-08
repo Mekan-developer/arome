@@ -9,6 +9,7 @@ use App\Services\AuditService;
 use App\Services\CatalogSheetLayout;
 use App\Services\ExportService;
 use App\Services\ImportService;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
@@ -20,6 +21,18 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ImportController extends Controller
 {
+    /**
+     * Как называется в прайсе колонка, на которой база поймала повтор. Читается
+     * оператором в середине фразы, поэтому строчными.
+     *
+     * @var array<string, string>
+     */
+    private const DUPLICATE_LABELS = [
+        'main_code' => 'основной код',
+        'sku' => 'артикул',
+        'barcode' => 'штрихкод',
+    ];
+
     public function __construct(private readonly ImportService $import) {}
 
     public function index(): Response
@@ -80,7 +93,13 @@ class ImportController extends Controller
     {
         $payload = $request->payload();
 
-        $result = $this->import->apply($payload['rows'], $payload['fileName'], $this->actor());
+        try {
+            $result = $this->import->apply($payload['rows'], $payload['fileName'], $this->actor());
+        } catch (QueryException $e) {
+            report($e);
+
+            throw ValidationException::withMessages(['rows' => self::failureMessage($e)]);
+        }
 
         Storage::delete($payload['storedPath']);
 
@@ -94,6 +113,58 @@ class ImportController extends Controller
                 $result['failed'],
             ),
         ]);
+    }
+
+    /**
+     * Отказ базы, пересказанный оператору.
+     *
+     * {@see ImportService::apply()} пишет каталог одной транзакцией, поэтому упавший
+     * импорт — это всегда «каталог остался прежним», а не половина прайса в товарах:
+     * файл на диске тоже остаётся, и «Импортировать» можно нажать ещё раз. Читать
+     * SQLSTATE, имя индекса и текст запроса оператору незачем — техническая сторона
+     * уходит в лог через report(), а в уведомление идёт эта строка,
+     * см. resources/js/Pages/Import/Index.vue.
+     */
+    private static function failureMessage(QueryException $exception): string
+    {
+        $duplicate = self::duplicateKey($exception->getMessage());
+
+        if ($duplicate === null) {
+            return 'Каталог остался прежним: база отклонила прайс. '
+                .'Проверьте колонки «Основной код», «Артикул» и «Штрихкод» — в одну из них попало значение, которого база принять не может.';
+        }
+
+        [$column, $value] = $duplicate;
+        $label = self::DUPLICATE_LABELS[$column] ?? $column;
+        $named = $value !== '' ? " «{$value}»" : '';
+
+        return "Каталог остался прежним: {$label}{$named} из прайса уже занят другим товаром каталога. "
+            .'Очистите эту ячейку в прайсе — панель проставит код сама — или впишите другой и повторите импорт.';
+    }
+
+    /**
+     * Колонка и значение, на которых база отбила запись, из сообщения драйвера:
+     * Postgres пишет «Key (main_code)=(AA1001) already exists», SQLite — «UNIQUE
+     * constraint failed: products.main_code» и значения не называет вовсе. Ни то ни
+     * другое не разобралось — вернётся null, и оператор получит общую формулировку.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    private static function duplicateKey(string $message): ?array
+    {
+        if (preg_match('/Key \(([a-z_]+)\)=\((.*?)\) already exists/', $message, $match) === 1) {
+            return [$match[1], $match[2]];
+        }
+
+        if (preg_match('/UNIQUE constraint failed: [a-z_]+\.([a-z_]+)/', $message, $match) === 1) {
+            return [$match[1], ''];
+        }
+
+        if (preg_match('/unique constraint "[a-z]+_([a-z_]+)_unique"/', $message, $match) === 1) {
+            return [$match[1], ''];
+        }
+
+        return null;
     }
 
     /**

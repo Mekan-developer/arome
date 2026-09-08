@@ -4,17 +4,21 @@ namespace Tests\Feature;
 
 use App\Models\Product;
 use App\Models\User;
+use App\Repositories\ProductRepository;
 use App\Services\CatalogGenerator;
 use App\Services\CatalogSheetLayout;
 use App\Services\ExportService;
+use App\Services\ImportService;
 use App\Services\XlsxWriter;
 use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 use Mockery;
+use PDOException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 use ZipArchive;
@@ -177,6 +181,117 @@ class ImportTest extends TestCase
         ])->assertRedirect('/import');
 
         $this->assertSame(2, Product::where('barcode', '8011003993802')->count());
+    }
+
+    /**
+     * В колонке основного кода прайс приносит что угодно — «AA0000001» из чужой
+     * выгрузки серию AA#### не задаёт. Следующий код считался прямо от такого
+     * значения: серия откатывалась к «AA2», и второй новый товар того же файла падал
+     * на уникальном индексе основного кода.
+     */
+    public function test_a_main_code_outside_the_series_does_not_break_the_generated_ones(): void
+    {
+        $file = $this->workbook([
+            ['AA0000001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+            ['', '510030', '8011003993819', 'VERSACE BRIGHT CRYSTAL EDT 50ML', '1920.96', ''],
+            ['', '510032', '8011003993826', 'VERSACE EROS EDT 50ML', '1780.00', ''],
+        ]);
+
+        $admin = $this->admin();
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertDatabaseCount('products', 3);
+        $this->assertSame(3, Product::distinct()->count('main_code'));
+    }
+
+    /**
+     * Тот же прайс с испорченной серией, загруженный второй раз: коды, выданные первым
+     * импортом, никуда не делись, и новые не должны на них наезжать.
+     */
+    public function test_re_importing_a_file_with_a_main_code_outside_the_series_does_not_collide(): void
+    {
+        $rows = [
+            ['AA0000001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+            ['', '510030', '8011003993819', 'VERSACE BRIGHT CRYSTAL EDT 50ML', '1920.96', ''],
+            ['', '510032', '8011003993826', 'VERSACE EROS EDT 50ML', '1780.00', ''],
+        ];
+
+        $admin = $this->admin();
+
+        foreach (range(1, 2) as $ignored) {
+            $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $this->workbook($rows)]));
+
+            $this->actingAs($admin)->post('/import/confirm', [
+                'fileName' => $props['fileName'],
+                'storedPath' => $props['storedPath'],
+                'rows' => $props['rows'],
+            ])->assertRedirect('/import');
+        }
+
+        $this->assertDatabaseCount('products', 3);
+        $this->assertSame(3, Product::distinct()->count('main_code'));
+    }
+
+    /**
+     * Код, пришедший из прайса мимо серии, в счёте не участвует: «AA0000009» — это не
+     * девятый номер, и следующим кодом должен быть «AA1002», а не «AA10».
+     */
+    public function test_the_generated_main_code_ignores_codes_outside_the_series(): void
+    {
+        Product::factory()->create(['sku' => '999999', 'main_code' => 'AA1001']);
+        Product::factory()->create(['sku' => '999998', 'main_code' => 'AA0000009']);
+
+        $this->assertSame('AA1002', app(ProductRepository::class)->nextMainCode());
+    }
+
+    /**
+     * Отказ базы оператор читает по-русски: импорт идёт одной транзакцией, каталог от
+     * падения не меняется, а файл остаётся на диске — «Импортировать» можно нажать
+     * ещё раз. SQLSTATE и текст запроса уходят в лог, а не в уведомление.
+     */
+    public function test_a_database_failure_is_reported_in_russian_and_changes_nothing(): void
+    {
+        Product::factory()->create(['sku' => '999999', 'main_code' => 'AA1001']);
+
+        $failure = new QueryException(
+            'pgsql',
+            'insert into "products" ("main_code") values (?)',
+            ['AA5060994135481'],
+            new PDOException(
+                'SQLSTATE[23505]: Unique violation: 7 ERROR: duplicate key value violates unique constraint '
+                .'"products_main_code_unique" DETAIL: Key (main_code)=(AA5060994135481) already exists.'
+            ),
+        );
+
+        $this->mock(ImportService::class)
+            ->shouldReceive('apply')
+            ->once()
+            ->andThrow($failure);
+
+        $storedPath = $this->fakeStoredFile();
+
+        $response = $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $storedPath,
+            'rows' => [],
+        ]);
+
+        $response->assertSessionHasErrors('rows');
+
+        $message = (string) session('errors')->first('rows');
+        $this->assertStringContainsString('основной код «AA5060994135481»', $message);
+        $this->assertStringContainsString('Каталог остался прежним', $message);
+        $this->assertStringNotContainsString('SQLSTATE', $message);
+
+        $this->assertDatabaseCount('products', 1);
+        $this->assertDatabaseCount('import_batches', 0);
+        $this->assertTrue(Storage::exists($storedPath));
     }
 
     public function test_a_blank_name_is_rejected(): void

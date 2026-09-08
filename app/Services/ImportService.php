@@ -74,6 +74,7 @@ class ImportService
             $skipped = 0;
             $kept = [];
             $claimedMainCodes = [];
+            $nextMainCodeNumber = null;
 
             foreach ($rows as $row) {
                 if ($row['type'] === 'err') {
@@ -108,6 +109,10 @@ class ImportService
 
                 if ($payload['mainCode'] !== '' && $takenByOther) {
                     $payload['mainCode'] = '';
+                }
+
+                if ($payload['mainCode'] === '' && $existing === null) {
+                    $payload['mainCode'] = $this->nextFreeMainCode($claimedMainCodes, $nextMainCodeNumber);
                 }
 
                 $product = $this->productService->upsertFromImport($payload, $existing, $actor);
@@ -168,6 +173,31 @@ class ImportService
                 'failed' => $batch->rows_failed,
             ])
             ->all();
+    }
+
+    /**
+     * Основной код новому товару. Первый номер серии спрашивается у каталога один раз
+     * за импорт, дальше счёт идёт в памяти: новых карточек в прайсе бывают тысячи, а
+     * {@see ProductRepository::nextMainCode()} на каждую из них сортировал бы каталог
+     * заново.
+     *
+     * Номер, который в этом же файле уже кому-то достался, пропускается: строка со
+     * своим кодом из прайса тоже занимает его через $claimed.
+     *
+     * @param  array<string, true>  $claimed
+     */
+    private function nextFreeMainCode(array $claimed, ?int &$number): string
+    {
+        $number ??= (int) substr($this->products->nextMainCode(), 2);
+
+        while (isset($claimed['AA'.$number])) {
+            $number++;
+        }
+
+        $code = 'AA'.$number;
+        $number++;
+
+        return $code;
     }
 
     /**
