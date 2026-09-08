@@ -36,9 +36,10 @@ class ProductController extends Controller
 
         return Inertia::render('Products/Index', [
             'products' => fn () => ProductRowResource::collection(
-                $this->products->paginate($filters, config('aroma.per_page'), $modules['productPoints'])
+                $this->products->paginate($filters, $filters['per_page'], $modules['productPoints'])
             ),
             'filters' => $filters,
+            'perPageOptions' => $this->perPageOptions(),
             'queryString' => $this->queryString($filters),
             'points' => fn () => $modules['points']
                 ? Point::orderBy('id')->get(['id', 'code', 'name'])
@@ -154,7 +155,7 @@ class ProductController extends Controller
     }
 
     /**
-     * @return array{q: string, point: string, status: string, sort: string, page: int}
+     * @return array{q: string, point: string, status: string, sort: string, page: int, per_page: int}
      */
     private function filters(Request $request, bool $withPoints): array
     {
@@ -164,23 +165,46 @@ class ProductController extends Controller
             'status' => (string) $request->query('status', 'all'),
             'sort' => (string) $request->query('sort', 'name'),
             'page' => max(1, (int) $request->query('page', 1)),
+            'per_page' => $this->perPage($request),
         ];
+    }
+
+    /**
+     * Сколько строк показывать. Из адреса берётся только значение из списка в конфиге:
+     * произвольное число оттуда — это `?per_page=100000` и выборка всего каталога в память.
+     */
+    private function perPage(Request $request): int
+    {
+        $requested = (int) $request->query('per_page', 0);
+
+        return in_array($requested, $this->perPageOptions(), true)
+            ? $requested
+            : (int) config('aroma.per_page');
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function perPageOptions(): array
+    {
+        return array_values(array_map('intval', config('aroma.per_page_options', [])));
     }
 
     /**
      * The monospaced request line printed in the table footer.
      *
-     * @param  array{q: string, point: string, status: string, sort: string, page: int}  $filters
+     * @param  array{q: string, point: string, status: string, sort: string, page: int, per_page: int}  $filters
      */
     private function queryString(array $filters): string
     {
         return sprintf(
-            'GET /api/v1/products?q=%s&point=%s&status=%s&sort=%s&page=%d',
+            'GET /api/v1/products?q=%s&point=%s&status=%s&sort=%s&page=%d&per_page=%d',
             $filters['q'],
             $filters['point'],
             $filters['status'],
             $filters['sort'],
             $filters['page'],
+            $filters['per_page'],
         );
     }
 }

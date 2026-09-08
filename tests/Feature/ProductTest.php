@@ -148,7 +148,56 @@ class ProductTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('Products/Index')
                 ->has('products.data', 3)
-                ->where('queryString', 'GET /api/v1/products?q=&point=all&status=active&sort=-price&page=1'));
+                ->where('queryString', 'GET /api/v1/products?q=&point=all&status=active&sort=-price&page=1&per_page=15'));
+    }
+
+    /**
+     * Размер страницы выбирается в подвале таблицы и живёт в адресе — отфильтрованный
+     * список с сотней строк должен пережить перезагрузку и уехать ссылкой коллеге.
+     */
+    public function test_the_page_size_comes_from_the_url(): void
+    {
+        Product::factory()->count(60)->create();
+
+        $this->actingAs($this->admin())
+            ->get('/products?per_page=50')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('products.data', 50)
+                ->where('filters.per_page', 50)
+                ->where('products.meta.last_page', 2)
+                ->where('perPageOptions', [15, 30, 50, 100]));
+    }
+
+    /**
+     * Всё, чего нет в списке размеров, — это `?per_page=100000`: каталог целиком в память
+     * и панель на коленях. Такой запрос отвечает страницей по умолчанию.
+     */
+    #[DataProvider('rejectedPageSizes')]
+    public function test_a_page_size_outside_the_list_falls_back_to_the_default(string $value): void
+    {
+        Product::factory()->count(20)->create();
+
+        $this->actingAs($this->admin())
+            ->get('/products?per_page='.$value)
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('products.data', 15)
+                ->where('filters.per_page', 15));
+    }
+
+    /**
+     * @return array<string, array{0: string}>
+     */
+    public static function rejectedPageSizes(): array
+    {
+        return [
+            'the whole catalogue' => ['100000'],
+            'not on the list' => ['25'],
+            'zero' => ['0'],
+            'negative' => ['-10'],
+            'not a number' => ['все'],
+        ];
     }
 
     /**

@@ -23,6 +23,7 @@ import { formatInt } from '@/Composables/useFormat.js'
 const props = defineProps({
     products: { type: Object, required: true },
     filters: { type: Object, required: true },
+    perPageOptions: { type: Array, default: () => [15, 30, 50, 100] },
     queryString: { type: String, default: '' },
     points: { type: Array, default: () => [] },
     card: { type: Object, default: null },
@@ -164,6 +165,12 @@ const hideSelected = () => {
 
 const from = computed(() => meta.value.from ?? 0)
 const to = computed(() => meta.value.to ?? 0)
+
+/**
+ * Смена размера страницы всегда возвращает на первую: строки с 91-й по 105-ю после
+ * перехода с 15 на 100 — уже вторая страница, и пользователь видит пустой список.
+ */
+const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
 </script>
 
 <template>
@@ -302,6 +309,17 @@ const to = computed(() => meta.value.to ?? 0)
             <span class="foot__count">
                 Строки {{ formatInt(from) }}–{{ formatInt(to) }} из {{ formatInt(meta.total) }}
             </span>
+            <label class="foot__size">
+                <span class="foot__size-text">Показывать по</span>
+                <SelectField
+                    class="foot__size-select"
+                    :model-value="String(filters.per_page)"
+                    title="Строк на странице"
+                    @update:model-value="changePerPage"
+                >
+                    <option v-for="size in perPageOptions" :key="size" :value="String(size)">{{ size }}</option>
+                </SelectField>
+            </label>
             <span class="foot__query" :title="queryString">{{ queryString }}</span>
             <span class="foot__pager">
                 <AppButton
@@ -532,6 +550,27 @@ const to = computed(() => meta.value.to ?? 0)
     white-space: nowrap;
 }
 
+.foot__size {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.foot__size-text {
+    font-family: var(--f-data);
+    font-size: 11.5px;
+    color: var(--ink-3);
+}
+
+/* Перебивает собственные отступы SelectField: в подвале селект стоит в одну строку с текстом. */
+.foot .foot__size-select {
+    padding: 3px 6px;
+    font-family: var(--f-data);
+    font-variant-numeric: tabular-nums;
+    font-size: 11.5px;
+}
+
 .foot__query {
     flex: 1;
     min-width: 0;
@@ -619,8 +658,25 @@ const to = computed(() => meta.value.to ?? 0)
         gap: 10px;
     }
 
+    /*
+     * На телефоне подвал встаёт в две строки: счётчик и выбор размера страницы сверху,
+     * пагинация во всю ширину под ними — иначе три блока сжимаются до нечитаемых.
+     */
+    .foot {
+        flex-wrap: wrap;
+    }
+
     .foot__query {
         display: none;
+    }
+
+    .foot .foot__size-select {
+        min-height: 32px;
+    }
+
+    .foot__pager {
+        width: 100%;
+        justify-content: space-between;
     }
 
     .foot__pager :deep(.btn) {
