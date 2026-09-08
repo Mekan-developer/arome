@@ -13,6 +13,56 @@ use Illuminate\Validation\Validator;
  */
 class ConfirmImportRequest extends FormRequest
 {
+    /**
+     * Replaces what used to be `rows.*.<field>` wildcard rules. Laravel's wildcard
+     * validator re-flattens the entire `rows` array (Arr::dot(), via
+     * ValidationData::initializeAndGatherData()) once per wildcard rule and then
+     * pattern-matches every flattened key against it — fine for a handful of rows, but a
+     * price list of a few thousand (exactly what this wizard is for) pushed that past
+     * the 120s PHP execution limit and turned every large import into a 500. The plain
+     * loop in {@see self::validateRows()} does the same checks in one pass over the rows
+     * actually submitted.
+     *
+     * @var array<string, array{max: int, stringMessage: string, maxMessage: string}>
+     */
+    private const ROW_FIELDS = [
+        'mainCode' => [
+            'max' => 64,
+            'stringMessage' => 'Основной код в строке :position испорчен. ',
+            'maxMessage' => 'Основной код в строке :position длиннее 64 символов — сократите его и повторите импорт.',
+        ],
+        'sku' => [
+            'max' => 64,
+            'stringMessage' => 'Артикул в строке :position испорчен. ',
+            'maxMessage' => 'Артикул в строке :position длиннее 64 символов — сократите его и повторите импорт.',
+        ],
+        'barcode' => [
+            'max' => 64,
+            'stringMessage' => 'Штрихкод в строке :position испорчен. ',
+            'maxMessage' => 'Штрихкод в строке :position длиннее 64 символов — в нём должно быть 13 цифр.',
+        ],
+        'name' => [
+            'max' => 512,
+            'stringMessage' => 'Номенклатура в строке :position испорчена. ',
+            'maxMessage' => 'Номенклатура в строке :position длиннее 512 символов — сократите название.',
+        ],
+        'retail' => [
+            'max' => 64,
+            'stringMessage' => 'Розничная цена в строке :position испорчена. ',
+            'maxMessage' => 'Розничная цена в строке :position длиннее 64 символов — оставьте только число.',
+        ],
+        'discount' => [
+            'max' => 64,
+            'stringMessage' => 'Скидка в строке :position испорчена. ',
+            'maxMessage' => 'Скидка в строке :position длиннее 64 символов — оставьте процент, например «20 %».',
+        ],
+        'wholesale' => [
+            'max' => 64,
+            'stringMessage' => 'Оптовая цена в строке :position испорчена. ',
+            'maxMessage' => 'Оптовая цена в строке :position длиннее 64 символов — оставьте только число.',
+        ],
+    ];
+
     public function authorize(): bool
     {
         return $this->user()?->managesCatalog() ?? false;
@@ -29,14 +79,6 @@ class ConfirmImportRequest extends FormRequest
              * Rejecting anything else keeps a client-supplied path off the filesystem outright. */
             'storedPath' => ['required', 'string', 'regex:/^imports\/[A-Za-z0-9]+\.xlsx$/'],
             'rows' => ['present', 'array'],
-            'rows.*.row' => ['required', 'integer', 'min:1'],
-            'rows.*.mainCode' => ['nullable', 'string', 'max:64'],
-            'rows.*.sku' => ['nullable', 'string', 'max:64'],
-            'rows.*.barcode' => ['nullable', 'string', 'max:64'],
-            'rows.*.name' => ['nullable', 'string', 'max:512'],
-            'rows.*.retail' => ['nullable', 'string', 'max:64'],
-            'rows.*.discount' => ['nullable', 'string', 'max:64'],
-            'rows.*.wholesale' => ['nullable', 'string', 'max:64'],
         ];
     }
 
@@ -60,44 +102,109 @@ class ConfirmImportRequest extends FormRequest
             'storedPath.regex' => 'Файл загрузки не найден — начните заново с шага «Файл».',
             'rows.present' => 'Мастер импорта не передал строки прайса. '.$restart,
             'rows.array' => 'Строки прайса пришли в неизвестном виде. '.$restart,
-            'rows.*.row.required' => 'В данных строки повреждена нумерация — начните заново с шага «Файл».',
-            'rows.*.row.integer' => 'В данных строки повреждена нумерация — начните заново с шага «Файл».',
-            'rows.*.row.min' => 'В данных строки повреждена нумерация — начните заново с шага «Файл».',
-            'rows.*.mainCode.string' => 'Основной код в строке :position испорчен. '.$restart,
-            'rows.*.mainCode.max' => 'Основной код в строке :position длиннее 64 символов — сократите его и повторите импорт.',
-            'rows.*.sku.string' => 'Артикул в строке :position испорчен. '.$restart,
-            'rows.*.sku.max' => 'Артикул в строке :position длиннее 64 символов — сократите его и повторите импорт.',
-            'rows.*.barcode.string' => 'Штрихкод в строке :position испорчен. '.$restart,
-            'rows.*.barcode.max' => 'Штрихкод в строке :position длиннее 64 символов — в нём должно быть 13 цифр.',
-            'rows.*.name.string' => 'Номенклатура в строке :position испорчена. '.$restart,
-            'rows.*.name.max' => 'Номенклатура в строке :position длиннее 512 символов — сократите название.',
-            'rows.*.retail.string' => 'Розничная цена в строке :position испорчена. '.$restart,
-            'rows.*.retail.max' => 'Розничная цена в строке :position длиннее 64 символов — оставьте только число.',
-            'rows.*.discount.string' => 'Скидка в строке :position испорчена. '.$restart,
-            'rows.*.discount.max' => 'Скидка в строке :position длиннее 64 символов — оставьте процент, например «20 %».',
-            'rows.*.wholesale.string' => 'Оптовая цена в строке :position испорчена. '.$restart,
-            'rows.*.wholesale.max' => 'Оптовая цена в строке :position длиннее 64 символов — оставьте только число.',
         ];
     }
 
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
-            /*
-             * Skip straight past a value the regex rule already rejected: Storage::exists()
-             * throws on a path that still carries "../" instead of returning false, so a
-             * traversal attempt must never reach it.
-             */
-            if ($validator->errors()->has('storedPath')) {
-                return;
-            }
-
-            $path = $this->string('storedPath')->toString();
-
-            if (! Storage::exists($path)) {
-                $validator->errors()->add('storedPath', 'Загруженный файл больше не найден на сервере — загрузите его заново.');
-            }
+            $this->validateStoredPath($validator);
+            $this->validateRows($validator);
         });
+    }
+
+    private function validateStoredPath(Validator $validator): void
+    {
+        /*
+         * Skip straight past a value the regex rule already rejected: Storage::exists()
+         * throws on a path that still carries "../" instead of returning false, so a
+         * traversal attempt must never reach it.
+         */
+        if ($validator->errors()->has('storedPath')) {
+            return;
+        }
+
+        $path = $this->string('storedPath')->toString();
+
+        if (! Storage::exists($path)) {
+            $validator->errors()->add('storedPath', 'Загруженный файл больше не найден на сервере — загрузите его заново.');
+        }
+    }
+
+    /**
+     * Hand-rolled stand-in for the old `rows.*.<field>` wildcard rules — see
+     * {@see self::ROW_FIELDS} for why. `:position` mirrors Laravel's own wildcard
+     * placeholder: the row's 1-based position in the submitted array, not its `row`
+     * (spreadsheet line) value.
+     */
+    private function validateRows(Validator $validator): void
+    {
+        if ($validator->errors()->has('rows')) {
+            return;
+        }
+
+        $restart = 'Начните заново с шага «Файл»: загрузите прайс ещё раз.';
+
+        /** @var list<mixed> $rows */
+        $rows = $this->input('rows', []);
+
+        foreach ($rows as $index => $row) {
+            if (! is_array($row)) {
+                $validator->errors()->add("rows.{$index}", "Строка прайса пришла в неизвестном виде. {$restart}");
+
+                continue;
+            }
+
+            $position = $index + 1;
+
+            $this->validateRowNumber($validator, $row, $index);
+
+            foreach (self::ROW_FIELDS as $field => $rule) {
+                $this->validateRowField($validator, $row, $index, $position, $field, $rule, $restart);
+            }
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function validateRowNumber(Validator $validator, array $row, int $index): void
+    {
+        $value = $row['row'] ?? null;
+        $isInteger = is_int($value) || (is_string($value) && ctype_digit($value));
+
+        if (! $isInteger || (int) $value < 1) {
+            $validator->errors()->add("rows.{$index}.row", 'В данных строки повреждена нумерация — начните заново с шага «Файл».');
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @param  array{max: int, stringMessage: string, maxMessage: string}  $rule
+     */
+    private function validateRowField(Validator $validator, array $row, int $index, int $position, string $field, array $rule, string $restart): void
+    {
+        $value = $row[$field] ?? null;
+
+        if ($value === null) {
+            return;
+        }
+
+        if (! is_string($value)) {
+            $validator->errors()->add(
+                "rows.{$index}.{$field}",
+                str_replace(':position', (string) $position, $rule['stringMessage']).$restart
+            );
+
+            return;
+        }
+
+        if (mb_strlen($value) > $rule['max']) {
+            $validator->errors()->add(
+                "rows.{$index}.{$field}",
+                str_replace(':position', (string) $position, $rule['maxMessage'])
+            );
+        }
     }
 
     /**

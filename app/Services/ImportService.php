@@ -15,7 +15,9 @@ use Illuminate\Support\Facades\DB;
  * position in the file. Sku is tried first; when a row's sku is new but its barcode or
  * main code already belongs to a product, that product is renamed rather than treated
  * as a clash — a supplier renumbering an article without reissuing a new barcode is the
- * normal case this covers, see {@see self::validateRow()}.
+ * normal case this covers, see {@see self::validateRow()}. A blank barcode in the file,
+ * like a blank main code, does not block the row — {@see ProductService::upsertFromImport()}
+ * assigns one automatically.
  *
  * Two passes read the same rows through the same validation:
  *  - {@see self::analyze()} is a dry run — it never touches the products table, only
@@ -157,7 +159,7 @@ class ImportService
     private function existingFor(array $row, Collection $bySku, Collection $byBarcode, Collection $byMainCode): ?Product
     {
         return $bySku->get($row['sku'])
-            ?? $byBarcode->get($row['barcode'])
+            ?? ($row['barcode'] !== '' ? $byBarcode->get($row['barcode']) : null)
             ?? ($row['mainCode'] !== '' ? $byMainCode->get($row['mainCode']) : null);
     }
 
@@ -333,7 +335,7 @@ class ImportService
             $issue = ['tag' => 'ДУБЛЬ', 'field' => 'retail', 'fix' => 'цена', 'message' => "Артикул «{$sku}» уже встречался в строке {$seen['sku'][$sku]}. Какая цена верная?"];
         } elseif ($name === '') {
             $issue = ['tag' => 'НОМЕНКЛАТУРА', 'field' => 'name', 'fix' => 'название', 'message' => 'Пустая номенклатура. Название обязательно — продавец ищет товар по нему.'];
-        } elseif (strlen($barcodeDigits) !== 13) {
+        } elseif ($barcodeDigits !== '' && strlen($barcodeDigits) !== 13) {
             $issue = ['tag' => 'ШТРИХКОД', 'field' => 'barcode', 'fix' => '13 цифр', 'message' => sprintf('В штрихкоде %d %s вместо 13. Проверьте, не потерялась ли цифра.', strlen($barcodeDigits), self::digitsWord(strlen($barcodeDigits)))];
         } elseif (
             $barcodeOwner !== null && $barcodeOwner !== $sku
@@ -386,24 +388,17 @@ class ImportService
             ];
         }
 
-        if ($mainCode === '') {
-            return [
-                'row' => $number,
-                'mainCode' => '',
-                'sku' => $sku,
-                'barcode' => $barcodeDigits,
-                'name' => $name,
-                'retail' => self::money($retail),
-                'discount' => $discount > 0 ? self::percent($discount) : '',
-                'final' => self::money(ProductService::finalPrice($retail, $discount)),
-                'wholesale' => $wholesale !== null ? self::money($wholesale) : '',
-                'type' => 'warn',
-                'tag' => 'НОВЫЙ',
-                'field' => null,
-                'fix' => null,
-                'message' => 'Основной код пуст — товар будет создан, код присвоится автоматически.',
-            ];
-        }
+        /*
+         * A blank main code or barcode is not an error — both are assigned automatically
+         * on creation, the same way {@see \App\Services\ProductService::upsertFromImport()}
+         * fills them in. It only ever shows as a soft "will be created" notice.
+         */
+        $warning = match (true) {
+            $mainCode === '' && $barcodeDigits === '' => 'Основной код и штрихкод пусты — товар будет создан, оба присвоятся автоматически.',
+            $mainCode === '' => 'Основной код пуст — товар будет создан, код присвоится автоматически.',
+            $barcodeDigits === '' => 'Штрихкод пуст — товар будет создан, штрихкод присвоится автоматически.',
+            default => null,
+        };
 
         return [
             'row' => $number,
@@ -415,11 +410,11 @@ class ImportService
             'discount' => $discount > 0 ? self::percent($discount) : '',
             'final' => self::money(ProductService::finalPrice($retail, $discount)),
             'wholesale' => $wholesale !== null ? self::money($wholesale) : '',
-            'type' => 'ok',
-            'tag' => null,
+            'type' => $warning !== null ? 'warn' : 'ok',
+            'tag' => $warning !== null ? 'НОВЫЙ' : null,
             'field' => null,
             'fix' => null,
-            'message' => null,
+            'message' => $warning,
         ];
     }
 

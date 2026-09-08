@@ -251,6 +251,75 @@ class ImportTest extends TestCase
     }
 
     /**
+     * A blank barcode, like a blank main code, does not block the row — it will be
+     * generated on import, see {@see self::test_confirming_a_blank_barcode_generates_one()}.
+     */
+    public function test_a_blank_barcode_is_a_warning_not_an_error(): void
+    {
+        $row = $this->analyzeRow(['AA1001', '512044', '', 'HUGO BOSS BOTTLED EDT 50ML', '1640.00', '']);
+
+        $this->assertSame('warn', $row['type']);
+        $this->assertSame('НОВЫЙ', $row['tag']);
+        $this->assertNull($row['field']);
+        $this->assertSame('', $row['barcode']);
+    }
+
+    /**
+     * Confirming a row with both codes blank creates the product — nothing about the
+     * missing pair stops the import, and the operator sees one combined notice for it.
+     */
+    public function test_a_row_with_both_codes_blank_is_a_single_warning(): void
+    {
+        $row = $this->analyzeRow(['', '512044', '', 'HUGO BOSS BOTTLED EDT 50ML', '1640.00', '']);
+
+        $this->assertSame('warn', $row['type']);
+        $this->assertSame('НОВЫЙ', $row['tag']);
+        $this->assertStringContainsString('Основной код и штрихкод пусты', $row['message']);
+    }
+
+    /**
+     * Confirming a blank barcode must not leave the product without one — the panel's
+     * barcode scanner is how a seller finds the item on the shop floor.
+     */
+    public function test_confirming_a_blank_barcode_generates_one(): void
+    {
+        $row = $this->analyzeRow(['AA1001', '512044', '', 'HUGO BOSS BOTTLED EDT 50ML', '1640.00', '']);
+
+        $admin = $this->admin();
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $product = Product::where('sku', '512044')->sole();
+        $this->assertNotSame('', $product->barcode);
+        $this->assertMatchesRegularExpression('/^\d{13}$/', $product->barcode);
+    }
+
+    /**
+     * A blank barcode column on an update must not wipe out the barcode the product
+     * already has — an empty cell means "unchanged", the same rule the wholesale price
+     * column follows.
+     */
+    public function test_confirming_a_blank_barcode_on_an_update_keeps_the_existing_one(): void
+    {
+        $existing = Product::factory()->create(['sku' => '512044', 'barcode' => '8011003993802']);
+
+        $row = $this->analyzeRow(['AA1001', '512044', '', 'HUGO BOSS BOTTLED EDT 50ML', '1640.00', '']);
+
+        $admin = $this->admin();
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $existing->refresh();
+        $this->assertSame('8011003993802', $existing->barcode);
+    }
+
+    /**
      * Same rename logic as the barcode case above, keyed on the main code instead.
      */
     public function test_a_main_code_already_used_by_a_different_article_is_a_rename_when_the_sku_is_new(): void

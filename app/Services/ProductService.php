@@ -162,7 +162,9 @@ class ProductService
      * main code instead, and that row's new sku must land on the record it renamed.
      *
      * Пустая колонка опта в файле оставляет оптовую цену карточки как есть — see
-     * {@see ImportService::payload()}.
+     * {@see ImportService::payload()}. Пустой штрихкод, как и пустой основной код, не
+     * стирает то, что уже стоит в карточке при обновлении, а на создании получает новый
+     * штрихкод из {@see self::generateBarcode()}.
      *
      * Возвращается сама карточка, а не «создано/обновлено»: импорт заменяет каталог
      * целиком и по этим id решает, какие товары в прайсе не встретились и подлежат
@@ -181,7 +183,7 @@ class ProductService
             $existing->update([
                 'main_code' => $row['mainCode'] !== '' ? $row['mainCode'] : $existing->main_code,
                 'sku' => $row['sku'],
-                'barcode' => $row['barcode'],
+                'barcode' => $row['barcode'] !== '' ? $row['barcode'] : $existing->barcode,
                 'name' => $row['name'],
                 'price' => $row['price'],
                 'discount' => $row['discount'],
@@ -204,7 +206,7 @@ class ProductService
         return Product::create([
             'main_code' => $row['mainCode'] !== '' ? $row['mainCode'] : $this->products->nextMainCode(),
             'sku' => $row['sku'],
-            'barcode' => $row['barcode'],
+            'barcode' => $row['barcode'] !== '' ? $row['barcode'] : $this->generateBarcode(),
             'name' => $row['name'],
             'kind' => 'EDT',
             'price' => $row['price'],
