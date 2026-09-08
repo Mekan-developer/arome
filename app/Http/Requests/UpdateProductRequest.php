@@ -24,7 +24,7 @@ class UpdateProductRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'main_code' => ['required', 'string', 'max:16', Rule::unique('products', 'main_code')->ignore($id)],
             'sku' => ['required', 'regex:/^\d{4,}$/', Rule::unique('products', 'sku')->ignore($id)],
-            'barcode' => ['required', 'string', 'max:64', Rule::unique('products', 'barcode')->ignore($id)],
+            'barcode' => ['nullable', 'string', 'max:64', Rule::unique('products', 'barcode')->ignore($id)],
             'price' => ['required', 'numeric', 'gt:0'],
             'wholesale_price' => ['nullable', 'numeric', 'gte:0'],
             'discount' => ['required', 'numeric', 'between:0,90'],
@@ -42,7 +42,6 @@ class UpdateProductRequest extends FormRequest
             'sku.required' => 'Артикул должен быть числом из 4 и более цифр — по нему сопоставляется прайс при импорте.',
             'sku.regex' => 'Артикул должен быть числом из 4 и более цифр — по нему сопоставляется прайс при импорте.',
             'sku.unique' => 'Артикул '.$this->input('sku').' уже есть в каталоге.',
-            'barcode.required' => 'Не заполнен штрихкод — без него сканер в зале не найдёт товар.',
             'barcode.max' => 'Штрихкод не длиннее 64 символов.',
             'barcode.unique' => 'Штрихкод '.$this->input('barcode').' уже занят другим товаром.',
             'price.required' => 'Розничная цена должна быть больше нуля.',
@@ -56,17 +55,21 @@ class UpdateProductRequest extends FormRequest
     }
 
     /**
-     * @return array{name: string, main_code: string, sku: string, barcode: string, price: float, wholesale_price: float|null, discount: float, status: string}
+     * Пустое поле штрихкода уходит в базу как NULL, а не пустой строкой: пустых строк
+     * уникальный индекс терпит только одну, а товаров без штрихкода в каталоге много.
+     *
+     * @return array{name: string, main_code: string, sku: string, barcode: string|null, price: float, wholesale_price: float|null, discount: float, status: string}
      */
     public function payload(): array
     {
         $validated = $this->validated();
+        $barcode = trim((string) ($validated['barcode'] ?? ''));
 
         return [
             'name' => $validated['name'],
             'main_code' => $validated['main_code'],
             'sku' => (string) $validated['sku'],
-            'barcode' => (string) $validated['barcode'],
+            'barcode' => $barcode !== '' ? $barcode : null,
             'price' => (float) $validated['price'],
             'wholesale_price' => isset($validated['wholesale_price']) ? (float) $validated['wholesale_price'] : null,
             'discount' => round((float) $validated['discount'] / 100, 4),

@@ -254,8 +254,8 @@ class ImportTest extends TestCase
     }
 
     /**
-     * A blank barcode, like a blank main code, does not block the row — it will be
-     * generated on import, see {@see self::test_confirming_a_blank_barcode_generates_one()}.
+     * A blank barcode does not block the row — the product is simply saved without one,
+     * see {@see self::test_confirming_a_blank_barcode_saves_the_product_without_one()}.
      */
     public function test_a_blank_barcode_is_a_warning_not_an_error(): void
     {
@@ -277,14 +277,16 @@ class ImportTest extends TestCase
 
         $this->assertSame('warn', $row['type']);
         $this->assertSame('НОВЫЙ', $row['tag']);
-        $this->assertStringContainsString('Основной код и штрихкод пусты', $row['message']);
+        $this->assertStringContainsString('Основной код пуст', $row['message']);
+        $this->assertStringContainsString('Штрихкод пуст', $row['message']);
     }
 
     /**
-     * Confirming a blank barcode must not leave the product without one — the panel's
-     * barcode scanner is how a seller finds the item on the shop floor.
+     * Прайс сохраняется как есть: штрихкод за поставщика не придумывается, у товара его
+     * просто нет. В базу пустая ячейка уходит как NULL — пустых строк уникальный индекс
+     * пустил бы только одну.
      */
-    public function test_confirming_a_blank_barcode_generates_one(): void
+    public function test_confirming_a_blank_barcode_saves_the_product_without_one(): void
     {
         $row = $this->analyzeRow(['AA1001', '512044', '', 'HUGO BOSS BOTTLED EDT 50ML', '1640.00', '']);
 
@@ -295,15 +297,37 @@ class ImportTest extends TestCase
             'rows' => [$row],
         ])->assertRedirect('/import');
 
-        $product = Product::where('sku', '512044')->sole();
-        $this->assertNotSame('', $product->barcode);
-        $this->assertMatchesRegularExpression('/^\d{13}$/', $product->barcode);
+        $this->assertNull(Product::where('sku', '512044')->sole()->barcode);
     }
 
     /**
-     * A blank barcode column on an update must not wipe out the barcode the product
-     * already has — an empty cell means "unchanged", the same rule the wholesale price
-     * column follows.
+     * Товаров без штрихкода в каталоге может быть сколько угодно: колонка допускает
+     * NULL, и уникальный индекс их друг с другом не сталкивает.
+     */
+    public function test_confirming_many_blank_barcodes_saves_them_all(): void
+    {
+        $rows = [];
+
+        for ($i = 0; $i < 30; $i++) {
+            $rows[] = ['', (string) (600000 + $i), '', "PRODUCT {$i}", '100.00', ''];
+        }
+
+        $admin = $this->admin();
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $this->workbook($rows)]));
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertSame(30, Product::whereNull('barcode')->count());
+    }
+
+    /**
+     * Пустая ячейка штрихкода при обновлении не стирает тот, что уже стоит в карточке:
+     * по нему товар ищет сканер в зале. Пустая колонка значит «не трогать», как и у
+     * оптовой цены.
      */
     public function test_confirming_a_blank_barcode_on_an_update_keeps_the_existing_one(): void
     {

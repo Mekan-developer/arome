@@ -71,11 +71,17 @@ class ProductValidationTest extends TestCase
         $this->createProduct(['sku' => '512003', 'barcode' => 'ABC-7'])->assertSessionHasNoErrors();
     }
 
-    public function test_the_barcode_is_required(): void
+    /**
+     * Штрихкод необязателен: прайс приходит и без него, и такую карточку потом надо
+     * уметь открыть и сохранить, ничего не выдумывая. В базу пустое поле уходит как
+     * NULL — пустых строк уникальный индекс пустил бы только одну.
+     */
+    public function test_the_barcode_may_be_left_empty(): void
     {
-        $this->createProduct(['barcode' => ''])->assertSessionHasErrors([
-            'barcode' => 'Не заполнен штрихкод — без него сканер в зале не найдёт товар.',
-        ]);
+        $this->createProduct(['sku' => '512004', 'barcode' => ''])->assertSessionHasNoErrors();
+        $this->createProduct(['sku' => '512005', 'barcode' => ''])->assertSessionHasNoErrors();
+
+        $this->assertSame(2, Product::whereNull('barcode')->count());
     }
 
     public function test_the_barcode_stops_at_sixty_four_characters(): void

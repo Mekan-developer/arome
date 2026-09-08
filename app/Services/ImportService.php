@@ -15,9 +15,8 @@ use Illuminate\Support\Facades\DB;
  * position in the file. Sku is tried first; when a row's sku is new but its barcode or
  * main code already belongs to a product, that product is renamed rather than treated
  * as a clash — a supplier renumbering an article without reissuing a new barcode is the
- * normal case this covers, see {@see self::validateRow()}. A blank barcode in the file,
- * like a blank main code, does not block the row — {@see ProductService::upsertFromImport()}
- * assigns one automatically.
+ * normal case this covers, see {@see self::validateRow()}. A blank barcode does not block
+ * the row and is not filled in for the supplier: the product is saved without one.
  *
  * Two passes read the same rows through the same validation:
  *  - {@see self::analyze()} is a dry run — it never touches the products table, only
@@ -256,9 +255,14 @@ class ImportService
             fn (string $code): bool => $code !== '',
         ));
 
+        $barcodes = array_values(array_filter(
+            array_map(fn (array $raw): string => preg_replace('/\D/', '', (string) ($raw['barcode'] ?? '')) ?? '', $rawRows),
+            fn (string $barcode): bool => $barcode !== '',
+        ));
+
         $existing = $this->products->matchingImportKeys(
             array_map(fn (array $raw): string => trim((string) ($raw['sku'] ?? '')), $rawRows),
-            array_map(fn (array $raw): string => preg_replace('/\D/', '', (string) ($raw['barcode'] ?? '')) ?? '', $rawRows),
+            $barcodes,
             $mainCodes,
         );
 
@@ -320,8 +324,11 @@ class ImportService
          * row's own product, not a clash.
          */
         $skuExists = $bySku->has($sku);
-        $fileBarcodeOwner = $seen['barcode'][$barcodeDigits] ?? null;
-        $dbBarcodeOwner = $byBarcode->get($barcodeDigits)?->sku;
+        /* Пустой штрихкод ничей: у товаров без него keyBy() кладёт всех под один пустой
+         * ключ, и без этой проверки строка без штрихкода спорила бы за него с чужой
+         * карточкой. */
+        $fileBarcodeOwner = $barcodeDigits !== '' ? ($seen['barcode'][$barcodeDigits] ?? null) : null;
+        $dbBarcodeOwner = $barcodeDigits !== '' ? $byBarcode->get($barcodeDigits)?->sku : null;
         $barcodeOwner = $fileBarcodeOwner ?? $dbBarcodeOwner;
         $fileMainCodeOwner = $seen['mainCode'][$mainCode] ?? null;
         $dbMainCodeOwner = $byMainCode->get($mainCode)?->sku;
@@ -387,14 +394,15 @@ class ImportService
         }
 
         /*
-         * A blank main code or barcode is not an error — both are assigned automatically
-         * on creation, the same way {@see \App\Services\ProductService::upsertFromImport()}
-         * fills them in. It only ever shows as a soft "will be created" notice.
+         * Ни пустой основной код, ни пустой штрихкод строку не отклоняют. Код карточке
+         * присвоится сам, а штрихкод так и останется пустым: прайс сохраняется как есть,
+         * ничего за поставщика не придумывается. Оператор видит это предупреждением —
+         * товар без штрихкода сканер в зале не найдёт.
          */
         $warning = match (true) {
-            $mainCode === '' && $barcodeDigits === '' => 'Основной код и штрихкод пусты — товар будет создан, оба присвоятся автоматически.',
+            $mainCode === '' && $barcodeDigits === '' => 'Основной код пуст — присвоится автоматически. Штрихкод пуст — товар сохранится без него, сканер его не найдёт.',
             $mainCode === '' => 'Основной код пуст — товар будет создан, код присвоится автоматически.',
-            $barcodeDigits === '' => 'Штрихкод пуст — товар будет создан, штрихкод присвоится автоматически.',
+            $barcodeDigits === '' => 'Штрихкод пуст — товар сохранится без штрихкода, сканер в зале его не найдёт.',
             default => null,
         };
 
