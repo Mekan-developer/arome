@@ -106,13 +106,16 @@ class ImportTest extends TestCase
         $this->assertSame('name', $row['field']);
     }
 
-    public function test_a_barcode_that_is_not_thirteen_digits_is_rejected(): void
+    /**
+     * Not every supplier code is a valid EAN-13 — the import saves whatever barcode the
+     * file has rather than rejecting the row over its length.
+     */
+    public function test_a_barcode_that_is_not_thirteen_digits_is_accepted_as_is(): void
     {
         $row = $this->analyzeRow(['AA1001', '510028', '801100399380', 'VERSACE EROS EDT 50ML', '1780.00', '']);
 
-        $this->assertSame('err', $row['type']);
-        $this->assertSame('ШТРИХКОД', $row['tag']);
-        $this->assertSame('barcode', $row['field']);
+        $this->assertSame('ok', $row['type']);
+        $this->assertSame('801100399380', $row['barcode']);
     }
 
     /**

@@ -335,8 +335,6 @@ class ImportService
             $issue = ['tag' => 'ДУБЛЬ', 'field' => 'retail', 'fix' => 'цена', 'message' => "Артикул «{$sku}» уже встречался в строке {$seen['sku'][$sku]}. Какая цена верная?"];
         } elseif ($name === '') {
             $issue = ['tag' => 'НОМЕНКЛАТУРА', 'field' => 'name', 'fix' => 'название', 'message' => 'Пустая номенклатура. Название обязательно — продавец ищет товар по нему.'];
-        } elseif ($barcodeDigits !== '' && strlen($barcodeDigits) !== 13) {
-            $issue = ['tag' => 'ШТРИХКОД', 'field' => 'barcode', 'fix' => '13 цифр', 'message' => sprintf('В штрихкоде %d %s вместо 13. Проверьте, не потерялась ли цифра.', strlen($barcodeDigits), self::digitsWord(strlen($barcodeDigits)))];
         } elseif (
             $barcodeOwner !== null && $barcodeOwner !== $sku
             && ($fileBarcodeOwner !== null || $skuExists || ($mainCodeOwner !== null && $mainCodeOwner !== $barcodeOwner))
@@ -497,11 +495,6 @@ class ImportService
     private static function percent(float $value): string
     {
         return str_replace('.', ',', (string) round($value * 100, 2))."\u{00A0}%";
-    }
-
-    private static function digitsWord(int $count): string
-    {
-        return $count === 1 ? 'цифра' : 'цифры';
     }
 
     /**
