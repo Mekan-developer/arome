@@ -61,9 +61,9 @@ class ProductTest extends TestCase
     #[DataProvider('sorts')]
     public function test_it_sorts_by_the_allowed_columns(string $sort, string $column, bool $descending): void
     {
-        Product::factory()->create(['name' => 'BBB', 'sku' => '510020', 'price' => 200]);
-        Product::factory()->create(['name' => 'AAA', 'sku' => '510030', 'price' => 900]);
-        Product::factory()->create(['name' => 'CCC', 'sku' => '510010', 'price' => 500]);
+        Product::factory()->create(['name' => 'BBB', 'main_code' => 'GI1202', 'sku' => '510020', 'barcode' => '6526380100003', 'price' => 200]);
+        Product::factory()->create(['name' => 'AAA', 'main_code' => 'GI1203', 'sku' => '510030', 'barcode' => '6526380100001', 'price' => 900]);
+        Product::factory()->create(['name' => 'CCC', 'main_code' => 'GI1201', 'sku' => '510010', 'barcode' => '6526380100002', 'price' => 500]);
 
         $values = collect($this->products->paginate(['sort' => $sort], 25, false)->items())
             ->pluck($column)
@@ -82,7 +82,11 @@ class ProductTest extends TestCase
         return [
             'name ascending' => ['name', 'name', false],
             'name descending' => ['-name', 'name', true],
+            'main code ascending' => ['main_code', 'main_code', false],
+            'main code descending' => ['-main_code', 'main_code', true],
             'article ascending' => ['sku', 'sku', false],
+            'barcode ascending' => ['barcode', 'barcode', false],
+            'barcode descending' => ['-barcode', 'barcode', true],
             'price ascending' => ['price', 'price', false],
             'price descending' => ['-price', 'price', true],
             'wholesale ascending' => ['wholesale', 'wholesale_price', false],
@@ -101,12 +105,12 @@ class ProductTest extends TestCase
     }
 
     /**
-     * Размер страницы задаётся в aroma.per_page, а не зашит в репозиторий, поэтому
-     * ассерты считаются от конфига: смена значения не должна ронять тест.
+     * Размер страницы задаётся в aroma.catalog_per_page, а не зашит в репозиторий,
+     * поэтому ассерты считаются от конфига: смена значения не должна ронять тест.
      */
     public function test_it_pages_by_the_configured_size(): void
     {
-        $perPage = (int) config('aroma.per_page');
+        $perPage = (int) config('aroma.catalog_per_page');
 
         Product::factory()->count(60)->create();
 
@@ -168,7 +172,7 @@ class ProductTest extends TestCase
                 ->has('products.data', 50)
                 ->where('filters.per_page', 50)
                 ->where('products.meta.last_page', 2)
-                ->where('perPageOptions', [15, 30, 50, 100]));
+                ->where('perPageOptions', [30, 50, 100]));
     }
 
     /**
@@ -178,14 +182,34 @@ class ProductTest extends TestCase
     #[DataProvider('rejectedPageSizes')]
     public function test_a_page_size_outside_the_list_falls_back_to_the_default(string $value): void
     {
-        Product::factory()->count(20)->create();
+        $default = (int) config('aroma.catalog_per_page');
+
+        Product::factory()->count($default + 5)->create();
 
         $this->actingAs($this->admin())
             ->get('/products?per_page='.$value)
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->has('products.data', 15)
-                ->where('filters.per_page', 15));
+                ->has('products.data', $default)
+                ->where('filters.per_page', $default));
+    }
+
+    /**
+     * Подвал открывается на 50 строках: адрес без `?per_page=` отвечает размером
+     * из конфига, и подпись «Показывать по» показывает ровно его.
+     */
+    public function test_the_catalog_opens_on_the_configured_page_size(): void
+    {
+        $default = (int) config('aroma.catalog_per_page');
+
+        Product::factory()->count($default + 5)->create();
+
+        $this->actingAs($this->admin())
+            ->get('/products')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('products.data', $default)
+                ->where('filters.per_page', $default));
     }
 
     /**
@@ -196,6 +220,7 @@ class ProductTest extends TestCase
         return [
             'the whole catalogue' => ['100000'],
             'not on the list' => ['25'],
+            'the size the footer no longer offers' => ['15'],
             'zero' => ['0'],
             'negative' => ['-10'],
             'not a number' => ['все'],

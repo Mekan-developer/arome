@@ -178,7 +178,7 @@ class ProductController extends Controller
 
         return in_array($requested, $this->perPageOptions(), true)
             ? $requested
-            : (int) config('aroma.per_page');
+            : (int) config('aroma.catalog_per_page');
     }
 
     /**

@@ -23,7 +23,7 @@ import { formatInt } from '@/Composables/useFormat.js'
 const props = defineProps({
     products: { type: Object, required: true },
     filters: { type: Object, required: true },
-    perPageOptions: { type: Array, default: () => [15, 30, 50, 100] },
+    perPageOptions: { type: Array, default: () => [30, 50, 100] },
     points: { type: Array, default: () => [] },
     card: { type: Object, default: null },
 })
@@ -32,7 +32,7 @@ const page = usePage()
 
 /** Header and rows share one template string — if they drift, the columns drift. */
 const COLUMNS =
-    '8px 34px minmax(240px,2.6fr) minmax(120px,.9fr) minmax(180px,1.4fr) minmax(112px,.95fr) minmax(112px,.95fr) minmax(74px,.55fr) minmax(116px,.95fr) minmax(104px,.8fr)'
+    '8px 34px minmax(52px,.4fr) minmax(120px,.9fr) minmax(240px,2.6fr) minmax(120px,.95fr) minmax(126px,1fr) minmax(112px,.95fr) minmax(112px,.95fr) minmax(74px,.55fr) minmax(116px,.95fr) minmax(104px,.8fr)'
 
 const rows = computed(() => props.products.data ?? [])
 const meta = computed(() => props.products.meta ?? props.products)
@@ -254,19 +254,25 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
                         @update:model-value="selection.toggleAll"
                     />
                 </span>
+                <span class="head__right">№</span>
+                <span>
+                    <button type="button" class="sorter" @click="sortBy('main_code')">
+                        Основной код <span class="sorter__mark">{{ sortMarker('main_code') }}</span>
+                    </button>
+                </span>
                 <span>
                     <button type="button" class="sorter" @click="sortBy('name')">
                         Номенклатура <span class="sorter__mark">{{ sortMarker('name') }}</span>
                     </button>
                 </span>
                 <span>
-                    <button type="button" class="sorter" @click="sortBy('name')">
-                        Основной код <span class="sorter__mark">{{ sortMarker('name') }}</span>
+                    <button type="button" class="sorter" @click="sortBy('sku')">
+                        Артикул <span class="sorter__mark">{{ sortMarker('sku') }}</span>
                     </button>
                 </span>
                 <span>
-                    <button type="button" class="sorter" @click="sortBy('sku')">
-                        Артикул · штрихкод <span class="sorter__mark">{{ sortMarker('sku') }}</span>
+                    <button type="button" class="sorter" @click="sortBy('barcode')">
+                        Штрихкод <span class="sorter__mark">{{ sortMarker('barcode') }}</span>
                     </button>
                 </span>
                 <span class="head__right">
@@ -285,9 +291,10 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
             </template>
 
             <ProductRow
-                v-for="product in rows"
+                v-for="(product, offset) in rows"
                 :key="product.id"
                 :product="product"
+                :number="from + offset"
                 :columns="COLUMNS"
                 :selected="selection.has(product.id)"
                 :active="card?.id === product.id"
@@ -310,20 +317,22 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
         </DataTable>
 
         <div class="foot">
-            <span class="foot__count">
-                Строки {{ formatInt(from) }}–{{ formatInt(to) }} из {{ formatInt(meta.total) }}
+            <span class="foot__left">
+                <label class="foot__size">
+                    <span class="foot__size-text">Показывать по</span>
+                    <SelectField
+                        class="foot__size-select"
+                        :model-value="String(filters.per_page)"
+                        title="Строк на странице"
+                        @update:model-value="changePerPage"
+                    >
+                        <option v-for="size in perPageOptions" :key="size" :value="String(size)">{{ size }}</option>
+                    </SelectField>
+                </label>
+                <span class="foot__count">
+                    Строки {{ formatInt(from) }}–{{ formatInt(to) }} из {{ formatInt(meta.total) }}
+                </span>
             </span>
-            <label class="foot__size">
-                <span class="foot__size-text">Показывать по</span>
-                <SelectField
-                    class="foot__size-select"
-                    :model-value="String(filters.per_page)"
-                    title="Строк на странице"
-                    @update:model-value="changePerPage"
-                >
-                    <option v-for="size in perPageOptions" :key="size" :value="String(size)">{{ size }}</option>
-                </SelectField>
-            </label>
             <span class="foot__pager">
                 <AppButton
                     variant="ghost"
@@ -544,6 +553,14 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
     align-items: center;
     justify-content: space-between;
     gap: 16px;
+}
+
+/* Выбор размера страницы и счётчик строк — один левый блок: пагинация держит правый край. */
+.foot__left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
 }
 
 .foot__count {

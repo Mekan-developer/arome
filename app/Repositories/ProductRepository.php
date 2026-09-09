@@ -23,7 +23,9 @@ class ProductRepository
      */
     private const SORTABLE = [
         'name' => 'name',
+        'main_code' => 'main_code',
         'sku' => 'sku',
+        'barcode' => 'barcode',
         'price' => 'price',
         'wholesale' => 'wholesale_price',
     ];

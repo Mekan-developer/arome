@@ -42,6 +42,10 @@ class ProductApiController extends Controller
         private readonly ScanHistoryService $scans,
     ) {}
 
+    /**
+     * Список каталога. Порядок задаёт основной код: приложение показывает товары
+     * тем же порядком, что и прайс, а `?sort=` остаётся для явного запроса клиента.
+     */
     public function index(Request $request): JsonResponse
     {
         $visible = $this->visibleFields($request);
@@ -52,7 +56,7 @@ class ProductApiController extends Controller
             'q' => $request->query('q'),
             'point' => $request->query('point'),
             'status' => $request->query('status'),
-            'sort' => $request->query('sort'),
+            'sort' => $request->query('sort') ?: 'main_code',
             'only_active' => true,
             'search_fields' => $this->searchFields($visible),
         ], $perPage, $withStock);

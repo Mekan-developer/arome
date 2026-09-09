@@ -8,14 +8,25 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
-        api: __DIR__.'/../routes/api/v1.php',
-        apiPrefix: 'api/v1',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
+        /*
+         * Версии API регистрируются здесь, а не аргументом `api:`: префикс у
+         * `withRouting()` один на все переданные файлы, поэтому каждая версия заводится
+         * своей группой со своим префиксом. Добавить версию — дописать её в список.
+         */
+        then: function (): void {
+            foreach (['v1', 'v2'] as $version) {
+                Route::middleware('api')
+                    ->prefix('api/'.$version)
+                    ->group(base_path('routes/api/'.$version.'.php'));
+            }
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->web(append: [

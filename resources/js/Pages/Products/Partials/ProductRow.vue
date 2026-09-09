@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import CheckBox from '@/Components/CheckBox.vue'
 import StatusTag from '@/Components/StatusTag.vue'
 import PriceCell from '@/Components/PriceCell.vue'
-import { formatMoney, formatPercent } from '@/Composables/useFormat.js'
+import { formatInt, formatMoney, formatPercent } from '@/Composables/useFormat.js'
 
 /**
  * One line of the price list. The signature element: the category stripe runs the full
@@ -12,6 +12,8 @@ import { formatMoney, formatPercent } from '@/Composables/useFormat.js'
  */
 const props = defineProps({
     product: { type: Object, required: true },
+    /** Сквозной номер строки в выдаче: на второй странице он продолжается, а не начинается заново. */
+    number: { type: Number, required: true },
     columns: { type: String, required: true },
     selected: { type: Boolean, default: false },
     active: { type: Boolean, default: false },
@@ -59,17 +61,26 @@ const wholesale = computed(() =>
             <CheckBox :model-value="selected" @update:model-value="$emit('toggle', product.id)" />
         </span>
 
-        <span class="row__cell row__cell--stack row__cell--name">
-            <span class="row__name" :title="product.name">{{ product.name }}</span>
+        <span class="row__cell row__cell--right row__cell--num">
+            <span class="row__num">{{ formatInt(number) }}</span>
         </span>
 
         <span class="row__cell row__cell--stack row__cell--maincode">
             <span class="row__sub">{{ product.mainCode }}</span>
         </span>
 
+        <span class="row__cell row__cell--stack row__cell--name">
+            <span class="row__name" :title="product.name">{{ product.name }}</span>
+        </span>
+
         <span class="row__cell row__cell--stack row__cell--code">
-            <span class="row__code">{{ product.sku }}</span>
-            <span class="row__sub">{{ product.barcode }}</span>
+            <span v-if="product.sku" class="row__code">{{ product.sku }}</span>
+            <span v-else class="row__empty">—</span>
+        </span>
+
+        <span class="row__cell row__cell--stack row__cell--barcode">
+            <span v-if="product.barcode" class="row__barcode">{{ product.barcode }}</span>
+            <span v-else class="row__empty">—</span>
         </span>
 
         <span class="row__cell row__cell--right row__cell--price">
@@ -144,6 +155,7 @@ const wholesale = computed(() =>
 
 .row__name,
 .row__code,
+.row__barcode,
 .row__sub {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -167,6 +179,22 @@ const wholesale = computed(() =>
     font-family: var(--f-data);
     font-variant-numeric: tabular-nums;
     font-size: 12.5px;
+}
+
+/* Номер строки — счётная колонка, а не данные товара: самый мелкий кегль и тон. */
+.row__num {
+    font-family: var(--f-data);
+    font-variant-numeric: tabular-nums;
+    font-size: 11.5px;
+    color: var(--ink-3);
+}
+
+/* Штрихкод — служебное число рядом с артикулом: тот же кегль, но приглушённее его. */
+.row__barcode {
+    font-family: var(--f-data);
+    font-variant-numeric: tabular-nums;
+    font-size: 12.5px;
+    color: var(--ink-2);
 }
 
 
@@ -203,7 +231,8 @@ const wholesale = computed(() =>
         grid-template-areas:
             'stripe check name      final'
             'stripe check code      price'
-            'stripe check status    discount'
+            'stripe check barcode   discount'
+            'stripe check status    status'
             'stripe check wholesale wholesale';
         align-items: start;
         padding: 10px 0;
@@ -234,13 +263,21 @@ const wholesale = computed(() =>
         grid-area: name;
     }
 
-    /* Основной код показан только в табличном виде — на телефоне под именем не хватает места. */
-    .row__cell--maincode {
+    /*
+     * Основной код и номер строки показаны только в табличном виде: на телефоне карточка
+     * подписей колонок не несёт, и голая цифра в ней уже ничего не значит.
+     */
+    .row__cell--maincode,
+    .row__cell--num {
         display: none;
     }
 
     .row__cell--code {
         grid-area: code;
+    }
+
+    .row__cell--barcode {
+        grid-area: barcode;
     }
 
     .row__cell--price {
