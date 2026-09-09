@@ -24,7 +24,6 @@ const props = defineProps({
     products: { type: Object, required: true },
     filters: { type: Object, required: true },
     perPageOptions: { type: Array, default: () => [15, 30, 50, 100] },
-    queryString: { type: String, default: '' },
     points: { type: Array, default: () => [] },
     card: { type: Object, default: null },
 })
@@ -33,7 +32,7 @@ const page = usePage()
 
 /** Header and rows share one template string — if they drift, the columns drift. */
 const COLUMNS =
-    '8px 34px minmax(240px,2.6fr) minmax(180px,1.4fr) minmax(112px,.95fr) minmax(112px,.95fr) minmax(74px,.55fr) minmax(116px,.95fr) minmax(104px,.8fr)'
+    '8px 34px minmax(240px,2.6fr) minmax(120px,.9fr) minmax(180px,1.4fr) minmax(112px,.95fr) minmax(112px,.95fr) minmax(74px,.55fr) minmax(116px,.95fr) minmax(104px,.8fr)'
 
 const rows = computed(() => props.products.data ?? [])
 const meta = computed(() => props.products.meta ?? props.products)
@@ -74,7 +73,7 @@ const go = (patch) => {
     router.get(
         '/products',
         { ...props.filters, ...patch },
-        { only: ['products', 'filters', 'queryString'], preserveState: true, preserveScroll: true, replace: true },
+        { only: ['products', 'filters'], preserveState: true, preserveScroll: true, replace: true },
     )
 }
 
@@ -261,6 +260,11 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
                     </button>
                 </span>
                 <span>
+                    <button type="button" class="sorter" @click="sortBy('name')">
+                        Основной код <span class="sorter__mark">{{ sortMarker('name') }}</span>
+                    </button>
+                </span>
+                <span>
                     <button type="button" class="sorter" @click="sortBy('sku')">
                         Артикул · штрихкод <span class="sorter__mark">{{ sortMarker('sku') }}</span>
                     </button>
@@ -320,7 +324,6 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
                     <option v-for="size in perPageOptions" :key="size" :value="String(size)">{{ size }}</option>
                 </SelectField>
             </label>
-            <span class="foot__query" :title="queryString">{{ queryString }}</span>
             <span class="foot__pager">
                 <AppButton
                     variant="ghost"
@@ -571,18 +574,6 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
     font-size: 11.5px;
 }
 
-.foot__query {
-    flex: 1;
-    min-width: 0;
-    text-align: center;
-    font-family: var(--f-data);
-    font-size: 10px;
-    color: var(--ink-3);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 .foot__pager {
     display: flex;
     align-items: center;
@@ -597,8 +588,7 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
 }
 
 /*
- * Телефон: фильтры и действия каталога встают в столбец во всю ширину, а из подвала
- * уходит строка SQL — она для отладки за монитором, на 390px её место нужно пагинации.
+ * Телефон: фильтры и действия каталога встают в столбец во всю ширину.
  */
 @media (max-width: 767px) {
     .filters {
@@ -664,10 +654,6 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
      */
     .foot {
         flex-wrap: wrap;
-    }
-
-    .foot__query {
-        display: none;
     }
 
     .foot .foot__size-select {

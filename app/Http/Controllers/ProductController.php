@@ -40,7 +40,6 @@ class ProductController extends Controller
             ),
             'filters' => $filters,
             'perPageOptions' => $this->perPageOptions(),
-            'queryString' => $this->queryString($filters),
             'points' => fn () => $modules['points']
                 ? Point::orderBy('id')->get(['id', 'code', 'name'])
                 : [],
@@ -188,23 +187,5 @@ class ProductController extends Controller
     private function perPageOptions(): array
     {
         return array_values(array_map('intval', config('aroma.per_page_options', [])));
-    }
-
-    /**
-     * The monospaced request line printed in the table footer.
-     *
-     * @param  array{q: string, point: string, status: string, sort: string, page: int, per_page: int}  $filters
-     */
-    private function queryString(array $filters): string
-    {
-        return sprintf(
-            'GET /api/v1/products?q=%s&point=%s&status=%s&sort=%s&page=%d&per_page=%d',
-            $filters['q'],
-            $filters['point'],
-            $filters['status'],
-            $filters['sort'],
-            $filters['page'],
-            $filters['per_page'],
-        );
     }
 }

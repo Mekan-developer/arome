@@ -27,7 +27,12 @@ const KIND_COLORS = {
 }
 
 const stripe = computed(() => KIND_COLORS[props.product.kind] ?? 'var(--c-edc)')
-const discounted = computed(() => Number(props.product.discount) > 0)
+
+/**
+ * Товар со скидкой — тот, что продаётся дешевле розничной, а не тот, у кого проставлен
+ * процент: прайс умеет назвать цену со скидкой напрямую, вовсе не объявляя процента.
+ */
+const discounted = computed(() => Number(props.product.final) < Number(props.product.price))
 
 /** Опт есть не у каждого товара: пустое поле на телефоне убирает ярус целиком. */
 const wholesale = computed(() =>
@@ -56,6 +61,9 @@ const wholesale = computed(() =>
 
         <span class="row__cell row__cell--stack row__cell--name">
             <span class="row__name" :title="product.name">{{ product.name }}</span>
+        </span>
+
+        <span class="row__cell row__cell--stack row__cell--maincode">
             <span class="row__sub">{{ product.mainCode }}</span>
         </span>
 
@@ -65,7 +73,7 @@ const wholesale = computed(() =>
         </span>
 
         <span class="row__cell row__cell--right row__cell--price">
-            <PriceCell :price="product.price" :discount="product.discount" />
+            <PriceCell :price="product.price" :final="product.final" />
         </span>
 
         <span class="row__cell row__cell--right row__cell--wholesale">
@@ -74,12 +82,15 @@ const wholesale = computed(() =>
         </span>
 
         <span class="row__cell row__cell--right row__cell--discount">
-            <span v-if="discounted" class="row__discount">{{ formatPercent(product.discount) }} %</span>
+            <!-- Процента у скидки может и не быть: цену со скидкой прайс называет и напрямую. -->
+            <span v-if="Number(product.discount) > 0" class="row__discount">
+                {{ formatPercent(product.discount) }} %
+            </span>
             <span v-else class="row__empty">—</span>
         </span>
 
         <span class="row__cell row__cell--right row__cell--final">
-            <PriceCell :price="product.price" :discount="product.discount" :final="product.final" variant="final" />
+            <PriceCell :price="product.price" :final="product.final" variant="final" />
         </span>
 
         <span class="row__cell row__cell--status">
@@ -221,6 +232,11 @@ const wholesale = computed(() =>
 
     .row__cell--name {
         grid-area: name;
+    }
+
+    /* Основной код показан только в табличном виде — на телефоне под именем не хватает места. */
+    .row__cell--maincode {
+        display: none;
     }
 
     .row__cell--code {
