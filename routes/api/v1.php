@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('tokens', [TokenApiController::class, 'store'])
     ->middleware('throttle:60,1')
     ->name('api.v1.tokens.store');
+
 Route::middleware(['auth:sanctum'])->group(function (): void {
     Route::get('products', [ProductApiController::class, 'index'])->name('api.v1.products.index');
 
