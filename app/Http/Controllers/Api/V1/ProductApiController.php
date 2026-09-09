@@ -6,6 +6,7 @@ use App\Enums\ModuleKey;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\V1\ProductResource;
 use App\Http\Resources\V1\ProductScanResource;
+use App\Models\Product;
 use App\Models\ProductScan;
 use App\Repositories\ProductRepository;
 use App\Services\ModuleService;
@@ -13,6 +14,7 @@ use App\Services\RightsService;
 use App\Services\ScanHistoryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedJsonResponse;
 
 /**
  * Каталог, каким его читает приложение продавца. Сервисы те же, что у веб-панели —
@@ -63,6 +65,30 @@ class ProductApiController extends Controller
                 'per_page' => $page->perPage(),
                 'current_page' => $page->currentPage(),
                 'has_more' => $page->hasMorePages(),
+                'server_time' => now()->toIso8601ZuluString(),
+            ],
+        ]);
+    }
+
+    /**
+     * Весь каталог одним ответом: ни поиска, ни фильтров, ни постраничности — этим
+     * приложение заливает свою локальную базу целиком.
+     *
+     * Ответ отдаётся потоком: прайс на десятки тысяч строк не собирается в памяти
+     * целиком ни на стороне запроса к базе, ни при кодировании JSON.
+     *
+     * Два ограничения фильтрами не являются и здесь тоже в силе: скрытый товар на
+     * устройство не уходит, а состав колонок по-прежнему решает матрица прав роли.
+     */
+    public function all(Request $request): StreamedJsonResponse
+    {
+        $visible = $this->visibleFields($request);
+
+        return response()->streamJson([
+            'data' => $this->products
+                ->streamAll($this->withStock($visible))
+                ->map(fn (Product $product): array => (new ProductResource($product, $visible))->toArray($request)),
+            'meta' => [
                 'server_time' => now()->toIso8601ZuluString(),
             ],
         ]);

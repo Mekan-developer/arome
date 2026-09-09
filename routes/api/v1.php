@@ -25,6 +25,13 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function (): void {
     Route::get('products', [ProductApiController::class, 'index'])->name('api.v1.products.index');
 
     /*
+     * Выгрузка каталога целиком — отдельным путём, а не режимом `products`: у списка
+     * свой договор с приложением (страницы, фильтры, `meta.has_more`), и трогать его
+     * ради полной выгрузки нельзя.
+     */
+    Route::get('products_all', [ProductApiController::class, 'all'])->name('api.v1.products.all');
+
+    /*
      * История сканирований объявлена выше `products/{barcode}`: пересечься они не
      * могут — штрихкод ограничен цифрами, — но порядок здесь читается как правило.
      */

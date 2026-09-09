@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api\V1;
 
+use App\Models\Point;
 use App\Models\Product;
 use App\Models\RoleFieldRight;
 use App\Models\User;
@@ -133,6 +134,96 @@ class ProductApiTest extends TestCase
         $this->getJson('/api/v1/products?q=KHAMRAH')
             ->assertOk()
             ->assertJsonCount(1, 'data');
+    }
+
+    public function test_the_full_catalogue_comes_in_one_response_without_paging(): void
+    {
+        Product::factory()->count(30)->create();
+
+        $body = $this->asDevice($this->seller())
+            ->getJson('/api/v1/products_all')
+            ->assertOk()
+            ->json();
+
+        $this->assertCount(30, $body['data']);
+        $this->assertArrayNotHasKey('has_more', $body['meta']);
+        $this->assertArrayHasKey('server_time', $body['meta']);
+    }
+
+    /**
+     * `per_page`, `q`, `status`, `sort` — здесь это просто мусор в адресе: выгрузка
+     * отдаёт каталог целиком, что бы в запросе ни стояло.
+     */
+    public function test_the_full_catalogue_ignores_the_list_query_parameters(): void
+    {
+        Product::factory()->create(['name' => 'LATTAFA KHAMRAH EDP 100ML']);
+        Product::factory()->create(['name' => 'VERSACE EROS EDT 50ML']);
+
+        $this->asDevice($this->seller())
+            ->getJson('/api/v1/products_all?q=KHAMRAH&per_page=1&status=hidden&sort=-price')
+            ->assertOk()
+            ->assertJsonCount(2, 'data');
+    }
+
+    public function test_the_full_catalogue_does_not_carry_hidden_products(): void
+    {
+        Product::factory()->create(['name' => 'ACTIVE ONE']);
+        Product::factory()->hidden()->create(['name' => 'HIDDEN ONE']);
+
+        $rows = $this->asDevice($this->seller())
+            ->getJson('/api/v1/products_all')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertSame(['ACTIVE ONE'], array_column($rows, 'name'));
+    }
+
+    public function test_the_full_catalogue_respects_the_field_policy(): void
+    {
+        Product::factory()->create(['main_code' => 'AA1001']);
+
+        RoleFieldRight::updateOrCreate(['role' => 'seller', 'field' => 'mainCode'], ['visible' => false]);
+        Cache::flush();
+
+        $rows = $this->asDevice($this->seller())
+            ->getJson('/api/v1/products_all')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertArrayNotHasKey('main_code', $rows[0]);
+    }
+
+    /**
+     * Выгрузка читается пачками, поэтому остатки надо грузить вместе с товаром — иначе
+     * связь останется незагруженной и `stock` уедет на устройство пустым.
+     */
+    public function test_the_full_catalogue_carries_stock_when_the_module_is_on(): void
+    {
+        $this->seedModules(['points' => true, 'productPoints' => true]);
+        $point = Point::factory()->create();
+        Product::factory()->create()->stocks()->create(['point_id' => $point->id, 'qty' => 7]);
+
+        $rows = $this->asDevice($this->seller())
+            ->getJson('/api/v1/products_all')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertSame([['point_id' => (string) $point->id, 'qty' => 7]], $rows[0]['stock']);
+    }
+
+    public function test_the_full_catalogue_answers_with_an_empty_list_when_there_are_no_products(): void
+    {
+        $this->asDevice($this->seller())
+            ->getJson('/api/v1/products_all')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    }
+
+    public function test_the_full_catalogue_is_not_public(): void
+    {
+        Product::factory()->create();
+
+        $this->getJson('/api/v1/products_all')->assertUnauthorized();
     }
 
     public function test_the_barcode_lookup_is_not_public(): void
