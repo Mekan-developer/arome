@@ -3,7 +3,9 @@
  * server owns the data, the client owns how it looks.
  *
  * One format for the whole system: thousands separated by a non-breaking space,
- * kopeks after a comma, currency always TMT.
+ * currency always TMT. Копеек в панели нет — цены и в прайсе, и в карточке живут
+ * целыми числами, см. ImportService::roundPrice() и ProductService::finalPrice(),
+ * поэтому дробная часть здесь не показывается вовсе.
  */
 
 const NBSP = ' '
@@ -16,14 +18,9 @@ export function formatInt(value) {
     return normalise(Number(value ?? 0).toLocaleString('ru-RU'))
 }
 
-/** 1415.88 -> «1 415,88» */
+/** 1415.88 -> «1 416» */
 export function formatMoney(value) {
-    return normalise(
-        Number(value ?? 0).toLocaleString('ru-RU', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-        }),
-    )
+    return normalise(Math.round(Number(value ?? 0)).toLocaleString('ru-RU'))
 }
 
 /** 0.5 -> «50» (the discount column prints «50 %») */
@@ -35,9 +32,9 @@ export function formatPercent(fraction) {
     )
 }
 
-/** Retail after discount, matching the server's rounding. */
+/** Retail after discount, matching the server's rounding — see ProductService::finalPrice(). */
 export function finalPrice(price, discount) {
-    return Math.round(Number(price) * (1 - Number(discount)) * 100) / 100
+    return Math.round(Number(price) * (1 - Number(discount)))
 }
 
 export const CURRENCY = 'TMT'

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\ProductStatus;
+use App\Services\ImportService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -55,6 +56,10 @@ class StoreProductRequest extends FormRequest
      * Пустые артикул и штрихкод уходят в базу как NULL, а не пустой строкой: так их
      * не путает поиск и не склеивает сопоставление при импорте.
      *
+     * Розничная и оптовая цены округляются до целого числа математически — от 0,5 и
+     * выше вверх, ниже вниз, — тем же правилом, что и при импорте прайса, см.
+     * {@see ImportService::roundPrice()}.
+     *
      * @return array{name: string, sku: string|null, barcode: string|null, price: float, wholesale_price: float|null, discount: float, status: string, kind: string}
      */
     public function payload(): array
@@ -67,8 +72,8 @@ class StoreProductRequest extends FormRequest
             'name' => $validated['name'],
             'sku' => $sku !== '' ? $sku : null,
             'barcode' => $barcode !== '' ? $barcode : null,
-            'price' => (float) $validated['price'],
-            'wholesale_price' => isset($validated['wholesale_price']) ? (float) $validated['wholesale_price'] : null,
+            'price' => round((float) $validated['price']),
+            'wholesale_price' => isset($validated['wholesale_price']) ? round((float) $validated['wholesale_price']) : null,
             'discount' => round((float) $validated['discount'] / 100, 4),
             'status' => $validated['status'],
             'kind' => $validated['kind'] ?? 'EDT',

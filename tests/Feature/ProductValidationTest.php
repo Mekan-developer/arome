@@ -140,12 +140,16 @@ class ProductValidationTest extends TestCase
         $this->assertStringStartsWith('AA', $product->main_code);
     }
 
-    public function test_the_wholesale_price_is_optional_and_stored_as_given(): void
+    /**
+     * Оптовая цена, как и розничная, округляется до целого при ручном создании товара —
+     * тем же правилом, что и при импорте прайса, см. ImportService::roundPrice().
+     */
+    public function test_the_wholesale_price_is_optional_and_rounded_to_the_nearest_whole_number(): void
     {
         $this->createProduct(['sku' => '512100', 'barcode' => '8011003993901', 'wholesale_price' => 280.5])
             ->assertSessionHasNoErrors();
 
-        $this->assertSame('280.50', Product::firstWhere('sku', '512100')?->wholesale_price);
+        $this->assertSame('281.00', Product::firstWhere('sku', '512100')?->wholesale_price);
 
         $this->createProduct(['sku' => '512101', 'barcode' => '8011003993902'])->assertSessionHasNoErrors();
 

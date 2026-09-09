@@ -22,6 +22,10 @@ const form = useForm({
     kind: 'EDT',
 })
 
+/**
+ * Предпросмотр того, что увидит продавец. Розничная и оптовая цены округляются до
+ * целого на сервере при сохранении, см. StoreProductRequest.
+ */
 const result = computed(() => finalPrice(Number(form.price) || 0, (Number(form.discount) || 0) / 100))
 
 const statusHint = computed(() =>
