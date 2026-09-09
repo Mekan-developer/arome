@@ -4,7 +4,6 @@ namespace App\Repositories;
 
 use App\Enums\ProductStatus;
 use App\Models\Product;
-use App\Services\ImportService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -62,6 +61,25 @@ class ProductRepository
     public function stream(array $filters, bool $withPoints): LazyCollection
     {
         return $this->filtered($filters, $withPoints)->cursor();
+    }
+
+    /**
+     * Весь активный каталог целиком, без поиска, фильтров и постраничности — то, что
+     * забирает приложение, когда обновляет свою локальную базу одним заходом.
+     *
+     * Читается пачками по тысяче строк с продвижением по id: остатки при этом
+     * подгружаются одним запросом на пачку, чего `cursor()` не умеет — там связь
+     * осталась бы незагруженной и `stock` уехал бы на устройство пустым.
+     *
+     * @return LazyCollection<int, Product>
+     */
+    public function streamAll(bool $withStock): LazyCollection
+    {
+        return Product::query()
+            ->select(['id', 'main_code', 'sku', 'barcode', 'name', 'kind', 'price', 'wholesale_price', 'discount', 'discount_price', 'status'])
+            ->where('status', ProductStatus::Active->value)
+            ->when($withStock, fn (Builder $query) => $query->with('stocks:id,product_id,point_id,qty'))
+            ->lazyById(1000);
     }
 
     /**
@@ -129,58 +147,27 @@ class ProductRepository
     }
 
     /**
-     * Every product that could collide with an uploaded price list, in one query. The
-     * import validates thousands of rows against sku/barcode/main_code uniqueness —
-     * a query per row per key would be three queries times the row count.
-     *
-     * @param  list<string>  $skus
-     * @param  list<string>  $barcodes
-     * @param  list<string>  $mainCodes
-     * @return Collection<int, Product>
+     * Сколько карточек сейчас в каталоге — то число, которое мастер импорта называет в
+     * окне подтверждения: столько уйдёт, когда прайс заменит каталог.
      */
-    public function matchingImportKeys(array $skus, array $barcodes, array $mainCodes): Collection
-    {
-        if ($skus === [] && $barcodes === [] && $mainCodes === []) {
-            return new Collection;
-        }
-
-        return Product::query()
-            ->select(['id', 'main_code', 'sku', 'barcode'])
-            ->where(function (Builder $query) use ($skus, $barcodes, $mainCodes): void {
-                $query->whereIn('sku', $skus)
-                    ->orWhereIn('barcode', $barcodes)
-                    ->orWhereIn('main_code', $mainCodes);
-            })
-            ->get();
-    }
-
     public function countAll(): int
     {
         return Product::count();
     }
 
     /**
-     * Всё, чего нет в свежем прайсе, из каталога уходит: файл задаёт каталог целиком,
-     * см. {@see ImportService::apply()}. Уцелевшие приходят списком id,
-     * поэтому лишние считаются в PHP и удаляются пачками — прайс на несколько тысяч
-     * строк иначе собрал бы NOT IN на столько же плейсхолдеров.
+     * Каталог целиком, под снос: прайс задаёт его полностью, и импорт начинает с
+     * чистого листа, см. {@see ImportService::apply()}. Одним DELETE без выборки id —
+     * условия нет, а каталог бывает в десятки тысяч строк.
      *
-     * Удаление каскадное: вместе с товаром уходят его история цен, остатки по точкам
-     * и сканы (см. миграции этих таблиц).
+     * Удаление каскадное: вместе с товарами уходят история цен, остатки по точкам и
+     * сканы (см. миграции этих таблиц).
      *
-     * @param  list<int>  $keepIds
      * @return int сколько товаров удалено
      */
-    public function deleteExcept(array $keepIds): int
+    public function deleteAll(): int
     {
-        $keep = array_flip($keepIds);
-        $doomed = Product::pluck('id')->reject(fn (int $id): bool => isset($keep[$id]))->values();
-
-        foreach ($doomed->chunk(1000) as $chunk) {
-            Product::whereIn('id', $chunk->all())->delete();
-        }
-
-        return $doomed->count();
+        return Product::query()->delete();
     }
 
     /**
@@ -242,7 +229,7 @@ class ProductRepository
     private function filtered(array $filters, bool $withPoints): Builder
     {
         $query = Product::query()
-            ->select(['id', 'main_code', 'sku', 'barcode', 'name', 'kind', 'price', 'wholesale_price', 'discount', 'status']);
+            ->select(['id', 'main_code', 'sku', 'barcode', 'name', 'kind', 'price', 'wholesale_price', 'discount', 'discount_price', 'status']);
 
         $this->applyActiveOnly($query, ($filters['only_active'] ?? false) === true);
         $this->applySearch($query, $filters['q'] ?? null, $filters['search_fields'] ?? self::SEARCHABLE);

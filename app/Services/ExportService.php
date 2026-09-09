@@ -126,13 +126,17 @@ class ExportService
      * ровно так же, как в исходном файле: пустая ячейка читается как «скидки нет»,
      * а ноль пришлось бы глазами отличать от настоящей нулевой скидки.
      *
+     * Товар, которому цену со скидкой назвал сам прайс, выгружается тем же способом,
+     * каким пришёл: колонка «Скидки» пуста, в «Цене со скидкой» стоит его цена. Так
+     * выгруженный файл, загруженный обратно, повторяет каталог, а не пересчитывает его.
+     *
      * @return list<array{kind: string, value: string, style: int}>
      */
     private function row(Product $product): array
     {
         $price = (float) $product->price;
         $discount = (float) $product->discount;
-        $discounted = $discount > 0;
+        $discounted = $discount > 0 || $product->discount_price !== null;
 
         return [
             XlsxWriter::text($product->main_code),
@@ -140,9 +144,9 @@ class ExportService
             XlsxWriter::text($product->barcode),
             XlsxWriter::text($product->name),
             XlsxWriter::number($price, XlsxWriter::STYLE_MONEY_BOLD),
-            $discounted ? XlsxWriter::number($discount) : XlsxWriter::blank(),
+            $discount > 0 ? XlsxWriter::number($discount) : XlsxWriter::blank(),
             $discounted
-                ? XlsxWriter::number(ProductService::finalPrice($price, $discount), XlsxWriter::STYLE_MONEY)
+                ? XlsxWriter::number($product->finalPrice(), XlsxWriter::STYLE_MONEY)
                 : XlsxWriter::blank(),
             /* Опта у товара может не быть — пустая ячейка, а не ноль: ноль это цена. */
             $product->wholesale_price === null

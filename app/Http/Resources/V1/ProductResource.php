@@ -4,7 +4,6 @@ namespace App\Http\Resources\V1;
 
 use App\Models\Product;
 use App\Models\ProductStock;
-use App\Services\ProductService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -61,7 +60,7 @@ class ProductResource extends JsonResource
         if ($this->sees('discount')) {
             $payload['discount'] = (float) $this->discount;
             $payload['final'] = [
-                'amount' => (int) round(ProductService::finalPrice((float) $this->price, (float) $this->discount) * 100),
+                'amount' => (int) round($this->finalPrice() * 100),
                 'currency' => 'TMT',
             ];
         }

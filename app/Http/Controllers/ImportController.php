@@ -106,11 +106,9 @@ class ImportController extends Controller
         return redirect()->route('import.index')->with('toast', [
             'name' => $payload['fileName'],
             'text' => sprintf(
-                'обработан: создано %d, обновлено %d, удалено %d, пропущено %d.',
-                $result['created'],
-                $result['updated'],
+                'обработан: каталог заменён — удалено %d, импортировано %d.',
                 $result['deleted'],
-                $result['failed'],
+                $result['created'],
             ),
         ]);
     }
@@ -138,7 +136,7 @@ class ImportController extends Controller
         $label = self::DUPLICATE_LABELS[$column] ?? $column;
         $named = $value !== '' ? " «{$value}»" : '';
 
-        return "Каталог остался прежним: {$label}{$named} из прайса уже занят другим товаром каталога. "
+        return "Каталог остался прежним: {$label}{$named} из прайса база принять не смогла — такое значение в файле уже занято. "
             .'Очистите эту ячейку в прайсе — панель проставит код сама — или впишите другой и повторите импорт.';
     }
 
@@ -170,12 +168,12 @@ class ImportController extends Controller
     /**
      * Резервная копия каталога — тот же лист, что отдаёт «Экспорт» в товарах, но без
      * фильтров и всегда под одним именем. Оператор забирает её из окна подтверждения,
-     * пока импорт ещё не удалил всё, чего нет в прайсе: восстановить каталог потом
-     * можно только загрузив эту копию обратно.
+     * пока прайс ещё не стёр каталог: импорт заменяет каталог целиком, и вернуть
+     * прежние карточки потом можно только загрузив эту копию обратно.
      */
     public function backup(ExportService $export, AuditService $audit): BinaryFileResponse
     {
-        /* Право то же, что и на сам импорт: копию берёт тот, кто вправе стереть каталог. */
+        /* Право то же, что и на сам импорт: копию берёт тот, кто вправе переписать каталог. */
         Gate::authorize('create', Product::class);
 
         $audit->record($this->actor(), 'Резервная копия перед импортом', 'backup1.xlsx', null, null, 'import');

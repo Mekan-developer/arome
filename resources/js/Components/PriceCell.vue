@@ -5,15 +5,17 @@ import { formatMoney } from '@/Composables/useFormat.js'
 /**
  * Цена в строке прайса. Со скидкой розничная перечёркивается и уходит в серый —
  * жирным красным остаётся то, что продавец назовёт покупателю.
+ *
+ * Скидка узнаётся по самой цене, а не по проценту: у товара, которому цену со скидкой
+ * назвал прайс напрямую, процента нет вовсе, но продаётся он дешевле розничной.
  */
 const props = defineProps({
     price: { type: [Number, String], required: true },
-    discount: { type: [Number, String], default: 0 },
     final: { type: [Number, String], default: null },
     variant: { type: String, default: 'retail' },
 })
 
-const discounted = computed(() => Number(props.discount) > 0)
+const discounted = computed(() => props.final !== null && Number(props.final) < Number(props.price))
 const value = computed(() => (props.variant === 'final' ? (props.final ?? props.price) : props.price))
 </script>
 

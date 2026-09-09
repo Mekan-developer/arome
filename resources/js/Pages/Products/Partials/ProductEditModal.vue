@@ -47,8 +47,22 @@ const hint = computed(() =>
         : 'Основной код — ключ сопоставления при импорте прайса. Меняйте, только если он изменился у поставщика.',
 )
 
+/**
+ * Цена со скидкой, названная прайсом напрямую: у такого товара процента нет вовсе, и
+ * пересчитать её не из чего — она просто хранится в карточке, см. ImportService.
+ * Форма правит скидку процентом, поэтому сохранение карточки эту цену снимает — до
+ * первой правки цены или скидки показывается то, по чему товар продаётся сейчас.
+ */
+const fromPriceList = computed(() => props.card.discountPrice ?? null)
+
+/**
+ * Предпросмотр того, что увидит продавец. Розничная и оптовая цены округляются до
+ * целого на сервере при сохранении, см. UpdateProductRequest.
+ */
 const result = computed(() =>
-    finalPrice(Number(form.price) || 0, (Number(form.discount) || 0) / 100),
+    fromPriceList.value !== null && !priceTouched.value
+        ? fromPriceList.value
+        : finalPrice(Number(form.price) || 0, (Number(form.discount) || 0) / 100),
 )
 
 const discardText = `Правки по карточке ${originalCode} никуда не ушли: в базе и на устройствах останутся прежние цена, коды и статус.`
@@ -123,6 +137,11 @@ const submit = () =>
                 <span class="result__value">{{ formatMoney(result) }}</span>
             </div>
         </div>
+
+        <p v-if="fromPriceList !== null" class="hint">
+            Цену со скидкой назвал прайс — процента у этой скидки нет. Сохранение карточки заменит её той, что
+            считается из процента выше.
+        </p>
 
         <div class="wholesale">
             <div>

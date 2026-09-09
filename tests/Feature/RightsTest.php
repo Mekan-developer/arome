@@ -215,7 +215,24 @@ class RightsTest extends TestCase
 
         $this->assertSame(141588, $row['retail']['amount']);
         $this->assertSame('TMT', $row['retail']['currency']);
-        $this->assertSame(70794, $row['final']['amount']);
+        /* Цена со скидкой приходит на телефон уже целой: 1415,88 − 50 % = 707,94 → 708. */
+        $this->assertSame(70800, $row['final']['amount']);
+    }
+
+    /**
+     * Ради этого всё и затевалось: цену со скидкой, названную прайсом напрямую, продавец
+     * должен увидеть на телефоне — процента у такой скидки нет, и пересчитать её не из
+     * чего, см. ImportService.
+     */
+    public function test_a_discount_price_named_by_the_price_list_reaches_the_phone(): void
+    {
+        Product::factory()->create(['price' => 130, 'discount' => 0, 'discount_price' => 120]);
+        Cache::flush();
+
+        $row = $this->asDevice($this->seller())->getJson('/api/v1/products')->assertOk()->json('data.0');
+
+        $this->assertSame(13000, $row['retail']['amount']);
+        $this->assertSame(12000, $row['final']['amount']);
     }
 
     /**

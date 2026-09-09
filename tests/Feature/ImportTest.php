@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Point;
 use App\Models\Product;
 use App\Models\User;
 use App\Repositories\ProductRepository;
@@ -73,7 +74,7 @@ class ImportTest extends TestCase
         $this->assertSame(['total' => 1, 'warn' => 0, 'err' => 0, 'ok' => 1], $props['counters']);
         $this->assertSame('ok', $props['rows'][0]['type']);
         $this->assertSame('510028', $props['rows'][0]['sku']);
-        $this->assertSame('1 416,00', $props['rows'][0]['retail']);
+        $this->assertSame('1 416', $props['rows'][0]['retail']);
         $this->assertMatchesRegularExpression('#^imports/[A-Za-z0-9]+\.xlsx$#', $props['storedPath']);
         $this->assertTrue(Storage::exists($props['storedPath']));
     }
@@ -294,13 +295,94 @@ class ImportTest extends TestCase
         $this->assertTrue(Storage::exists($storedPath));
     }
 
-    public function test_a_blank_name_is_rejected(): void
+    /**
+     * Прайс грузится как есть: пустая номенклатура строку не отклоняет, товар заводится
+     * без названия — оператору об этом говорят предупреждением.
+     */
+    public function test_a_blank_name_is_a_warning_not_an_error(): void
     {
         $row = $this->analyzeRow(['AA1001', '510028', '8011003993802', '', '1415.88', '']);
 
-        $this->assertSame('err', $row['type']);
-        $this->assertSame('НОМЕНКЛАТУРА', $row['tag']);
-        $this->assertSame('name', $row['field']);
+        $this->assertSame('warn', $row['type']);
+        $this->assertStringContainsString('Номенклатура пуста', $row['message']);
+    }
+
+    public function test_confirming_a_blank_name_saves_the_product_without_one(): void
+    {
+        $row = $this->analyzeRow(['AA1001', '510028', '8011003993802', '', '1415.88', '']);
+
+        $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $this->assertSame('', Product::where('sku', '510028')->sole()->name);
+    }
+
+    /**
+     * Ни одна колонка не обязательна: строка, в которой заполнена только цена, всё равно
+     * заводит товар — основной код ей присвоится сам. Совсем пустую строку
+     * {@see ImportService} по-прежнему пропускает: хвост листа — это не тысячный товар.
+     */
+    public function test_a_row_with_every_column_blank_but_the_price_is_still_imported(): void
+    {
+        $row = $this->analyzeRow(['', '', '', '', '1415.88', '']);
+
+        $this->assertSame('warn', $row['type']);
+
+        $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $product = Product::sole();
+
+        $this->assertNull($product->sku);
+        $this->assertNull($product->barcode);
+        $this->assertSame('', $product->name);
+        $this->assertSame('1416.00', $product->price);
+        $this->assertMatchesRegularExpression('/^AA\d+$/', $product->main_code);
+    }
+
+    /**
+     * Хвост листа отбрасывается как и раньше: совсем пустая строка — не товар.
+     */
+    public function test_a_completely_blank_row_is_not_a_product(): void
+    {
+        $file = $this->workbook([
+            ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+            ['', '', '', '', '', ''],
+        ]);
+
+        $props = $this->props($this->actingAs($this->admin())->post('/import', ['file' => $file]));
+
+        $this->assertSame(1, $props['counters']['total']);
+    }
+
+    /**
+     * Значение длиннее колонки каталога прайс не роняет: оно обрезается по ширине, и
+     * товар всё равно заводится. Иначе одна такая строка отбивала бы вставку, а с ней и
+     * весь файл одной транзакцией.
+     */
+    public function test_values_longer_than_the_column_are_clipped_rather_than_rejected(): void
+    {
+        $row = $this->analyzeRow([
+            str_repeat('A', 80), str_repeat('7', 80), '8011003993802', str_repeat('Ц', 300), '1415.88', '',
+        ]);
+
+        $this->assertSame(64, mb_strlen($row['mainCode']));
+        $this->assertSame(64, mb_strlen($row['sku']));
+        $this->assertSame(255, mb_strlen($row['name']));
+
+        $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $this->assertSame(255, mb_strlen(Product::sole()->name));
     }
 
     /**
@@ -316,38 +398,63 @@ class ImportTest extends TestCase
     }
 
     /**
-     * A supplier renumbering an article keeps the barcode — the row's sku is new, so
-     * this is a rename of the existing product, not a clash. {@see self::test_confirming_renames_a_product_matched_by_barcode_when_the_sku_is_new()}
-     * covers what confirm() actually does with it.
+     * Каталог до импорта на разбор строки не влияет вовсе: он будет стёрт целиком, и
+     * спорить за штрихкод строке не с кем. Предупреждение остаётся только на повтор
+     * внутри самого файла, {@see self::test_a_barcode_repeated_in_the_file_creates_a_second_product()}.
      */
-    public function test_a_barcode_already_used_by_a_different_article_is_a_rename_when_the_sku_is_new(): void
-    {
-        Product::factory()->create(['sku' => '999999', 'barcode' => '8011003993802']);
-
-        $row = $this->analyzeRow(['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '']);
-
-        $this->assertSame('ok', $row['type']);
-    }
-
-    public function test_a_barcode_belonging_to_a_different_product_than_the_row_s_own_sku_is_still_rejected(): void
+    public function test_a_barcode_already_used_in_the_catalogue_is_not_a_warning(): void
     {
         Product::factory()->create(['sku' => '510028', 'barcode' => '8011003990001']);
         Product::factory()->create(['sku' => '999999', 'barcode' => '8011003993802']);
 
         $row = $this->analyzeRow(['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '']);
 
-        $this->assertSame('err', $row['type']);
-        $this->assertSame('ШТРИХКОД', $row['tag']);
-        $this->assertStringContainsString('999999', $row['message']);
+        $this->assertSame('ok', $row['type']);
+        $this->assertNull($row['message']);
     }
 
-    public function test_a_non_numeric_price_is_rejected(): void
+    /**
+     * Один и тот же штрихкод дважды в файле — это две карточки, а не спор двух строк.
+     */
+    public function test_a_barcode_repeated_in_the_file_creates_a_second_product(): void
+    {
+        $file = $this->workbook([
+            ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+            ['AA1002', '510030', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 50ML', '1920.96', ''],
+        ]);
+
+        $props = $this->props($this->actingAs($this->admin())->post('/import', ['file' => $file]));
+
+        $this->assertSame(['total' => 2, 'warn' => 1, 'err' => 0, 'ok' => 1], $props['counters']);
+
+        $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertSame(2, Product::where('barcode', '8011003993802')->count());
+    }
+
+    /**
+     * Нечисловая цена строку не отклоняет: товар заводится с нулём, а оператор читает,
+     * что именно не разобралось.
+     */
+    public function test_a_non_numeric_price_is_saved_as_zero(): void
     {
         $row = $this->analyzeRow(['AA1047', '512010', '8011003818877', 'D&G LIGHT BLUE EDT 100ML', '2210 манат', '']);
 
-        $this->assertSame('err', $row['type']);
-        $this->assertSame('ЦЕНА', $row['tag']);
-        $this->assertSame('retail', $row['field']);
+        $this->assertSame('warn', $row['type']);
+        $this->assertSame('0', $row['retail']);
+        $this->assertStringContainsString('2210 манат', $row['message']);
+
+        $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $this->assertSame('0.00', Product::where('sku', '512010')->sole()->price);
     }
 
     /**
@@ -361,30 +468,43 @@ class ImportTest extends TestCase
         ]);
 
         $this->assertSame('ok', $row['type']);
-        $this->assertSame('1 781,00', $row['retail']);
-        $this->assertSame('920,00', $row['wholesale']);
+        $this->assertSame('1 781', $row['retail']);
+        $this->assertSame('920', $row['wholesale']);
     }
 
-    /**
-     * A price that rounds down to zero is not "no price" — it stays rejected the same
-     * way a zero or negative retail price already was, just reached via rounding now.
-     */
-    public function test_a_retail_price_that_rounds_down_to_zero_is_rejected(): void
+    public function test_a_retail_price_that_rounds_down_to_zero_is_a_warning(): void
     {
         $row = $this->analyzeRow(['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '0.4', '']);
 
-        $this->assertSame('err', $row['type']);
-        $this->assertSame('ЦЕНА', $row['tag']);
-        $this->assertSame('retail', $row['field']);
+        $this->assertSame('warn', $row['type']);
+        $this->assertSame('0', $row['retail']);
     }
 
-    public function test_a_discount_given_as_an_amount_instead_of_a_fraction_is_rejected(): void
+    /**
+     * Отрицательная цена — опечатка в прайсе, а не долг покупателю: она подрезается до
+     * нуля, но строку не отклоняет.
+     */
+    public function test_a_negative_price_is_clamped_to_zero(): void
+    {
+        $row = $this->analyzeRow(['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '-500', '']);
+
+        $this->assertSame('warn', $row['type']);
+        $this->assertSame('0', $row['retail']);
+    }
+
+    /**
+     * «120» в колонке скидки — либо процент за пределом, либо сумма в манатах. Строку
+     * это не отклоняет: скидка подрезается к 100 %, иначе цена со скидкой ушла бы в
+     * минус.
+     */
+    public function test_a_discount_beyond_a_hundred_percent_is_clamped(): void
     {
         $row = $this->analyzeRow(['AA1024', '511044', '8011003818501', 'ARMANI ACQUA DI GIO EDT 100ML', '2340.00', '120']);
 
-        $this->assertSame('err', $row['type']);
-        $this->assertSame('СКИДКА', $row['tag']);
-        $this->assertSame('discount', $row['field']);
+        $this->assertSame('warn', $row['type']);
+        $this->assertSame("100\u{00A0}%", $row['discount']);
+        $this->assertSame('0', $row['final']);
+        $this->assertStringContainsString('вне допустимого диапазона', $row['message']);
     }
 
     /**
@@ -396,7 +516,157 @@ class ImportTest extends TestCase
 
         $this->assertSame('ok', $row['type']);
         $this->assertSame("50\u{00A0}%", $row['discount']);
-        $this->assertSame('960,50', $row['final']);
+        $this->assertSame('961', $row['final']);
+    }
+
+    /**
+     * Прайс поставщика умеет назвать цену со скидкой, не объявляя процента: колонка
+     * «Скидки» пуста, а в «Цене со скидкой» стоит число. Вычислять процент не из чего —
+     * эта цена и становится тем, что продавец назовёт покупателю.
+     */
+    public function test_a_discount_price_without_a_percent_becomes_the_selling_price(): void
+    {
+        $row = $this->analyzeRow([
+            'AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '130', '', '120', '',
+        ]);
+
+        $this->assertSame('warn', $row['type']);
+        $this->assertSame('', $row['discount']);
+        $this->assertSame('120', $row['final']);
+        $this->assertStringContainsString('не указана процентом', $row['message']);
+
+        $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $product = Product::where('sku', '510028')->sole();
+
+        $this->assertSame('120.00', $product->discount_price);
+        $this->assertSame('0.0000', $product->discount);
+        $this->assertSame(120.0, $product->finalPrice());
+    }
+
+    /**
+     * Обе колонки заполнены — так выгружает сама панель. Процент главнее: цена со
+     * скидкой в карточку не попадает, продажную цену по-прежнему даёт процент.
+     */
+    public function test_a_percent_wins_over_the_discount_price_column(): void
+    {
+        $row = $this->analyzeRow([
+            'AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1000', '0,5', '999', '',
+        ]);
+
+        $this->assertSame('ok', $row['type']);
+        $this->assertSame("50\u{00A0}%", $row['discount']);
+        $this->assertSame('500', $row['final']);
+
+        $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $product = Product::where('sku', '510028')->sole();
+
+        $this->assertNull($product->discount_price);
+        $this->assertSame('0.5000', $product->discount);
+        $this->assertSame(500.0, $product->finalPrice());
+    }
+
+    /**
+     * Цена со скидкой округляется до целого тем же правилом, что и розничная.
+     */
+    public function test_a_discount_price_is_rounded_to_the_nearest_whole_number(): void
+    {
+        $row = $this->analyzeRow([
+            'AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '130', '', '120.5', '',
+        ]);
+
+        $this->assertSame('121', $row['final']);
+    }
+
+    /**
+     * Нечитаемая цена со скидкой строку не отклоняет: скидки у товара просто не будет,
+     * и продаваться он станет по розничной.
+     */
+    public function test_an_unreadable_discount_price_leaves_the_product_at_its_retail_price(): void
+    {
+        $row = $this->analyzeRow([
+            'AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '130', '', '120 манат', '',
+        ]);
+
+        $this->assertSame('warn', $row['type']);
+        $this->assertSame('', $row['final']);
+        $this->assertStringContainsString('120 манат', $row['message']);
+
+        $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $product = Product::where('sku', '510028')->sole();
+
+        $this->assertNull($product->discount_price);
+        $this->assertSame(130.0, $product->finalPrice());
+    }
+
+    /**
+     * Товар без скидки оставляет колонку «Цена со скидкой» пустой — иначе строка,
+     * вернувшись из браузера, прочиталась бы как «прайс назвал цену, равную розничной»,
+     * и своя цена со скидкой появилась бы у всего каталога.
+     */
+    public function test_a_row_without_a_discount_leaves_the_discount_price_column_empty(): void
+    {
+        $row = $this->analyzeRow([
+            'AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '130', '', '', '',
+        ]);
+
+        $this->assertSame('ok', $row['type']);
+        $this->assertSame('', $row['final']);
+
+        $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $this->assertNull(Product::where('sku', '510028')->sole()->discount_price);
+    }
+
+    /**
+     * Прайс задаёт скидку целиком: товар, которому файл в прошлый раз назвал цену со
+     * скидкой, а в этот объявил процент, не остаётся при старой цене — карточка
+     * заводится заново, и в ней только то, что сказал новый файл.
+     */
+    public function test_a_later_price_list_with_a_percent_clears_the_stored_discount_price(): void
+    {
+        Product::factory()->create([
+            'sku' => '510028',
+            'main_code' => 'AA1001',
+            'barcode' => '8011003993802',
+            'price' => 130,
+            'discount' => 0,
+            'discount_price' => 120,
+        ]);
+
+        $row = $this->analyzeRow([
+            'AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '130', '10 %', '117', '',
+        ]);
+
+        $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $product = Product::where('sku', '510028')->sole();
+
+        $this->assertNull($product->discount_price);
+        $this->assertSame('0.1000', $product->discount);
+        $this->assertSame(117.0, $product->finalPrice());
     }
 
     public function test_a_fractional_percent_keeps_its_decimals(): void
@@ -522,11 +792,10 @@ class ImportTest extends TestCase
     }
 
     /**
-     * Пустая ячейка штрихкода при обновлении не стирает тот, что уже стоит в карточке:
-     * по нему товар ищет сканер в зале. Пустая колонка значит «не трогать», как и у
-     * оптовой цены.
+     * Пустая ячейка штрихкода — это товар без штрихкода, а не «оставить прежний»:
+     * карточки, которая стояла в каталоге, после импорта уже нет.
      */
-    public function test_confirming_a_blank_barcode_on_an_update_keeps_the_existing_one(): void
+    public function test_confirming_a_blank_barcode_saves_the_new_card_without_one(): void
     {
         $existing = Product::factory()->create(['sku' => '512044', 'barcode' => '8011003993802']);
 
@@ -539,47 +808,85 @@ class ImportTest extends TestCase
             'rows' => [$row],
         ])->assertRedirect('/import');
 
-        $existing->refresh();
-        $this->assertSame('8011003993802', $existing->barcode);
+        $this->assertDatabaseMissing('products', ['id' => $existing->id]);
+        $this->assertNull(Product::where('sku', '512044')->sole()->barcode);
     }
 
     /**
-     * Same rename logic as the barcode case above, keyed on the main code instead.
+     * Основной код, занятый карточкой каталога, строке ничем не мешает: каталог уходит
+     * целиком, и код освобождается вместе с ним.
      */
-    public function test_a_main_code_already_used_by_a_different_article_is_a_rename_when_the_sku_is_new(): void
+    public function test_a_main_code_already_used_in_the_catalogue_is_not_a_warning(): void
     {
         Product::factory()->create(['sku' => '999999', 'main_code' => 'AA9999']);
 
         $row = $this->analyzeRow(['AA9999', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '']);
 
         $this->assertSame('ok', $row['type']);
-    }
 
-    public function test_a_main_code_belonging_to_a_different_product_than_the_row_s_own_sku_is_still_rejected(): void
-    {
-        Product::factory()->create(['sku' => '510028', 'main_code' => 'AA1001']);
-        Product::factory()->create(['sku' => '999999', 'main_code' => 'AA9999']);
+        $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
 
-        $row = $this->analyzeRow(['AA9999', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '']);
-
-        $this->assertSame('err', $row['type']);
-        $this->assertSame('ОСНОВНОЙ КОД', $row['tag']);
-        $this->assertStringContainsString('999999', $row['message']);
+        $this->assertDatabaseCount('products', 1);
+        $this->assertSame('AA9999', Product::where('sku', '510028')->sole()->main_code);
     }
 
     /**
-     * Barcode and main code disagree about which existing product this row would
-     * rename — apply() cannot resolve two different products to one row, so this stays
-     * an error even though the sku itself is new.
+     * Основной код — код самой панели, и уникальным он остаётся: повторённый в файле
+     * строка не отбирает, а получает свободный. Отказом это не считается.
      */
-    public function test_a_barcode_and_main_code_pointing_at_different_products_is_rejected(): void
+    public function test_a_main_code_repeated_in_the_file_is_reassigned(): void
     {
-        Product::factory()->create(['sku' => '888888', 'main_code' => 'AA8888']);
-        Product::factory()->create(['sku' => '999999', 'barcode' => '8011003993802']);
+        $file = $this->workbook([
+            ['AA1500', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+            ['AA1500', '999999', '8011003993819', 'VERSACE BRIGHT CRYSTAL EDT 50ML', '1920.96', ''],
+        ]);
 
-        $row = $this->analyzeRow(['AA8888', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '']);
+        $admin = $this->admin();
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
 
-        $this->assertSame('err', $row['type']);
+        $this->assertSame('ok', $props['rows'][0]['type']);
+        $this->assertSame('warn', $props['rows'][1]['type']);
+        $this->assertSame('ДУБЛЬ', $props['rows'][1]['tag']);
+        $this->assertStringContainsString('510028', $props['rows'][1]['message']);
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        /* Код достаётся первой строке, вторая получает свободный из серии. */
+        $this->assertSame('AA1500', Product::where('sku', '510028')->sole()->main_code);
+        $this->assertNotSame('AA1500', Product::where('sku', '999999')->sole()->main_code);
+    }
+
+    /**
+     * Код из файла достаётся своей строке, даже когда до неё генератор уже раздавал
+     * коды: коды прайса резервируются все разом, до записи,
+     * см. {@see ImportService::apply()}.
+     */
+    public function test_a_generated_main_code_never_takes_one_the_file_claims_later(): void
+    {
+        $file = $this->workbook([
+            ['', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+            ['AA1001', '510030', '8011003993819', 'VERSACE BRIGHT CRYSTAL EDT 50ML', '1920.96', ''],
+        ]);
+
+        $admin = $this->admin();
+        $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
+
+        $this->actingAs($admin)->post('/import/confirm', [
+            'fileName' => $props['fileName'],
+            'storedPath' => $props['storedPath'],
+            'rows' => $props['rows'],
+        ])->assertRedirect('/import');
+
+        $this->assertSame('AA1001', Product::where('sku', '510030')->sole()->main_code);
+        $this->assertNotSame('AA1001', Product::where('sku', '510028')->sole()->main_code);
     }
 
     public function test_analyze_runs_a_bounded_number_of_queries_regardless_of_row_count(): void
@@ -605,7 +912,11 @@ class ImportTest extends TestCase
         $this->assertLessThan(10, count(DB::getQueryLog()));
     }
 
-    public function test_confirming_creates_new_products_and_skips_rows_still_in_error(): void
+    /**
+     * Пропущенных строк больше не бывает: даже строка без номенклатуры заводит товар, и
+     * в истории загрузок у такого импорта ноль неудач.
+     */
+    public function test_confirming_creates_every_row_including_the_incomplete_ones(): void
     {
         $file = $this->workbook([
             ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
@@ -624,31 +935,31 @@ class ImportTest extends TestCase
 
         $response->assertRedirect('/import');
 
-        $this->assertDatabaseCount('products', 2);
+        $this->assertDatabaseCount('products', 3);
         $this->assertDatabaseHas('products', ['sku' => '510028', 'name' => 'VERSACE BRIGHT CRYSTAL EDT 30ML']);
+        $this->assertDatabaseHas('products', ['sku' => '510032', 'name' => '']);
         $created = Product::where('sku', '510030')->sole();
         $this->assertSame(0.5, (float) $created->discount);
 
         $this->assertDatabaseHas('import_batches', [
             'file_name' => 'price-list.xlsx',
-            'rows_ok' => 2,
-            'rows_failed' => 1,
+            'rows_ok' => 3,
+            'rows_failed' => 0,
         ]);
 
         $this->assertDatabaseHas('audit_logs', [
             'action' => 'Импорт из Excel',
             'object' => 'price-list.xlsx',
-            'value_to' => '2 строк',
+            'value_to' => '3 строк',
             'kind' => 'import',
         ]);
     }
 
     /**
-     * Прайс задаёт каталог целиком: товар, которого в файле не оказалось, удаляется
-     * вместе со своей историей цен — так заказчик и просил, поэтому окно подтверждения
-     * предлагает сначала забрать копию каталога.
+     * Прайс — это каталог целиком: товар, которого в файле не оказалось, удаляется
+     * вместе со своей историей цен. В каталоге после импорта ровно то, что было в файле.
      */
-    public function test_confirming_deletes_products_the_file_does_not_mention(): void
+    public function test_confirming_deletes_the_products_the_file_does_not_mention(): void
     {
         $doomed = Product::factory()->create(['sku' => '999999', 'main_code' => 'AA9999', 'barcode' => '8011003990001']);
         $doomed->priceHistories()->create([
@@ -666,6 +977,7 @@ class ImportTest extends TestCase
         $admin = $this->admin();
         $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
 
+        /* Окно подтверждения называет это число оператору до нажатия «Импортировать». */
         $this->assertSame(1, $props['obsolete']);
 
         $this->actingAs($admin)->post('/import/confirm', [
@@ -679,18 +991,41 @@ class ImportTest extends TestCase
         $this->assertDatabaseMissing('price_histories', ['product_id' => $doomed->id]);
 
         $this->assertDatabaseHas('audit_logs', [
-            'action' => 'Удалены товары вне прайса',
+            'action' => 'Каталог заменён прайсом',
             'object' => 'price-list.xlsx',
+            'value_from' => '1 товаров',
             'value_to' => '1 товаров',
             'kind' => 'import',
         ]);
     }
 
     /**
-     * Строка с ошибкой свой товар не спасает: заказчик выбрал «считать файл полным
-     * всегда» — не прошла строка, значит товара в прайсе нет.
+     * Остатки по точкам и сканы уходят вслед за товаром: каскад внешних ключей — то, на
+     * чём держится замена каталога одним DELETE, {@see ProductRepository::deleteAll()}.
      */
-    public function test_a_product_whose_only_row_failed_validation_is_deleted_too(): void
+    public function test_replacing_the_catalogue_takes_the_stock_and_the_scans_with_it(): void
+    {
+        $doomed = Product::factory()->create(['sku' => '999999', 'main_code' => 'AA9999']);
+        $point = Point::factory()->create();
+        $doomed->stocks()->create(['point_id' => $point->id, 'qty' => 7]);
+
+        $row = $this->analyzeRow(['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '']);
+
+        $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $this->assertDatabaseMissing('products', ['id' => $doomed->id]);
+        $this->assertDatabaseMissing('product_stocks', ['product_id' => $doomed->id]);
+    }
+
+    /**
+     * Строка с нечитаемой ценой свой товар больше не теряет: она проходит, цена
+     * становится нулём, а карточка остаётся в каталоге.
+     */
+    public function test_a_product_whose_row_has_an_unreadable_price_survives_the_import(): void
     {
         Product::factory()->create(['sku' => '510028', 'main_code' => 'AA1001', 'barcode' => '8011003993802']);
 
@@ -702,8 +1037,7 @@ class ImportTest extends TestCase
         $admin = $this->admin();
         $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
 
-        $this->assertSame('err', $props['rows'][1]['type']);
-        $this->assertSame(1, $props['obsolete']);
+        $this->assertSame('warn', $props['rows'][1]['type']);
 
         $this->actingAs($admin)->post('/import/confirm', [
             'fileName' => $props['fileName'],
@@ -711,15 +1045,46 @@ class ImportTest extends TestCase
             'rows' => $props['rows'],
         ])->assertRedirect('/import');
 
-        $this->assertDatabaseCount('products', 1);
-        $this->assertDatabaseHas('products', ['sku' => '510030']);
+        $this->assertDatabaseCount('products', 2);
+        $this->assertDatabaseHas('products', ['sku' => '510028', 'price' => '0.00']);
     }
 
     /**
-     * Страховка от испорченной загрузки: файл, из которого не прошла ни одна строка, —
-     * это не «каталог опустел», и стирать по нему всё нельзя.
+     * Тот же прайс, загруженный трижды, каталог не удваивает и не разращивает: каждый
+     * импорт стирает всё и заводит заново ровно то, что в файле.
      */
-    public function test_a_file_where_every_row_failed_deletes_nothing(): void
+    public function test_re_importing_the_same_file_leaves_only_the_rows_of_that_file(): void
+    {
+        Product::factory()->create(['sku' => '999999', 'main_code' => 'AA9999', 'barcode' => '8011003990001']);
+
+        $rows = [
+            ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
+            ['AA1002', '510030', '8011003993819', 'VERSACE BRIGHT CRYSTAL EDT 50ML', '1920.96', ''],
+        ];
+
+        $admin = $this->admin();
+
+        foreach (range(1, 3) as $ignored) {
+            $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $this->workbook($rows)]));
+
+            $this->actingAs($admin)->post('/import/confirm', [
+                'fileName' => $props['fileName'],
+                'storedPath' => $props['storedPath'],
+                'rows' => $props['rows'],
+            ])->assertRedirect('/import');
+        }
+
+        $this->assertDatabaseCount('products', 2);
+        $this->assertDatabaseHas('products', ['sku' => '510028', 'main_code' => 'AA1001']);
+        $this->assertDatabaseHas('products', ['sku' => '510030', 'main_code' => 'AA1002']);
+        $this->assertDatabaseMissing('products', ['sku' => '999999']);
+    }
+
+    /**
+     * Пустая или испорченная загрузка каталог не трогает вовсе: ни одной строки не
+     * пришло — ни одна карточка не изменилась.
+     */
+    public function test_a_file_without_a_single_row_changes_nothing(): void
     {
         Product::factory()->create(['sku' => '510028']);
 
@@ -728,15 +1093,7 @@ class ImportTest extends TestCase
         $this->actingAs($admin)->post('/import/confirm', [
             'fileName' => 'broken.xlsx',
             'storedPath' => $this->fakeStoredFile(),
-            'rows' => [[
-                'row' => 4,
-                'mainCode' => 'AA1001',
-                'sku' => '510028',
-                'barcode' => '8011003993802',
-                'name' => '',
-                'retail' => '1415.88',
-                'discount' => '',
-            ]],
+            'rows' => [],
         ])->assertRedirect('/import');
 
         $this->assertDatabaseCount('products', 1);
@@ -744,10 +1101,10 @@ class ImportTest extends TestCase
     }
 
     /**
-     * Переименованный поставщиком товар — не «новый вместо старого»: строка обновляет
-     * ту же карточку, и удалять после неё нечего.
+     * Переименованный поставщиком товар — не «новый рядом со старым»: старая карточка
+     * уходит вместе со всем каталогом, а в базе остаётся одна, с артикулом из файла.
      */
-    public function test_a_renamed_article_is_kept_rather_than_deleted_and_recreated(): void
+    public function test_a_renamed_article_does_not_leave_a_second_card_behind(): void
     {
         $existing = Product::factory()->create(['sku' => '999999', 'barcode' => '8011003993802']);
 
@@ -758,8 +1115,6 @@ class ImportTest extends TestCase
         $admin = $this->admin();
         $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
 
-        $this->assertSame(0, $props['obsolete']);
-
         $this->actingAs($admin)->post('/import/confirm', [
             'fileName' => $props['fileName'],
             'storedPath' => $props['storedPath'],
@@ -767,7 +1122,8 @@ class ImportTest extends TestCase
         ])->assertRedirect('/import');
 
         $this->assertDatabaseCount('products', 1);
-        $this->assertSame('510028', Product::findOrFail($existing->id)->sku);
+        $this->assertDatabaseMissing('products', ['id' => $existing->id]);
+        $this->assertSame('8011003993802', Product::where('sku', '510028')->sole()->barcode);
     }
 
     public function test_the_backup_download_returns_the_whole_catalog_as_backup1(): void
@@ -790,7 +1146,12 @@ class ImportTest extends TestCase
         $this->actingAs(User::factory()->create())->get('/import/backup')->assertForbidden();
     }
 
-    public function test_confirming_updates_an_existing_product_by_sku_and_leaves_status_untouched(): void
+    /**
+     * Карточка заводится заново целиком: прежнее имя, цена и статус не переживают
+     * импорт. Скрытый из продажи товар после замены каталога снова в продаже — скрывать
+     * его нужно заново, руками.
+     */
+    public function test_confirming_replaces_an_existing_product_with_a_fresh_card_on_sale(): void
     {
         $existing = Product::factory()->hidden()->create([
             'sku' => '510028',
@@ -815,23 +1176,22 @@ class ImportTest extends TestCase
         ])->assertRedirect('/import');
 
         $this->assertDatabaseCount('products', 1);
-        $existing->refresh();
-        $this->assertSame('NEW NAME', $existing->name);
-        $this->assertSame(1416.0, (float) $existing->price);
-        $this->assertSame('hidden', $existing->status->value);
+        $this->assertDatabaseMissing('products', ['id' => $existing->id]);
 
-        $this->assertDatabaseHas('price_histories', [
-            'product_id' => $existing->id,
-            'reason' => 'импорт',
-        ]);
+        $product = Product::where('sku', '510028')->sole();
+        $this->assertSame('NEW NAME', $product->name);
+        $this->assertSame(1416.0, (float) $product->price);
+        $this->assertSame('active', $product->status->value);
+
+        /* Истории цены у новой карточки нет: сравнивать импорту не с чем. */
+        $this->assertDatabaseCount('price_histories', 0);
     }
 
     /**
-     * The row's sku is new to the catalogue, but its barcode already belongs to a
-     * product — that product is renamed and updated, not skipped as a clash. This is
-     * the case a supplier renumbering an article without reissuing a barcode produces.
+     * Артикул строки каталогу незнаком, а её штрихкод числится за карточкой — спора
+     * нет: карточка уходит вместе со всем каталогом, и остаётся ровно строка файла.
      */
-    public function test_confirming_renames_a_product_matched_by_barcode_when_the_sku_is_new(): void
+    public function test_confirming_replaces_a_product_that_held_the_same_barcode(): void
     {
         $existing = Product::factory()->create([
             'sku' => '999999',
@@ -856,21 +1216,22 @@ class ImportTest extends TestCase
         ])->assertRedirect('/import');
 
         $this->assertDatabaseCount('products', 1);
-        $existing->refresh();
-        $this->assertSame('510028', $existing->sku);
-        $this->assertSame('NEW NAME', $existing->name);
-        $this->assertSame(1416.0, (float) $existing->price);
+        $this->assertDatabaseMissing('products', ['id' => $existing->id]);
+
+        $product = Product::where('sku', '510028')->sole();
+        $this->assertSame('NEW NAME', $product->name);
+        $this->assertSame(1416.0, (float) $product->price);
     }
 
     /**
-     * Same rename, this time resolved through the main code instead of the barcode.
+     * То же самое, но карточка держала основной код строки, а не её штрихкод.
      */
-    public function test_confirming_renames_a_product_matched_by_main_code_when_the_sku_is_new(): void
+    public function test_confirming_replaces_a_product_that_held_the_same_main_code(): void
     {
         $existing = Product::factory()->create([
             'sku' => '999999',
             'main_code' => 'AA9999',
-            'barcode' => '8011003993802',
+            'barcode' => '8011003990001',
             'name' => 'OLD NAME',
         ]);
 
@@ -888,19 +1249,17 @@ class ImportTest extends TestCase
         ])->assertRedirect('/import');
 
         $this->assertDatabaseCount('products', 1);
-        $existing->refresh();
-        $this->assertSame('510028', $existing->sku);
-        $this->assertSame('NEW NAME', $existing->name);
+        $this->assertDatabaseMissing('products', ['id' => $existing->id]);
+        $this->assertSame('NEW NAME', Product::where('sku', '510028')->sole()->name);
     }
 
     /**
-     * Колонка H прайса — оптовая цена. Пустая ячейка не обнуляет опт карточки: прайсы
-     * поставщиков сверстаны по старым семи колонкам, и такой файл не должен стирать то,
-     * что администратор проставил руками.
+     * Колонка H прайса — оптовая цена. Пустая ячейка не «оставляет прежнюю»: карточки,
+     * в которой опт стоял, после импорта уже нет, и товар заводится без него.
      */
-    public function test_confirming_writes_the_wholesale_price_and_a_blank_column_keeps_it(): void
+    public function test_confirming_writes_the_wholesale_price_and_a_blank_column_leaves_it_empty(): void
     {
-        $existing = Product::factory()->create([
+        Product::factory()->create([
             'sku' => '510028',
             'main_code' => 'AA1001',
             'barcode' => '8011003993802',
@@ -915,7 +1274,7 @@ class ImportTest extends TestCase
 
         $props = $this->props($this->actingAs($admin)->post('/import', ['file' => $file]));
 
-        $this->assertSame('921,00', $props['rows'][0]['wholesale']);
+        $this->assertSame('921', $props['rows'][0]['wholesale']);
 
         $this->actingAs($admin)->post('/import/confirm', [
             'fileName' => $props['fileName'],
@@ -923,7 +1282,7 @@ class ImportTest extends TestCase
             'rows' => $props['rows'],
         ])->assertRedirect('/import');
 
-        $this->assertSame('921.00', $existing->refresh()->wholesale_price);
+        $this->assertSame('921.00', Product::where('sku', '510028')->sole()->wholesale_price);
 
         $blank = $this->workbook([
             ['AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', ''],
@@ -937,18 +1296,32 @@ class ImportTest extends TestCase
             'rows' => $props['rows'],
         ])->assertRedirect('/import');
 
-        $this->assertSame('921.00', $existing->refresh()->wholesale_price);
+        $this->assertNull(Product::where('sku', '510028')->sole()->wholesale_price);
     }
 
-    public function test_a_non_numeric_wholesale_price_is_rejected(): void
+    /**
+     * Нечитаемый опт строку не отклоняет: он приравнивается к пустой ячейке, и товар
+     * заводится без оптовой цены.
+     */
+    public function test_a_non_numeric_wholesale_price_leaves_the_card_without_one(): void
     {
+        Product::factory()->create(['sku' => '510028', 'wholesale_price' => 900]);
+
         $row = $this->analyzeRow([
             'AA1001', '510028', '8011003993802', 'VERSACE BRIGHT CRYSTAL EDT 30ML', '1415.88', '', '', '920 манат',
         ]);
 
-        $this->assertSame('err', $row['type']);
-        $this->assertSame('ОПТ', $row['tag']);
-        $this->assertSame('wholesale', $row['field']);
+        $this->assertSame('warn', $row['type']);
+        $this->assertSame('', $row['wholesale']);
+        $this->assertStringContainsString('920 манат', $row['message']);
+
+        $this->actingAs($this->admin())->post('/import/confirm', [
+            'fileName' => 'price-list.xlsx',
+            'storedPath' => $this->fakeStoredFile(),
+            'rows' => [$row],
+        ])->assertRedirect('/import');
+
+        $this->assertNull(Product::where('sku', '510028')->sole()->wholesale_price);
     }
 
     public function test_confirming_assigns_a_main_code_when_the_file_leaves_it_blank(): void
@@ -971,8 +1344,10 @@ class ImportTest extends TestCase
     }
 
     /**
-     * apply() re-validates from scratch — a client that lies about a row's own verdict
-     * must not be able to smuggle a broken row into the catalogue.
+     * apply() разбирает строку заново, а не берёт присланное на веру: значения
+     * приводятся к тому, что примет каталог, независимо от того, что о строке сообщил
+     * браузер. Отклонить строку нельзя, но и подсунуть через неё число, которого колонка
+     * не выдержит, тоже.
      */
     public function test_confirm_never_trusts_a_client_supplied_verdict(): void
     {
@@ -986,16 +1361,19 @@ class ImportTest extends TestCase
                 'mainCode' => 'AA1001',
                 'sku' => '510028',
                 'barcode' => '8011003993802',
-                'name' => '',
-                'retail' => '1415.88',
-                'discount' => '',
+                'name' => str_repeat('Ц', 400),
+                'retail' => '99999999999',
+                'discount' => '900',
                 'type' => 'ok',
             ]],
         ]);
 
         $response->assertRedirect('/import');
-        $this->assertDatabaseCount('products', 0);
-        $this->assertDatabaseHas('import_batches', ['rows_ok' => 0, 'rows_failed' => 1]);
+
+        $product = Product::sole();
+        $this->assertSame(255, mb_strlen($product->name));
+        $this->assertSame('99999999.00', $product->price);
+        $this->assertSame('1.0000', $product->discount);
     }
 
     /**

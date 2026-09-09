@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Services\ImportService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Validator;
@@ -23,44 +24,22 @@ class ConfirmImportRequest extends FormRequest
      * loop in {@see self::validateRows()} does the same checks in one pass over the rows
      * actually submitted.
      *
-     * @var array<string, array{max: int, stringMessage: string, maxMessage: string}>
+     * Проверяется здесь только форма присланного: что ячейка вообще строка, а не массив,
+     * который не привести к строке в {@see self::payload()}. Ни длина, ни содержимое
+     * импорт больше не отбивают — слишком длинное значение обрежет по ширине колонки
+     * {@see ImportService}, и прайс всё равно загрузится.
+     *
+     * @var array<string, string>
      */
     private const ROW_FIELDS = [
-        'mainCode' => [
-            'max' => 64,
-            'stringMessage' => 'Основной код в строке :position испорчен. ',
-            'maxMessage' => 'Основной код в строке :position длиннее 64 символов — сократите его и повторите импорт.',
-        ],
-        'sku' => [
-            'max' => 64,
-            'stringMessage' => 'Артикул в строке :position испорчен. ',
-            'maxMessage' => 'Артикул в строке :position длиннее 64 символов — сократите его и повторите импорт.',
-        ],
-        'barcode' => [
-            'max' => 64,
-            'stringMessage' => 'Штрихкод в строке :position испорчен. ',
-            'maxMessage' => 'Штрихкод в строке :position длиннее 64 символов — в нём должно быть 13 цифр.',
-        ],
-        'name' => [
-            'max' => 512,
-            'stringMessage' => 'Номенклатура в строке :position испорчена. ',
-            'maxMessage' => 'Номенклатура в строке :position длиннее 512 символов — сократите название.',
-        ],
-        'retail' => [
-            'max' => 64,
-            'stringMessage' => 'Розничная цена в строке :position испорчена. ',
-            'maxMessage' => 'Розничная цена в строке :position длиннее 64 символов — оставьте только число.',
-        ],
-        'discount' => [
-            'max' => 64,
-            'stringMessage' => 'Скидка в строке :position испорчена. ',
-            'maxMessage' => 'Скидка в строке :position длиннее 64 символов — оставьте процент, например «20 %».',
-        ],
-        'wholesale' => [
-            'max' => 64,
-            'stringMessage' => 'Оптовая цена в строке :position испорчена. ',
-            'maxMessage' => 'Оптовая цена в строке :position длиннее 64 символов — оставьте только число.',
-        ],
+        'mainCode' => 'Основной код в строке :position испорчен. ',
+        'sku' => 'Артикул в строке :position испорчен. ',
+        'barcode' => 'Штрихкод в строке :position испорчен. ',
+        'name' => 'Номенклатура в строке :position испорчена. ',
+        'retail' => 'Розничная цена в строке :position испорчена. ',
+        'discount' => 'Скидка в строке :position испорчена. ',
+        'final' => 'Цена со скидкой в строке :position испорчена. ',
+        'wholesale' => 'Оптовая цена в строке :position испорчена. ',
     ];
 
     public function authorize(): bool
@@ -159,8 +138,8 @@ class ConfirmImportRequest extends FormRequest
 
             $this->validateRowNumber($validator, $row, $index);
 
-            foreach (self::ROW_FIELDS as $field => $rule) {
-                $this->validateRowField($validator, $row, $index, $position, $field, $rule, $restart);
+            foreach (self::ROW_FIELDS as $field => $message) {
+                $this->validateRowField($validator, $row, $index, $position, $field, $message, $restart);
             }
         }
     }
@@ -180,31 +159,22 @@ class ConfirmImportRequest extends FormRequest
 
     /**
      * @param  array<string, mixed>  $row
-     * @param  array{max: int, stringMessage: string, maxMessage: string}  $rule
      */
-    private function validateRowField(Validator $validator, array $row, int $index, int $position, string $field, array $rule, string $restart): void
+    private function validateRowField(Validator $validator, array $row, int $index, int $position, string $field, string $message, string $restart): void
     {
         $value = $row[$field] ?? null;
 
-        if ($value === null) {
+        /* Число из ячейки Excel приезжает числом — это нормальная строка прайса, а не
+         * порча: payload() приводит её к строке. Отбивается только то, что к строке не
+         * приводится вовсе. */
+        if ($value === null || is_string($value) || is_int($value) || is_float($value)) {
             return;
         }
 
-        if (! is_string($value)) {
-            $validator->errors()->add(
-                "rows.{$index}.{$field}",
-                str_replace(':position', (string) $position, $rule['stringMessage']).$restart
-            );
-
-            return;
-        }
-
-        if (mb_strlen($value) > $rule['max']) {
-            $validator->errors()->add(
-                "rows.{$index}.{$field}",
-                str_replace(':position', (string) $position, $rule['maxMessage'])
-            );
-        }
+        $validator->errors()->add(
+            "rows.{$index}.{$field}",
+            str_replace(':position', (string) $position, $message).$restart
+        );
     }
 
     /**
@@ -225,6 +195,7 @@ class ConfirmImportRequest extends FormRequest
                 'name' => (string) ($row['name'] ?? ''),
                 'retail' => (string) ($row['retail'] ?? ''),
                 'discount' => (string) ($row['discount'] ?? ''),
+                'final' => (string) ($row['final'] ?? ''),
                 'wholesale' => (string) ($row['wholesale'] ?? ''),
             ], $validated['rows']),
         ];

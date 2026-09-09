@@ -3,12 +3,13 @@
 namespace App\Models;
 
 use App\Enums\ProductStatus;
+use App\Services\ProductService;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['main_code', 'sku', 'barcode', 'name', 'kind', 'price', 'wholesale_price', 'discount', 'status'])]
+#[Fillable(['main_code', 'sku', 'barcode', 'name', 'kind', 'price', 'wholesale_price', 'discount', 'discount_price', 'status'])]
 class Product extends Model
 {
     use HasFactory;
@@ -22,6 +23,7 @@ class Product extends Model
             'price' => 'decimal:2',
             'wholesale_price' => 'decimal:2',
             'discount' => 'decimal:4',
+            'discount_price' => 'decimal:2',
             'status' => ProductStatus::class,
         ];
     }
@@ -43,10 +45,14 @@ class Product extends Model
     }
 
     /**
-     * Retail price after the product discount, rounded to the kopek.
+     * Цена, которую продавец назовёт покупателю.
      */
     public function finalPrice(): float
     {
-        return round((float) $this->price * (1 - (float) $this->discount), 2);
+        return ProductService::finalPrice(
+            (float) $this->price,
+            (float) $this->discount,
+            $this->discount_price === null ? null : (float) $this->discount_price,
+        );
     }
 }

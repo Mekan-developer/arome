@@ -3,34 +3,59 @@
 namespace App\Services;
 
 use App\Models\ImportBatch;
-use App\Models\Product;
 use App\Repositories\ProductRepository;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
  * The Excel import wizard. The uploaded sheet must be exactly what {@see ExportService}
- * produces — {@see CatalogSheetLayout} is the one definition both agree on — and rows
- * are matched on identity (sku, then barcode, then main code), never on the row's
- * position in the file. Sku is tried first; when a row's sku is new but its barcode or
- * main code already belongs to a product, that product is renamed rather than treated
- * as a clash — a supplier renumbering an article without reissuing a new barcode is the
- * normal case this covers, see {@see self::validateRow()}. A blank barcode does not block
- * the row and is not filled in for the supplier: the product is saved without one.
+ * produces — {@see CatalogSheetLayout} is the one definition both agree on.
  *
- * Two passes read the same rows through the same validation:
+ * Прайс — это каталог целиком, а не поправка к нему: каждый импорт стирает все товары и
+ * заводит их заново из файла. Ничего не сопоставляется — ни по артикулу, ни по
+ * штрихкоду, ни по основному коду: строка файла всегда заводит новую карточку, а всё,
+ * что стояло в каталоге до загрузки, уходит вместе с историей цен, остатками по точкам
+ * и сканами (внешние ключи этих таблиц каскадные). Вернуть прежний каталог можно только
+ * резервной копией, которую мастер предлагает забрать в окне подтверждения,
+ * см. {@see ImportController::backup()}.
+ *
+ * Заказчик просил загружать прайс как есть: ни одна строка файла импорт не отклоняет.
+ * Пустой может быть любая колонка, повториться — тоже любая, и такая строка всё равно
+ * заводит товар. {@see self::validateRow()} не отбраковывает, а приводит ячейку к тому,
+ * что колонка каталога способна хранить, и объясняет оператору предупреждением, что
+ * именно с ней стало: нераспознанная цена станет нулём, скидка вне диапазона
+ * подожмётся, слишком длинный текст обрежется, повторённый основной код заменится
+ * свободным. Товар с пустым штрихкодом сканер в зале не найдёт, но и штрихкод за
+ * поставщика никто не придумывает.
+ *
+ * Two passes read the same rows through the same normalisation:
  *  - {@see self::analyze()} is a dry run — it never touches the products table, only
- *    reports what step 3 of the wizard shows.
- *  - {@see self::apply()} re-validates (never trusting a client-supplied verdict) and
- *    writes everything that passes; rows still in error are skipped, not imported.
- *
- * Файл задаёт каталог целиком: товар, которого в прайсе не оказалось, удаляется вместе
- * с историей цен, остатками и сканами. Оператора предупреждает окно подтверждения —
- * число обречённых карточек считает {@see self::countObsolete()} ещё на разборе файла,
- * и оттуда же предлагается забрать резервную копию каталога.
+ *    reports what step 2 of the wizard shows.
+ *  - {@see self::apply()} re-reads the rows from scratch (never trusting a
+ *    client-supplied verdict), стирает каталог и пишет каждую из них.
  */
 class ImportService
 {
+    /**
+     * Сколько символов держат колонки products.main_code, products.sku и
+     * products.barcode. Длиннее ячейка не отклоняется, а обрезается: иначе строка
+     * валила бы вставку, а с ней и весь прайс одной транзакцией.
+     */
+    private const LIMIT_CODE = 64;
+
+    /**
+     * То же для products.name.
+     */
+    private const LIMIT_NAME = 255;
+
+    /**
+     * Потолок колонок products.price и products.wholesale_price — decimal(10,2), но цены
+     * при импорте всегда округляются до целого, поэтому потолок тоже целый: иначе
+     * {@see self::money()} (0 знаков после запятой) округлил бы «99999999,99» до
+     * «100000000» при обратном разборе в {@see self::payload()} — числа, для которого в
+     * колонке уже не хватило бы разрядов.
+     */
+    private const MAX_PRICE = 99999999.0;
+
     public function __construct(
         private readonly ProductRepository $products,
         private readonly ProductService $productService,
@@ -43,7 +68,7 @@ class ImportService
      */
     public function analyze(string $absolutePath, string $originalName): array
     {
-        [$rows, $bySku, $byBarcode, $byMainCode] = $this->validateRows($this->extractRows($absolutePath));
+        $rows = $this->validateRows($this->extractRows($absolutePath));
 
         return [
             'fileName' => $originalName,
@@ -51,108 +76,79 @@ class ImportService
             'totalRows' => count($rows),
             'rows' => $rows,
             'counters' => self::counters($rows),
-            'obsolete' => $this->countObsolete($rows, $bySku, $byBarcode, $byMainCode),
+            /* Сколько карточек уйдёт из каталога — весь он: прайс заменяет каталог
+             * целиком. Пустой файл не удаляет ничего, см. {@see self::apply()}. */
+            'obsolete' => $rows !== [] ? $this->products->countAll() : 0,
         ];
     }
 
     /**
      * The rows come back from the browser in the exact shape {@see self::analyze()} sent
-     * them in, with whatever the operator corrected in "Исправить" already merged in —
-     * see resources/js/Pages/Import/Index.vue. They are re-validated here from scratch;
-     * a row's 'type' as the browser last saw it is never trusted.
+     * them in — see resources/js/Pages/Import/Index.vue. Они разбираются здесь заново, с
+     * нуля: ни значения ячеек, ни вердикт 'type', с которым их последний раз видел
+     * браузер, на веру не берутся.
+     *
+     * Импортируются все строки без исключения, поэтому 'failed' здесь всегда ноль — поле
+     * остаётся в ответе и в {@see ImportBatch}, потому что история загрузок на шаге 1
+     * показывает и старые импорты, у которых пропущенные строки были.
      *
      * @param  list<array<string, mixed>>  $rawRows
-     * @return array{ok: int, failed: int, created: int, updated: int, deleted: int}
+     * @return array{ok: int, failed: int, created: int, deleted: int}
      */
     public function apply(array $rawRows, string $fileName, string $actor): array
     {
         return DB::transaction(function () use ($rawRows, $fileName, $actor): array {
-            [$rows, $bySku, $byBarcode, $byMainCode] = $this->validateRows($rawRows);
-
-            $created = 0;
-            $updated = 0;
-            $skipped = 0;
-            $kept = [];
-            $claimedMainCodes = [];
-            $nextMainCodeNumber = null;
-
-            foreach ($rows as $row) {
-                if ($row['type'] === 'err') {
-                    $skipped++;
-
-                    continue;
-                }
-
-                /*
-                 * Карточку занимает первая же строка, которая на неё легла: повтор
-                 * артикула в прайсе — это второй товар, а не спор за один и тот же, и
-                 * перезаписывать им первую строку нельзя.
-                 */
-                $existing = $this->existingFor($row, $bySku, $byBarcode, $byMainCode);
-
-                if ($existing instanceof Product && isset($kept[$existing->id])) {
-                    $existing = null;
-                }
-
-                $payload = $this->payload($row);
-
-                /*
-                 * Основной код — код самой панели, и уникальным он остаётся. Если тот,
-                 * что стоит в строке, уже занят другой карточкой, строка его не отбирает:
-                 * новый товар получает следующий свободный, а обновляемый остаётся при
-                 * своём. Иначе повторный импорт того же прайса с дублями падал бы на
-                 * уникальном индексе.
-                 */
-                $owner = $payload['mainCode'] !== '' ? $byMainCode->get($payload['mainCode']) : null;
-                $takenByOther = isset($claimedMainCodes[$payload['mainCode']])
-                    || ($owner instanceof Product && ($existing === null || $owner->id !== $existing->id));
-
-                if ($payload['mainCode'] !== '' && $takenByOther) {
-                    $payload['mainCode'] = '';
-                }
-
-                if ($payload['mainCode'] === '' && $existing === null) {
-                    $payload['mainCode'] = $this->nextFreeMainCode($claimedMainCodes, $nextMainCodeNumber);
-                }
-
-                $product = $this->productService->upsertFromImport($payload, $existing, $actor);
-
-                $kept[$product->id] = true;
-                $claimedMainCodes[$product->main_code] = true;
-                $product->wasRecentlyCreated ? $created++ : $updated++;
-            }
-
-            $applied = $created + $updated;
+            $rows = $this->validateRows($rawRows);
 
             /*
-             * Прайс — это каталог целиком: товар, которого в файле не оказалось, из базы
-             * уходит вместе с историей цен, остатками и сканами. Строки с ошибками свой
-             * товар не защищают — не прошла строка, значит товара в прайсе нет.
-             *
-             * Файл, из которого не прошла ни одна строка, каталог не меняет вовсе: это
+             * Файл, из которого не пришло ни одной строки, каталог не трогает вовсе: это
              * не «прайс опустел», а испорченная загрузка, и стирать по ней весь каталог
              * нельзя. По той же причине здесь не двигается ревизия каталога.
              */
-            $deleted = $applied > 0 ? $this->products->deleteExcept(array_keys($kept)) : 0;
+            $deleted = $rows !== [] ? $this->products->deleteAll() : 0;
+
+            /*
+             * Основной код остаётся уникальным, и первым на него право у строки, которая
+             * принесла его в файле, — поэтому коды прайса резервируются все разом, до
+             * записи. Иначе строка без кода получила бы сгенерированный AA1005, а строка
+             * с «AA1005» из файла, дойди до неё очередь позже, осталась бы без своего.
+             */
+            $owner = self::mainCodeOwners($rows);
+            $reserved = array_fill_keys(array_keys($owner), true);
+            $nextMainCodeNumber = null;
+            $created = 0;
+
+            foreach ($rows as $index => $row) {
+                $payload = $this->payload($row);
+
+                /* Повторённый в файле код строке не достаётся — он уже за строкой выше,
+                 * и такая строка получает следующий свободный. */
+                if ($payload['mainCode'] === '' || $owner[$payload['mainCode']] !== $index) {
+                    $payload['mainCode'] = $this->nextFreeMainCode($reserved, $nextMainCodeNumber);
+                }
+
+                $this->productService->createFromImport($payload);
+                $created++;
+            }
 
             ImportBatch::create([
                 'file_name' => $fileName,
                 'imported_at' => now(),
-                'rows_ok' => $applied,
-                'rows_failed' => $skipped,
+                'rows_ok' => $created,
+                'rows_failed' => 0,
             ]);
 
-            $this->audit->record($actor, 'Импорт из Excel', $fileName, null, $applied.' строк', 'import');
+            $this->audit->record($actor, 'Импорт из Excel', $fileName, null, $created.' строк', 'import');
 
             if ($deleted > 0) {
-                $this->audit->record($actor, 'Удалены товары вне прайса', $fileName, null, $deleted.' товаров', 'import');
+                $this->audit->record($actor, 'Каталог заменён прайсом', $fileName, $deleted.' товаров', $created.' товаров', 'import');
             }
 
-            if ($applied > 0) {
+            if ($created > 0) {
                 $this->catalogVersion->bump();
             }
 
-            return ['ok' => $applied, 'failed' => $skipped, 'created' => $created, 'updated' => $updated, 'deleted' => $deleted];
+            return ['ok' => $created, 'failed' => 0, 'created' => $created, 'deleted' => $deleted];
         });
     }
 
@@ -176,83 +172,52 @@ class ImportService
     }
 
     /**
+     * Какой строке файла достаётся каждый основной код: первой, которая его принесла.
+     * Позиция в массиве, а не номер строки листа, — номер приходит из браузера и
+     * повториться может, позиция нет.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return array<string, int>
+     */
+    private static function mainCodeOwners(array $rows): array
+    {
+        $owner = [];
+
+        foreach ($rows as $index => $row) {
+            $code = (string) $row['mainCode'];
+
+            if ($code !== '') {
+                $owner[$code] ??= $index;
+            }
+        }
+
+        return $owner;
+    }
+
+    /**
      * Основной код новому товару. Первый номер серии спрашивается у каталога один раз
      * за импорт, дальше счёт идёт в памяти: новых карточек в прайсе бывают тысячи, а
      * {@see ProductRepository::nextMainCode()} на каждую из них сортировал бы каталог
      * заново.
      *
-     * Номер, который в этом же файле уже кому-то достался, пропускается: строка со
-     * своим кодом из прайса тоже занимает его через $claimed.
+     * Занятые коды — это и коды из самого файла, и уже выданные здесь: и те и другие
+     * лежат в $reserved.
      *
-     * @param  array<string, true>  $claimed
+     * @param  array<string, true>  $reserved
      */
-    private function nextFreeMainCode(array $claimed, ?int &$number): string
+    private function nextFreeMainCode(array &$reserved, ?int &$number): string
     {
         $number ??= (int) substr($this->products->nextMainCode(), 2);
 
-        while (isset($claimed['AA'.$number])) {
+        while (isset($reserved['AA'.$number])) {
             $number++;
         }
 
         $code = 'AA'.$number;
+        $reserved[$code] = true;
         $number++;
 
         return $code;
-    }
-
-    /**
-     * Какой карточке принадлежит строка. Sku первым — им же судил
-     * {@see self::validateRow()}. Когда артикул новый, а штрихкод или основной код уже
-     * за кем-то числятся, это перенумерованный поставщиком товар, а не новый: строка
-     * обновляет и переименовывает его, а не спорит с ним.
-     *
-     * @param  array<string, mixed>  $row
-     * @param  Collection<string, Product>  $bySku
-     * @param  Collection<string, Product>  $byBarcode
-     * @param  Collection<string, Product>  $byMainCode
-     */
-    private function existingFor(array $row, Collection $bySku, Collection $byBarcode, Collection $byMainCode): ?Product
-    {
-        return ($row['sku'] !== '' ? $bySku->get($row['sku']) : null)
-            ?? ($row['barcode'] !== '' ? $byBarcode->get($row['barcode']) : null)
-            ?? ($row['mainCode'] !== '' ? $byMainCode->get($row['mainCode']) : null);
-    }
-
-    /**
-     * Сколько товаров каталога в файле не встретилось — их удалит {@see self::apply()},
-     * и это число мастер показывает в окне подтверждения до нажатия «Импортировать».
-     * Считается по тем же правилам, по которым потом идёт удаление: карточку сохраняет
-     * только строка, которая дойдёт до импорта.
-     *
-     * @param  list<array<string, mixed>>  $rows
-     * @param  Collection<string, Product>  $bySku
-     * @param  Collection<string, Product>  $byBarcode
-     * @param  Collection<string, Product>  $byMainCode
-     */
-    private function countObsolete(array $rows, Collection $bySku, Collection $byBarcode, Collection $byMainCode): int
-    {
-        $kept = [];
-        $applicable = 0;
-
-        foreach ($rows as $row) {
-            if ($row['type'] === 'err') {
-                continue;
-            }
-
-            $applicable++;
-            $existing = $this->existingFor($row, $bySku, $byBarcode, $byMainCode);
-
-            if ($existing instanceof Product) {
-                $kept[$existing->id] = true;
-            }
-        }
-
-        /* Ни одной прошедшей строки — импорт ничего не удалит, см. apply(). */
-        if ($applicable === 0) {
-            return 0;
-        }
-
-        return max(0, $this->products->countAll() - count($kept));
     }
 
     /**
@@ -278,12 +243,13 @@ class ImportService
                 'name' => trim((string) ($cells[CatalogSheetLayout::COLUMN_NAME] ?? '')),
                 'retail' => trim((string) ($cells[CatalogSheetLayout::COLUMN_RETAIL] ?? '')),
                 'discount' => trim((string) ($cells[CatalogSheetLayout::COLUMN_DISCOUNT] ?? '')),
+                'final' => trim((string) ($cells[CatalogSheetLayout::COLUMN_FINAL] ?? '')),
                 'wholesale' => trim((string) ($cells[CatalogSheetLayout::COLUMN_WHOLESALE] ?? '')),
             ];
 
             $blank = $raw['mainCode'] === '' && $raw['sku'] === '' && $raw['barcode'] === ''
                 && $raw['name'] === '' && $raw['retail'] === '' && $raw['discount'] === ''
-                && $raw['wholesale'] === '';
+                && $raw['final'] === '' && $raw['wholesale'] === '';
 
             if ($blank) {
                 continue;
@@ -296,37 +262,15 @@ class ImportService
     }
 
     /**
-     * Validates every row against the catalogue in one batched lookup — a price list of
-     * a few thousand rows must not cost three queries per row just to check uniqueness.
-     * Returns the sku => Product map alongside the rows so {@see self::apply()} does not
-     * have to run the same lookup a second time to decide create vs. update.
+     * Каждая строка файла, приведённая к тому, что примет каталог. С базой этот проход
+     * не разговаривает вовсе: каталога к моменту записи уже не будет, поэтому повтор
+     * ищется только внутри самого файла.
      *
      * @param  list<array<string, mixed>>  $rawRows
-     * @return array{0: list<array<string, mixed>>, 1: Collection<string, Product>, 2: Collection<string, Product>, 3: Collection<string, Product>}
+     * @return list<array<string, mixed>>
      */
     private function validateRows(array $rawRows): array
     {
-        $mainCodes = array_values(array_filter(
-            array_map(fn (array $raw): string => trim((string) ($raw['mainCode'] ?? '')), $rawRows),
-            fn (string $code): bool => $code !== '',
-        ));
-
-        $barcodes = array_values(array_filter(
-            array_map(fn (array $raw): string => preg_replace('/\D/', '', (string) ($raw['barcode'] ?? '')) ?? '', $rawRows),
-            fn (string $barcode): bool => $barcode !== '',
-        ));
-
-        $skus = array_values(array_filter(
-            array_map(fn (array $raw): string => trim((string) ($raw['sku'] ?? '')), $rawRows),
-            fn (string $sku): bool => $sku !== '',
-        ));
-
-        $existing = $this->products->matchingImportKeys($skus, $barcodes, $mainCodes);
-
-        $bySku = $existing->keyBy('sku');
-        $byBarcode = $existing->keyBy('barcode');
-        $byMainCode = $existing->keyBy('main_code');
-
         $seen = ['sku' => [], 'barcode' => [], 'mainCode' => []];
 
         /*
@@ -338,88 +282,60 @@ class ImportService
         $rows = [];
 
         foreach ($rawRows as $raw) {
-            $rows[] = $this->validateRow($raw, $bySku, $byBarcode, $byMainCode, $seen);
+            $rows[] = $this->validateRow($raw, $seen);
         }
 
-        return [$rows, $bySku, $byBarcode, $byMainCode];
+        return $rows;
     }
 
     /**
-     * One row, checked in the order an operator would want to fix things: identity
-     * first (sku is the match key — falling back to barcode, then main code, when the
-     * sku is new; see the barcode/main-code checks below), then the fields that block a
-     * database write, then the soft "will be created" notice. Only the first problem
-     * found is reported — the row goes back to "Исправить", not a wall of every check
-     * that failed.
+     * One row, brought to the shape the catalogue can store. Ничего не отклоняется: у
+     * строки нет исхода «ошибка», она либо проходит молча, либо проходит с
+     * предупреждением о том, что с её ячейками сделали. Пустая колонка — не повод
+     * отказать (пустыми могут быть все восемь), повтор — тоже: вторая такая же строка
+     * заводит второй товар, а уникальность остаётся только у основного кода, и его
+     * дубль получает свободный код в {@see self::apply()}.
      *
      * @param  array<string, mixed>  $raw
-     * @param  Collection<string, Product>  $bySku
-     * @param  Collection<string, Product>  $byBarcode
-     * @param  Collection<string, Product>  $byMainCode
      * @param  array{sku: array<string,int>, barcode: array<string,string>, mainCode: array<string,string>}  $seen
      * @return array<string, mixed>
      */
-    private function validateRow(array $raw, Collection $bySku, Collection $byBarcode, Collection $byMainCode, array &$seen): array
+    private function validateRow(array $raw, array &$seen): array
     {
         $number = (int) $raw['row'];
-        $sku = trim((string) ($raw['sku'] ?? ''));
-        $name = trim((string) ($raw['name'] ?? ''));
-        $mainCode = trim((string) ($raw['mainCode'] ?? ''));
-        $barcodeRaw = trim((string) ($raw['barcode'] ?? ''));
-        $barcodeDigits = preg_replace('/\D/', '', $barcodeRaw) ?? '';
+        ['sku' => $sku, 'barcode' => $barcodeDigits, 'mainCode' => $mainCode] = self::keys($raw);
+        $name = self::clip((string) ($raw['name'] ?? ''), self::LIMIT_NAME);
         $retailRaw = trim((string) ($raw['retail'] ?? ''));
         $discountRaw = trim((string) ($raw['discount'] ?? ''));
+        $finalRaw = trim((string) ($raw['final'] ?? ''));
         $wholesaleRaw = trim((string) ($raw['wholesale'] ?? ''));
-        $retail = self::roundPrice(self::toFloat($retailRaw));
-        $discount = $discountRaw === '' ? 0.0 : self::toDiscount($discountRaw);
-        $wholesale = self::roundPrice($wholesaleRaw === '' ? null : self::toFloat($wholesaleRaw));
+
+        $retail = self::clampPrice(self::roundPrice(self::toFloat($retailRaw))) ?? 0.0;
+        $discount = self::clampDiscount($discountRaw === '' ? 0.0 : self::toDiscount($discountRaw));
+        $wholesale = self::clampPrice(self::roundPrice($wholesaleRaw === '' ? null : self::toFloat($wholesaleRaw)));
 
         /*
-         * The prior claim on a barcode/main_code, split by source: a file-owner is an
-         * earlier row in this same import, a db-owner is a product already in the
-         * database. Null means unclaimed; equal to this row's own sku means it is this
-         * row's own product, not a clash.
+         * Скидка процентом главнее: колонка «Цена со скидкой» читается, только когда
+         * «Скидки» пуста. Прайс, выгруженный самой панелью, заполняет обе, и там эти
+         * две колонки говорят одно и то же — а вот в файле поставщика процента может
+         * не быть вовсе, и тогда цена со скидкой остаётся единственным, что о скидке
+         * известно, вычислять её не из чего. Она и станет продажной ценой карточки,
+         * см. {@see ProductService::finalPrice()}.
          */
-        /* Пустой артикул и пустой штрихкод ничьи: у товаров без них keyBy() кладёт всех
-         * под один пустой ключ, и без этих проверок пустая строка спорила бы за него с
-         * чужой карточкой. */
-        $skuExists = $sku !== '' && $bySku->has($sku);
-        $fileBarcodeOwner = $barcodeDigits !== '' ? ($seen['barcode'][$barcodeDigits] ?? null) : null;
-        $dbBarcodeOwner = $barcodeDigits !== '' ? $byBarcode->get($barcodeDigits)?->sku : null;
-        $barcodeOwner = $fileBarcodeOwner ?? $dbBarcodeOwner;
-        $fileMainCodeOwner = $mainCode !== '' ? ($seen['mainCode'][$mainCode] ?? null) : null;
-        $dbMainCodeOwner = $mainCode !== '' ? $byMainCode->get($mainCode)?->sku : null;
-        $mainCodeOwner = $fileMainCodeOwner ?? $dbMainCodeOwner;
+        $discountPrice = $discountRaw === '' && $finalRaw !== ''
+            ? self::clampPrice(self::roundPrice(self::toFloat($finalRaw)))
+            : null;
+
+        /*
+         * Кто уже занял штрихкод и основной код — только строка выше в этом же файле:
+         * каталог импорт стирает целиком, спорить строке не с кем.
+         *
+         * Пустой артикул и пустой штрихкод ничьи: без этой оговорки вторая строка без
+         * штрихкода «нашла» бы владельцем первую такую же.
+         */
+        $barcodeOwner = self::rivalOwner($barcodeDigits, $seen['barcode']);
+        $mainCodeOwner = self::rivalOwner($mainCode, $seen['mainCode']);
         $skuSeenInRow = $sku !== '' ? ($seen['sku'][$sku] ?? null) : null;
-
-        $issue = null;
-
-        if ($name === '') {
-            $issue = ['tag' => 'НОМЕНКЛАТУРА', 'field' => 'name', 'fix' => 'название', 'message' => 'Пустая номенклатура. Название обязательно — продавец ищет товар по нему.'];
-        } elseif (
-            $barcodeOwner !== null && $barcodeOwner !== $sku
-            && ($fileBarcodeOwner !== null || $skuExists || ($mainCodeOwner !== null && $mainCodeOwner !== $barcodeOwner))
-        ) {
-            /*
-             * A db-owned barcode on a brand-new sku is not a clash — it is the same
-             * product re-numbered by the supplier, and apply() renames it. It only stays
-             * an error when the sku already belongs to someone else, the barcode was
-             * already claimed earlier in this same file, or the main code disagrees
-             * about which product this row renames.
-             */
-            $issue = ['tag' => 'ШТРИХКОД', 'field' => 'barcode', 'fix' => 'новый штрихкод', 'message' => "Штрихкод «{$barcodeDigits}» уже используется товаром с артикулом «{$barcodeOwner}»."];
-        } elseif ($retail === null || $retail <= 0) {
-            $issue = ['tag' => 'ЦЕНА', 'field' => 'retail', 'fix' => 'число', 'message' => 'Цена нечисловая или не больше нуля. Уберите лишние символы — колонка числовая, валюта всегда TMT.'];
-        } elseif ($discount === null || $discount < 0 || $discount >= 1) {
-            $issue = ['tag' => 'СКИДКА', 'field' => 'discount', 'fix' => '20 %', 'message' => 'Скидка задана некорректно. В колонке «Скидки» ожидается процент: например 20 % или 0,2 — не сумма скидки и не больше 100 %.'];
-        } elseif ($wholesaleRaw !== '' && ($wholesale === null || $wholesale < 0)) {
-            $issue = ['tag' => 'ОПТ', 'field' => 'wholesale', 'fix' => 'число', 'message' => 'Оптовая цена нечисловая или отрицательная. Колонка «Оптовая цена» числовая; оставьте её пустой, если опта у товара нет.'];
-        } elseif (
-            $mainCode !== '' && $mainCodeOwner !== null && $mainCodeOwner !== $sku
-            && ($fileMainCodeOwner !== null || $skuExists || ($barcodeOwner !== null && $barcodeOwner !== $mainCodeOwner))
-        ) {
-            $issue = ['tag' => 'ОСНОВНОЙ КОД', 'field' => 'mainCode', 'fix' => 'AA####', 'message' => "Основной код «{$mainCode}» уже используется товаром с артикулом «{$mainCodeOwner}»."];
-        }
 
         if ($sku !== '') {
             $seen['sku'][$sku] ??= $number;
@@ -433,42 +349,61 @@ class ImportService
             $seen['mainCode'][$mainCode] ??= $sku;
         }
 
-        if ($issue !== null) {
-            return [
-                'row' => $number,
-                'mainCode' => $mainCode,
-                'sku' => $sku,
-                'barcode' => $barcodeDigits !== '' ? $barcodeDigits : $barcodeRaw,
-                'name' => $name,
-                'retail' => $retail !== null ? self::money($retail) : $retailRaw,
-                'discount' => $discount !== null && $discountRaw !== '' ? self::percent($discount) : $discountRaw,
-                'final' => '',
-                'wholesale' => $wholesale !== null ? self::money($wholesale) : $wholesaleRaw,
-                'type' => 'err',
-                ...$issue,
-            ];
-        }
-
         /*
-         * Ни пустой код, ни повтор артикула строку не отклоняют — прайс сохраняется как
-         * есть, ничего за поставщика не придумывается и ничего не отбрасывается. Оператор
-         * видит это предупреждением: основной код присвоится сам, товар без штрихкода не
-         * найдёт сканер, а повторившийся артикул заведёт вторую карточку.
+         * Прайс сохраняется как есть: ничего за поставщика не придумывается и ничего не
+         * отбрасывается. Оператор читает в предупреждении ровно то, что с его строкой
+         * стало, — от «основной код присвоится сам» до «цена не распозналась».
          */
         $notices = [];
+        $duplicate = false;
 
         if ($skuSeenInRow !== null) {
-            $notices[] = "Артикул «{$sku}» уже встречался в строке {$skuSeenInRow} — будет создан второй товар.";
+            $notices[] = "Артикул «{$sku}» уже встречался в строке {$skuSeenInRow} — строка сохранится вторым товаром.";
+            $duplicate = true;
         } elseif ($sku === '') {
             $notices[] = 'Артикул пуст — товар сохранится без него.';
         }
 
+        if ($name === '') {
+            $notices[] = 'Номенклатура пуста — товар сохранится без названия, и продавец не найдёт его поиском.';
+        }
+
         if ($mainCode === '') {
             $notices[] = 'Основной код пуст — присвоится автоматически.';
+        } elseif ($mainCodeOwner !== null) {
+            $notices[] = "Основной код «{$mainCode}» уже занят {$mainCodeOwner} — строке присвоится свободный.";
+            $duplicate = true;
         }
 
         if ($barcodeDigits === '') {
             $notices[] = 'Штрихкод пуст — сканер в зале товар не найдёт.';
+        } elseif ($barcodeOwner !== null) {
+            $notices[] = "Штрихкод «{$barcodeDigits}» уже используется {$barcodeOwner} — сканер найдёт по нему оба товара.";
+            $duplicate = true;
+        }
+
+        if ($retailRaw === '') {
+            $notices[] = 'Цена пуста — товар сохранится с ценой 0.';
+        } elseif ($retail <= 0) {
+            $notices[] = "Цена «{$retailRaw}» не распозналась как положительное число — товар сохранится с ценой 0.";
+        }
+
+        if ($discountRaw !== '' && self::toDiscount($discountRaw) !== $discount) {
+            $notices[] = "Скидка «{$discountRaw}» вне допустимого диапазона — сохранится ".self::percent($discount).'.';
+        }
+
+        if ($discountRaw === '' && $finalRaw !== '') {
+            if ($discountPrice === null) {
+                $notices[] = "Цена со скидкой «{$finalRaw}» не распозналась — товар будет продаваться по розничной.";
+            } elseif ($discountPrice > $retail) {
+                $notices[] = 'Цена со скидкой выше розничной — товар будет продаваться по ней, '.self::money($discountPrice).'.';
+            } else {
+                $notices[] = 'Скидка не указана процентом — товар будет продаваться по цене из колонки «Цена со скидкой», '.self::money($discountPrice).'.';
+            }
+        }
+
+        if ($wholesaleRaw !== '' && $wholesale === null) {
+            $notices[] = "Оптовая цена «{$wholesaleRaw}» не распозналась — товар сохранится без оптовой цены.";
         }
 
         return [
@@ -479,14 +414,24 @@ class ImportService
             'name' => $name,
             'retail' => self::money($retail),
             'discount' => $discount > 0 ? self::percent($discount) : '',
-            'final' => self::money(ProductService::finalPrice($retail, $discount)),
+            /*
+             * Пустая ячейка у строки без скидки — не украшение: этот же массив уезжает
+             * в браузер и возвращается в {@see self::apply()}, где непустая «Цена со
+             * скидкой» при пустом проценте и означает «цену назвал прайс». Стой здесь
+             * розничная цена, каждый товар без скидки получил бы свою цену со скидкой,
+             * равную розничной. Оператору пустую ячейку рисует «= розн.», см.
+             * resources/js/Pages/Import/Partials/ImportIssueRow.vue.
+             */
+            'final' => self::finalCell($retail, $discount, $discountPrice),
             'wholesale' => $wholesale !== null ? self::money($wholesale) : '',
             'type' => $notices !== [] ? 'warn' : 'ok',
             'tag' => match (true) {
-                $skuSeenInRow !== null => 'ДУБЛЬ',
+                $duplicate => 'ДУБЛЬ',
                 $notices !== [] => 'НОВЫЙ',
                 default => null,
             },
+            /* Строку больше не нужно чинить руками, чтобы она прошла, — поле «Исправить»
+             * не показывается: см. resources/js/Pages/Import/Partials/ImportIssueRow.vue. */
             'field' => null,
             'fix' => null,
             'message' => $notices !== [] ? implode(' ', $notices) : null,
@@ -494,16 +439,18 @@ class ImportService
     }
 
     /**
-     * Пустая колонка «Оптовая цена» — это не ноль и не «стереть»: опт у такой строки
-     * остаётся тем, что уже стоит в карточке. Иначе прайс поставщика, свёрстанный по
-     * старым семи колонкам, обнулял бы опт всему каталогу разом.
+     * Строка прайса тем, чем её заведут в каталоге. Пустая колонка — это пустое поле
+     * карточки, а не «оставить как было»: прежней карточки после {@see self::apply()}
+     * уже нет, каталог целиком приходит из файла.
      *
      * @param  array<string, mixed>  $row
-     * @return array{mainCode: string, sku: string, barcode: string, name: string, price: float, discount: float, wholesalePrice: float|null}
+     * @return array{mainCode: string, sku: string, barcode: string, name: string, price: float, discount: float, discountPrice: float|null, wholesalePrice: float|null}
      */
     private function payload(array $row): array
     {
         $wholesale = trim((string) ($row['wholesale'] ?? ''));
+        $discount = trim((string) ($row['discount'] ?? ''));
+        $final = trim((string) ($row['final'] ?? ''));
 
         return [
             'mainCode' => (string) $row['mainCode'],
@@ -511,7 +458,10 @@ class ImportService
             'barcode' => (string) $row['barcode'],
             'name' => (string) $row['name'],
             'price' => self::toFloat((string) $row['retail']) ?? 0.0,
-            'discount' => $row['discount'] !== '' ? (self::toDiscount((string) $row['discount']) ?? 0.0) : 0.0,
+            'discount' => $discount !== '' ? (self::toDiscount($discount) ?? 0.0) : 0.0,
+            /* Процент главнее — см. {@see self::validateRow()}: своя цена со скидкой
+             * есть только у строки, где процента не назвали. */
+            'discountPrice' => $discount === '' && $final !== '' ? self::toFloat($final) : null,
             'wholesalePrice' => $wholesale !== '' ? self::toFloat($wholesale) : null,
         ];
     }
@@ -538,9 +488,93 @@ class ImportService
         return $value !== null ? round($value) : null;
     }
 
+    /**
+     * Ячейка, ужатая до того, что примет колонка каталога.
+     */
+    private static function clip(string $value, int $limit): string
+    {
+        return mb_substr(trim($value), 0, $limit);
+    }
+
+    /**
+     * Кто уже держит это значение, названный так, как его прочтёт оператор
+     * («артикулом «510028»»), — или null, если значение свободно. Спорить строка может
+     * только со строкой выше в этом же файле: каталога к записи уже не будет.
+     *
+     * @param  array<string, string>  $claimedInFile  значение => артикул занявшей строки
+     */
+    private static function rivalOwner(string $value, array $claimedInFile): ?string
+    {
+        if ($value === '' || ! array_key_exists($value, $claimedInFile)) {
+            return null;
+        }
+
+        return self::owner($claimedInFile[$value]);
+    }
+
+    /**
+     * Три ключа строки, обрезанные по ширине колонок каталога, — то, чем строка ляжет в
+     * каталог и по чему в файле ищется её повтор.
+     *
+     * @param  array<string, mixed>  $raw
+     * @return array{sku: string, barcode: string, mainCode: string}
+     */
+    private static function keys(array $raw): array
+    {
+        return [
+            'sku' => self::clip((string) ($raw['sku'] ?? ''), self::LIMIT_CODE),
+            'barcode' => self::clip(preg_replace('/\D/', '', (string) ($raw['barcode'] ?? '')) ?? '', self::LIMIT_CODE),
+            'mainCode' => self::clip((string) ($raw['mainCode'] ?? ''), self::LIMIT_CODE),
+        ];
+    }
+
+    /**
+     * Товар без артикула назвать по нему нельзя, поэтому в предупреждении он остаётся
+     * безымянным — оператор всё равно узнаёт его по значению, о котором идёт речь.
+     */
+    private static function owner(string $sku): string
+    {
+        return $sku !== '' ? "артикулом «{$sku}»" : 'товаром без артикула';
+    }
+
+    /**
+     * Цена в границах decimal(10,2): отрицательная — это опечатка в прайсе, а не долг
+     * покупателю, и становится нулём; выходящее за потолок число подрезается вместо
+     * того, чтобы уронить вставку.
+     */
+    private static function clampPrice(?float $value): ?float
+    {
+        return $value !== null ? max(0.0, min(self::MAX_PRICE, $value)) : null;
+    }
+
+    /**
+     * Скидка долей от 0 до 1. Больше сотни процентов не бывает: «120» в колонке скидки
+     * — это либо процент за пределом, либо сумма в манатах, и в обоих случаях товар
+     * отдаётся даром, а не с доплатой. Нераспознанная скидка — это ноль, а не отказ.
+     */
+    private static function clampDiscount(?float $value): float
+    {
+        return $value !== null ? max(0.0, min(1.0, $value)) : 0.0;
+    }
+
     private static function money(float $value): string
     {
-        return number_format($value, 2, ',', ' ');
+        return number_format($value, 0, ',', ' ');
+    }
+
+    /**
+     * Колонка «Цена со скидкой» на проверке строк — и она же то, из чего
+     * {@see self::payload()} прочитает названную прайсом цену, когда строка вернётся из
+     * браузера. Поэтому у товара без скидки ячейка пуста: непустой она значит «скидка
+     * у строки есть», а не «столько стоит».
+     */
+    private static function finalCell(float $retail, float $discount, ?float $discountPrice): string
+    {
+        if ($discountPrice !== null) {
+            return self::money($discountPrice);
+        }
+
+        return $discount > 0 ? self::money(self::roundPrice($retail * (1 - $discount)) ?? 0.0) : '';
     }
 
     /**
@@ -549,7 +583,7 @@ class ImportService
      * тоже процент (доли больше единицы не бывает, а 20 в этой колонке всегда значило
      * «двадцать процентов»); «0,2» — доля, как её кладёт в файл {@see ExportService}.
      * Сумма скидки в манатах остаётся ошибкой: 120 — это 120 %, больше единицы, и
-     * {@see self::validateRow()} такую строку отклоняет.
+     * {@see self::clampDiscount()} подожмёт её до ста.
      */
     private static function toDiscount(string $value): ?float
     {

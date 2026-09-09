@@ -20,6 +20,7 @@ const props = defineProps({
     rows: { type: Array, required: true },
     recent: { type: Array, default: () => [] },
     counters: { type: Object, required: true },
+    /* Сколько карточек сейчас в каталоге — все они уйдут: прайс заменяет каталог целиком. */
     obsolete: { type: Number, default: 0 },
 })
 
@@ -149,10 +150,9 @@ const useFakeProgress = (processing) => {
 const effectiveType = (row) => (fixes[row.row] ? 'fixed' : row.type)
 
 const counts = computed(() => {
-    const err = localRows.value.filter((row) => effectiveType(row) === 'err').length
     const warn = localRows.value.filter((row) => effectiveType(row) === 'warn').length
 
-    return { total: localRows.value.length, err, warn, ok: localRows.value.length - err - warn }
+    return { total: localRows.value.length, warn, ok: localRows.value.length - warn }
 })
 
 const visibleRows = computed(() =>
@@ -218,24 +218,16 @@ const applyFix = (row) => {
     }
 }
 
-/** Удаление старых товаров — половина того, что сделает кнопка, поэтому оно в сводке. */
-const obsoleteNote = computed(() =>
-    props.obsolete > 0 ? ` Товаров, которых нет в файле: ${formatInt(props.obsolete)} — они будут удалены.` : '',
+/* Строки больше не отбраковываются: импортируется весь файл, а предупреждение только
+ * объясняет, что стало с ячейкой, — см. ImportService::validateRow(). Каталог при этом
+ * заменяется целиком: всё, что было до загрузки, удаляется. */
+const footerSummary = computed(() =>
+    props.obsolete > 0
+        ? `Каталог будет заменён: удалится товаров ${formatInt(props.obsolete)}, импортируется строк ${formatInt(counts.value.total)}, ${formatInt(counts.value.warn)} — с предупреждением.`
+        : `Будут импортированы все ${formatInt(counts.value.total)} строк, ${formatInt(counts.value.warn)} — с предупреждением.`,
 )
 
-const footerSummary = computed(
-    () =>
-        (counts.value.err > 0
-            ? `Строк с ошибками: ${formatInt(counts.value.err)}. Они будут пропущены, остальные ${formatInt(counts.value.total - counts.value.err)} импортируются.`
-            : `Ошибок не осталось. Будут импортированы все ${formatInt(counts.value.total)} строк, ${formatInt(counts.value.warn)} — с предупреждением.`) +
-        obsoleteNote.value,
-)
-
-const importLabel = computed(() =>
-    counts.value.err > 0
-        ? `Импортировать ${formatInt(counts.value.total - counts.value.err)} строк, ${formatInt(counts.value.err)} пропустить`
-        : `Импортировать ${formatInt(counts.value.total)} строк`,
-)
+const importLabel = computed(() => `Импортировать ${formatInt(counts.value.total)} строк`)
 
 /* Step 1 — upload */
 const fileInput = ref(null)
@@ -274,9 +266,9 @@ const confirmForm = useForm({ fileName: '', storedPath: '', rows: [] })
 const confirmPercent = useFakeProgress(computed(() => confirmForm.processing))
 
 /*
- * Кнопка «Импортировать» больше не импортирует сразу: файл заменяет каталог целиком, и
- * прежде чем что-то удалится, оператор видит число обречённых карточек и может забрать
- * копию каталога — см. ImportConfirmModal.
+ * Кнопка «Импортировать» не импортирует сразу: прайс стирает каталог целиком, и вернуть
+ * прежние карточки нечем — оператор сначала видит, что произойдёт, и может забрать копию
+ * каталога, см. ImportConfirmModal.
  */
 const confirming = ref(false)
 
@@ -340,8 +332,9 @@ const ROW_COLUMNS =
                 <h1 class="title">Загрузка файла каталога</h1>
                 <p class="lead">
                     Прайс — единственный источник цен: панель ничего не придумывает сверх восьми колонок файла. Формат
-                    всегда один и тот же — тот же, что отдаёт кнопка «Экспорт» в товарах. Ключ сопоставления —
-                    артикул. Прайс задаёт каталог целиком: товаров, которых в файле нет, после импорта не останется.
+                    всегда один и тот же — тот же, что отдаёт кнопка «Экспорт» в товарах. Импорт заменяет каталог
+                    целиком: все товары, что были до загрузки, удаляются вместе с историей цен, остатками и сканами, а
+                    каталог заводится заново из файла. Перед импортом заберите резервную копию.
                 </p>
 
                 <div
@@ -427,10 +420,6 @@ const ROW_COLUMNS =
                         <span class="tally__label">Предупреждения</span>
                         <span class="tally__value" style="color: var(--warn)">{{ formatInt(counts.warn) }}</span>
                     </span>
-                    <span class="tally__cell">
-                        <span class="tally__label">Ошибки</span>
-                        <span class="tally__value" style="color: var(--danger)">{{ formatInt(counts.err) }}</span>
-                    </span>
                 </div>
             </header>
 
@@ -443,9 +432,10 @@ const ROW_COLUMNS =
                     ]"
                 />
                 <p class="filter-bar__note">
-                    Пустая «Цена со скидкой» — скидки нет, применим розничную. Пустая «Оптовая цена» — опт в карточке
-                    останется прежним. Правьте строки здесь: перезаливать файл не нужно, строки с ошибками не
-                    импортируются — и их товары тоже уходят из каталога, потому что в прайсе их нет.
+                    Прайс загружается целиком: ни одна строка не отбрасывается, любая колонка может быть пустой или
+                    повториться. Пустая «Цена со скидкой» — скидки нет, применим розничную. Пустая «Оптовая цена» —
+                    товар сохранится без опта. Предупреждение не мешает импорту, оно лишь говорит, что со строкой
+                    сделали.
                 </p>
             </div>
 
@@ -484,11 +474,7 @@ const ROW_COLUMNS =
                     <span v-if="confirmForm.processing" class="progress progress--inline">
                         <span class="progress__bar" :style="{ width: confirmPercent + '%' }" />
                     </span>
-                    <AppButton
-                        variant="solid"
-                        :disabled="confirmForm.processing || counts.total - counts.err === 0"
-                        @click="confirmImport"
-                    >
+                    <AppButton variant="solid" :disabled="confirmForm.processing || counts.total === 0" @click="confirmImport">
                         {{ confirmForm.processing ? `Импортируем… ${confirmPercent}%` : importLabel }}
                     </AppButton>
                 </span>
@@ -497,9 +483,8 @@ const ROW_COLUMNS =
 
         <ImportConfirmModal
             v-if="confirming"
-            :importing="counts.total - counts.err"
+            :importing="counts.total"
             :obsolete="obsolete"
-            :skipped="counts.err"
             :processing="confirmForm.processing"
             @close="confirming = false"
             @confirm="runImport"

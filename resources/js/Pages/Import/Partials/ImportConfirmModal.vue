@@ -6,31 +6,33 @@ import CheckBox from '@/Components/CheckBox.vue'
 import { formatInt } from '@/Composables/useFormat.js'
 
 /**
- * Последний экран перед заменой каталога. Импорт не дополняет каталог, а задаёт его
- * целиком: товары, которых нет в прайсе, удаляются навсегда — поэтому окно называет
- * их число, перечисляет, что уедет вместе с ними, и предлагает забрать копию каталога
- * до того, как удаление случится.
+ * Последний экран перед записью прайса в каталог. Импорт заменяет каталог целиком: все
+ * товары, что были до загрузки, удаляются вместе с историей цен, остатками и сканами, а
+ * каталог заводится заново из файла. Отменить это нечем, поэтому окно перечисляет, что
+ * произойдёт, и предлагает забрать копию каталога до импорта.
  */
 const props = defineProps({
     importing: { type: Number, required: true },
-    obsolete: { type: Number, required: true },
-    skipped: { type: Number, default: 0 },
+    obsolete: { type: Number, default: 0 },
     processing: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close', 'confirm'])
 
-const backup = ref(true)
+const backup = ref(false)
 const backingUp = ref(false)
 const error = ref(null)
 
+/* Пропущенных строк больше не бывает — прайс грузится целиком, см.
+ * ImportService::apply(). Поэтому это окно и есть единственная проверка перед тем, как
+ * файл ляжет в каталог: не тот прайс здесь уже ничем не отличить. */
 const consequences = computed(() =>
     [
-        `· импортируется строк: ${formatInt(props.importing)}`,
-        `· удаляется товаров, которых нет в файле: ${formatInt(props.obsolete)}`,
-        '· вместе с ними уйдут их история цен, остатки по точкам и сканы продавцов',
-        ...(props.skipped > 0 ? [`· строк с ошибками пропускается: ${formatInt(props.skipped)}`] : []),
-        '· вернуть удалённое можно только из резервной копии',
+        `· удалится товаров из каталога: ${formatInt(props.obsolete)} — все, что есть сейчас`,
+        '· вместе с ними уйдут история цен, остатки по точкам и сканы',
+        `· заведётся заново из файла: ${formatInt(props.importing)} товаров`,
+        '· скрытые из продажи товары не сохранятся — новые карточки будут в продаже',
+        '· вернуть прежний каталог можно только из резервной копии',
     ].join('\n'),
 )
 
@@ -85,15 +87,13 @@ const confirm = async () => {
         <template #header>
             <span>
                 <span class="head__kicker">ЗАМЕНА КАТАЛОГА</span>
-                <h2 class="head__title">
-                    {{ obsolete > 0 ? `Удалить ${formatInt(obsolete)} товаров и импортировать файл?` : 'Импортировать файл?' }}
-                </h2>
+                <h2 class="head__title">Заменить каталог этим файлом?</h2>
             </span>
         </template>
 
         <p class="text">
-            Прайс задаёт каталог целиком. Всё, чего в файле нет, из базы уходит навсегда — вместе с историей цен,
-            остатками по точкам и сканами. Отменить это нельзя, поэтому сначала заберите копию каталога.
+            Прайс заменяет каталог целиком: все товары, что есть сейчас, удаляются, и каталог заводится заново — в нём
+            останется ровно то, что в файле. Отменить это нечем, поэтому сначала заберите копию каталога.
         </p>
 
         <!--
@@ -124,10 +124,7 @@ const confirm = async () => {
                 <button type="button" class="confirm" :disabled="busy" @click="confirm">
                     <template v-if="backingUp">Скачиваем копию…</template>
                     <template v-else-if="processing">Импортируем…</template>
-                    <template v-else-if="obsolete > 0">
-                        Удалить {{ formatInt(obsolete) }} и импортировать {{ formatInt(importing) }}
-                    </template>
-                    <template v-else>Импортировать {{ formatInt(importing) }} строк</template>
+                    <template v-else>Заменить каталог — {{ formatInt(importing) }} строк</template>
                 </button>
             </span>
         </template>
@@ -141,7 +138,7 @@ const confirm = async () => {
     font-size: 9.5px;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: var(--danger);
+    color: var(--brass-dark);
 }
 
 .head__title {
@@ -232,6 +229,7 @@ const confirm = async () => {
     margin-left: auto;
 }
 
+/* Кнопка красная: за ней удаление всего каталога, а не одна лишь запись цен. */
 .confirm {
     padding: 9px 15px;
     border: 0;
@@ -245,7 +243,7 @@ const confirm = async () => {
 }
 
 .confirm:hover:not(:disabled) {
-    background: var(--brass-dark);
+    background: var(--ink);
 }
 
 .confirm:disabled {

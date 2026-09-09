@@ -4,7 +4,6 @@ namespace App\Http\Resources;
 
 use App\Models\PriceHistory;
 use App\Models\Product;
-use App\Services\ProductService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -31,7 +30,10 @@ class ProductCardResource extends JsonResource
             'wholesalePrice' => $this->wholesale_price === null ? null : (float) $this->wholesale_price,
             'discount' => (float) $this->discount,
             'discountPercent' => round((float) $this->discount * 100, 2),
-            'final' => ProductService::finalPrice((float) $this->price, (float) $this->discount),
+            /* Цена со скидкой, названная прайсом напрямую, — в форме её не правят, но
+             * карточка обязана показать, по какой цене товар продаётся на самом деле. */
+            'discountPrice' => $this->discount_price === null ? null : (float) $this->discount_price,
+            'final' => $this->finalPrice(),
             'status' => $this->status,
             'history' => $this->whenLoaded('priceHistories', fn () => $this->priceHistories
                 ->map(fn (PriceHistory $entry): array => [

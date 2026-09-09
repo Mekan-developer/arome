@@ -121,7 +121,22 @@ class ProductExportTest extends TestCase
         $sheet = $this->sheet($this->actingAs($this->admin())->get('/products/export'));
 
         $this->assertStringContainsString('<c r="F4"><v>0.50</v></c>', $sheet);
-        $this->assertStringContainsString('<c r="G4" s="'.XlsxWriter::STYLE_MONEY.'"><v>757.62</v></c>', $sheet);
+        $this->assertStringContainsString('<c r="G4" s="'.XlsxWriter::STYLE_MONEY.'"><v>758.00</v></c>', $sheet);
+    }
+
+    /**
+     * Товар, которому цену со скидкой назвал сам прайс, выгружается тем же способом,
+     * каким пришёл: процента у него нет, колонка «Скидки» остаётся пустой. Так
+     * выгруженный файл, загруженный обратно, повторяет каталог, а не пересчитывает его.
+     */
+    public function test_a_discount_price_without_a_percent_fills_only_the_seventh_column(): void
+    {
+        Product::factory()->create(['price' => 130, 'discount' => 0, 'discount_price' => 120]);
+
+        $sheet = $this->sheet($this->actingAs($this->admin())->get('/products/export'));
+
+        $this->assertStringContainsString('<c r="F4"/>', $sheet);
+        $this->assertStringContainsString('<c r="G4" s="'.XlsxWriter::STYLE_MONEY.'"><v>120.00</v></c>', $sheet);
     }
 
     /**

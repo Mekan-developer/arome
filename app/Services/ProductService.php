@@ -29,11 +29,19 @@ class ProductService
     ) {}
 
     /**
-     * Retail price after discount, rounded to the kopek.
+     * Цена, которую продавец называет покупателю, — одно правило на всю панель.
+     *
+     * Обычно это розничная минус процент скидки. Но прайс поставщика умеет назвать
+     * цену со скидкой напрямую, не объявляя процента, — такая цена и есть продажная,
+     * пересчитывать её не из чего, см. {@see ImportService}. Процент при этом остаётся
+     * главным: цена со скидкой попадает в карточку, только когда процента в файле нет.
+     *
+     * Копеек в панели нет: цена со скидкой округляется до целого тем же правилом, что
+     * и цены прайса, — от 0,5 и выше вверх, ниже вниз.
      */
-    public static function finalPrice(float $price, float $discount): float
+    public static function finalPrice(float $price, float $discount, ?float $discountPrice = null): float
     {
-        return round($price * (1 - $discount), 2);
+        return $discountPrice ?? round($price * (1 - $discount));
     }
 
     /**
@@ -105,6 +113,17 @@ class ProductService
                 'price' => $data['price'],
                 'discount' => $data['discount'],
                 'status' => $data['status'],
+                /*
+                 * Цена со скидкой из прайса живёт, только пока её никто не переспорил
+                 * руками: в форме карточки скидка задаётся процентом, и оставленная
+                 * цена из файла молча перебивала бы его — администратор сохранил бы
+                 * «30 %» и не увидел никакой перемены, см. self::finalPrice().
+                 *
+                 * Ключ появляется, только когда есть что снимать: null поверх null
+                 * Eloquent считает изменением, если колонки не было в выборке, и
+                 * открытая-закрытая карточка поднимала бы ревизию каталога.
+                 */
+                ...($product->discount_price !== null ? ['discount_price' => null] : []),
                 /* Ключа нет — оптовую цену не трогают: пустое поле формы приходит как null явно. */
                 ...(array_key_exists('wholesale_price', $data) ? ['wholesale_price' => $data['wholesale_price']] : []),
             ]);
@@ -149,62 +168,22 @@ class ProductService
     }
 
     /**
-     * One validated row of a price list, written into the catalogue. Matched and called
-     * by {@see ImportService}, which already knows — from one batched lookup covering the
-     * whole file — whether this sku exists; not wrapped in its own transaction, the
-     * caller commits the batch as one unit.
+     * One validated row of a price list, written into the catalogue as a new card.
+     * Called by {@see ImportService}, которое перед этим стёрло каталог целиком: прайс
+     * задаёт каталог полностью, обновлять здесь нечего — каждая строка файла заводит
+     * товар. Собственной транзакции нет: весь прайс коммитится одной, вызывающим.
      *
      * Ревизию каталога здесь не двигают: файл на 500 строк — одна публикация, поэтому
      * счётчик поднимает {@see ImportService}, один раз на всю загрузку.
      *
-     * Status is deliberately left untouched on update: a product an administrator hid
-     * from sale must not silently reappear just because its sku is still in the price
-     * list. Sku is written on every update, not only when it produced $existing: a
-     * supplier renumbering an article is matched by {@see ImportService} on barcode or
-     * main code instead, and that row's new sku must land on the record it renamed.
+     * Пустой артикул, штрихкод и опт остаются пустыми: файл сохраняется как есть, за
+     * поставщика ничего не придумывается. Статус у всех новых карточек «в продаже» —
+     * скрытых товаров после замены каталога не остаётся, скрывать нужно заново.
      *
-     * Пустая колонка опта в файле оставляет оптовую цену карточки как есть — see
-     * {@see ImportService::payload()}. Так же и пустые артикул со штрихкодом: у нового
-     * товара они остаются пустыми (файл сохраняется как есть, ничего не придумывается),
-     * а у уже заведённой карточки не стирают то, что в ней уже стоит.
-     *
-     * Возвращается сама карточка, а не «создано/обновлено»: импорт заменяет каталог
-     * целиком и по этим id решает, какие товары в прайсе не встретились и подлежат
-     * удалению. Что именно случилось со строкой, вызывающий читает из
-     * {@see Product::$wasRecentlyCreated}.
-     *
-     * @param  array{mainCode: string, sku: string, barcode: string, name: string, price: float, discount: float, wholesalePrice?: float|null}  $row
+     * @param  array{mainCode: string, sku: string, barcode: string, name: string, price: float, discount: float, discountPrice?: float|null, wholesalePrice?: float|null}  $row
      */
-    public function upsertFromImport(array $row, ?Product $existing, string $actor): Product
+    public function createFromImport(array $row): Product
     {
-        $wholesale = $row['wholesalePrice'] ?? null;
-
-        if ($existing instanceof Product) {
-            $priceBefore = (float) $existing->price;
-
-            $existing->update([
-                'main_code' => $row['mainCode'] !== '' ? $row['mainCode'] : $existing->main_code,
-                'sku' => $row['sku'] !== '' ? $row['sku'] : $existing->sku,
-                'barcode' => $row['barcode'] !== '' ? $row['barcode'] : $existing->barcode,
-                'name' => $row['name'],
-                'price' => $row['price'],
-                'discount' => $row['discount'],
-                ...($wholesale !== null ? ['wholesale_price' => $wholesale] : []),
-            ]);
-
-            if ($priceBefore !== (float) $existing->price) {
-                $existing->priceHistories()->create([
-                    'changed_at' => now(),
-                    'author' => $actor,
-                    'reason' => 'импорт',
-                    'price_from' => $priceBefore,
-                    'price_to' => $existing->price,
-                ]);
-            }
-
-            return $existing;
-        }
-
         return Product::create([
             'main_code' => $row['mainCode'] !== '' ? $row['mainCode'] : $this->products->nextMainCode(),
             'sku' => $row['sku'] !== '' ? $row['sku'] : null,
@@ -212,8 +191,9 @@ class ProductService
             'name' => $row['name'],
             'kind' => 'EDT',
             'price' => $row['price'],
-            'wholesale_price' => $wholesale,
+            'wholesale_price' => $row['wholesalePrice'] ?? null,
             'discount' => $row['discount'],
+            'discount_price' => $row['discountPrice'] ?? null,
             'status' => ProductStatus::Active->value,
         ]);
     }
@@ -240,6 +220,13 @@ class ProductService
                     'fixed' => $product->price = max(0, round($value, 2)),
                     default => null,
                 };
+
+                /*
+                 * Названная прайсом цена со скидкой держится только до первой правки
+                 * руками: иначе она осталась бы продажной ценой поверх новой розничной,
+                 * и «поднять цены на 10 %» не сдвинуло бы у такого товара ничего.
+                 */
+                $product->discount_price = null;
 
                 $product->save();
 
@@ -340,9 +327,11 @@ class ProductService
                 default => self::finalPrice($price, $discount),
             };
 
+            /* «Стало» без цены со скидкой из прайса намеренно: правка её снимает,
+             * см. self::applyBulk(). */
             return [
                 'name' => $product->name,
-                'from' => self::finalPrice($price, $discount),
+                'from' => $product->finalPrice(),
                 'to' => max(0, $to),
             ];
         })->values()->all();

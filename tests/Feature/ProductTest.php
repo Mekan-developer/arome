@@ -125,20 +125,23 @@ class ProductTest extends TestCase
     }
 
     /**
+     * Копеек в панели нет: цена со скидкой округляется до целого — от 0,5 и выше
+     * вверх, ниже вниз.
+     *
      * @return array<string, array{0: float, 1: float, 2: float}>
      */
     public static function prices(): array
     {
         return [
-            'no discount' => [1415.88, 0.0, 1415.88],
-            'half off' => [1515.24, 0.5, 757.62],
-            'fifteen percent' => [1894.64, 0.15, 1610.44],
-            'rounds to the kopek' => [999.99, 0.3, 699.99],
-            'rounds a third down' => [100.0, 0.3333, 66.67],
+            'no discount' => [1415.88, 0.0, 1416.0],
+            'half off' => [1515.24, 0.5, 758.0],
+            'fifteen percent' => [1894.64, 0.15, 1610.0],
+            'rounds up from a half' => [999.99, 0.3, 700.0],
+            'rounds a third down' => [100.0, 0.3333, 67.0],
         ];
     }
 
-    public function test_the_index_returns_rows_and_the_query_line(): void
+    public function test_the_index_returns_rows(): void
     {
         Product::factory()->count(3)->create();
 
@@ -147,8 +150,7 @@ class ProductTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Products/Index')
-                ->has('products.data', 3)
-                ->where('queryString', 'GET /api/v1/products?q=&point=all&status=active&sort=-price&page=1&per_page=15'));
+                ->has('products.data', 3));
     }
 
     /**
@@ -228,6 +230,59 @@ class ProductTest extends TestCase
             'value_to' => 'скрыт',
             'kind' => 'product',
         ]);
+    }
+
+    /**
+     * Цена со скидкой из прайса держится, только пока её никто не переспорил руками:
+     * в форме карточки скидка задаётся процентом, и оставленная цена из файла молча
+     * перебивала бы его — администратор сохранил бы «10 %» и не увидел перемены.
+     */
+    public function test_saving_the_card_drops_a_discount_price_named_by_the_price_list(): void
+    {
+        $product = Product::factory()->create([
+            'price' => 130,
+            'discount' => 0,
+            'discount_price' => 120,
+        ]);
+
+        $this->actingAs($this->admin())
+            ->put('/products/'.$product->id, [
+                'name' => $product->name,
+                'main_code' => $product->main_code,
+                'sku' => $product->sku,
+                'barcode' => $product->barcode,
+                'price' => 130,
+                'discount' => 10,
+                'status' => 'active',
+            ])
+            ->assertRedirect();
+
+        $product->refresh();
+
+        $this->assertNull($product->discount_price);
+        $this->assertSame(117.0, $product->finalPrice());
+    }
+
+    /**
+     * Массовая правка цен по той же причине снимает цену из прайса: иначе «поднять
+     * цены на 10 %» не сдвинуло бы у такого товара ровным счётом ничего.
+     */
+    public function test_a_bulk_price_edit_drops_a_discount_price_named_by_the_price_list(): void
+    {
+        $product = Product::factory()->create([
+            'price' => 130,
+            'discount' => 0,
+            'discount_price' => 120,
+        ]);
+
+        $this->actingAs($this->admin())
+            ->post('/products/bulk', ['ids' => [$product->id], 'mode' => 'percent', 'value' => 10])
+            ->assertRedirect();
+
+        $product->refresh();
+
+        $this->assertNull($product->discount_price);
+        $this->assertSame(143.0, $product->finalPrice());
     }
 
     public function test_an_unchanged_status_writes_no_journal_entry(): void

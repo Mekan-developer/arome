@@ -3,7 +3,6 @@
 namespace App\Http\Resources;
 
 use App\Models\Product;
-use App\Services\ProductService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -29,7 +28,7 @@ class ProductRowResource extends JsonResource
             'price' => (float) $this->price,
             'wholesalePrice' => $this->wholesale_price === null ? null : (float) $this->wholesale_price,
             'discount' => (float) $this->discount,
-            'final' => ProductService::finalPrice((float) $this->price, (float) $this->discount),
+            'final' => $this->finalPrice(),
             'status' => $this->status,
         ];
     }
