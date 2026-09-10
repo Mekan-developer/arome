@@ -178,6 +178,42 @@ class ProductApiTest extends TestCase
     }
 
     /**
+     * Выгрузка приходит порядком прайса, а не порядком заведения карточек: приложение
+     * заливает её в локальную базу и показывает тем же порядком.
+     */
+    public function test_the_full_catalogue_is_sorted_by_the_main_code(): void
+    {
+        Product::factory()->create(['name' => 'VERSACE EROS EDT 50ML', 'main_code' => 'AA1003']);
+        Product::factory()->create(['name' => 'LATTAFA KHAMRAH EDP 100ML', 'main_code' => 'AA1001']);
+        Product::factory()->create(['name' => 'ARMAF CLUB DE NUIT EDT 105ML', 'main_code' => 'AA1002']);
+
+        $rows = $this->asDevice($this->seller())
+            ->getJson('/api/v1/products_all')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertSame(['AA1001', 'AA1002', 'AA1003'], array_column($rows, 'main_code'));
+    }
+
+    /**
+     * Прайс приносит карточки без основного кода — их место в конце выгрузки, а не
+     * перед всем каталогом.
+     */
+    public function test_the_full_catalogue_puts_products_without_a_main_code_last(): void
+    {
+        Product::factory()->create(['main_code' => null]);
+        Product::factory()->create(['main_code' => 'AA1002']);
+        Product::factory()->create(['main_code' => 'AA1001']);
+
+        $rows = $this->asDevice($this->seller())
+            ->getJson('/api/v1/products_all')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertSame(['AA1001', 'AA1002', null], array_column($rows, 'main_code'));
+    }
+
+    /**
      * `per_page`, `q`, `status`, `sort` — здесь это просто мусор в адресе: выгрузка
      * отдаёт каталог целиком, что бы в запросе ни стояло.
      */

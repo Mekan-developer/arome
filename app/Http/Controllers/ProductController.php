@@ -154,6 +154,10 @@ class ProductController extends Controller
     }
 
     /**
+     * Состояние таблицы целиком лежит в адресе, поэтому умолчания заданы здесь, а не
+     * в компоненте: список открывается порядком прайса — по основному коду, — и тем же
+     * порядком уезжает в Excel. Клик по заголовку колонки перебивает это через `?sort=`.
+     *
      * @return array{q: string, point: string, status: string, sort: string, page: int, per_page: int}
      */
     private function filters(Request $request, bool $withPoints): array
@@ -162,7 +166,7 @@ class ProductController extends Controller
             'q' => (string) $request->query('q', ''),
             'point' => $withPoints ? (string) $request->query('point', 'all') : 'all',
             'status' => (string) $request->query('status', 'all'),
-            'sort' => (string) $request->query('sort', 'name'),
+            'sort' => (string) $request->query('sort', 'main_code'),
             'page' => max(1, (int) $request->query('page', 1)),
             'per_page' => $this->perPage($request),
         ];

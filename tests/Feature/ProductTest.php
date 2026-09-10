@@ -94,14 +94,35 @@ class ProductTest extends TestCase
         ];
     }
 
-    public function test_an_unknown_sort_key_falls_back_to_the_name(): void
+    public function test_an_unknown_sort_key_falls_back_to_the_main_code(): void
     {
-        Product::factory()->create(['name' => 'BBB']);
-        Product::factory()->create(['name' => 'AAA']);
+        Product::factory()->create(['name' => 'BBB', 'main_code' => 'GI1202']);
+        Product::factory()->create(['name' => 'AAA', 'main_code' => 'GI1201']);
 
         $items = $this->products->paginate(['sort' => 'price); drop table products;--'], 25, false)->items();
 
         $this->assertSame(['AAA', 'BBB'], collect($items)->pluck('name')->all());
+    }
+
+    /**
+     * Таблица открывается порядком прайса: сортировку никто не просил — значит, идёт
+     * основной код, а не порядок заведения карточек.
+     */
+    public function test_the_catalogue_opens_sorted_by_the_main_code(): void
+    {
+        Product::factory()->create(['name' => 'BBB', 'main_code' => 'GI1203']);
+        Product::factory()->create(['name' => 'AAA', 'main_code' => 'GI1201']);
+        Product::factory()->create(['name' => 'CCC', 'main_code' => 'GI1202']);
+
+        $this->actingAs($this->admin())
+            ->get('/products')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Products/Index')
+                ->where('filters.sort', 'main_code')
+                ->where('products.data.0.mainCode', 'GI1201')
+                ->where('products.data.1.mainCode', 'GI1202')
+                ->where('products.data.2.mainCode', 'GI1203'));
     }
 
     /**

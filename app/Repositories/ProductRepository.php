@@ -69,9 +69,14 @@ class ProductRepository
      * Весь активный каталог целиком, без поиска, фильтров и постраничности — то, что
      * забирает приложение, когда обновляет свою локальную базу одним заходом.
      *
-     * Читается пачками по тысяче строк с продвижением по id: остатки при этом
-     * подгружаются одним запросом на пачку, чего `cursor()` не умеет — там связь
-     * осталась бы незагруженной и `stock` уехал бы на устройство пустым.
+     * Порядок — основной код, тот же, что у списка: приложение показывает выгрузку
+     * порядком прайса, а не порядком заведения карточек. Товар без основного кода
+     * уходит в конец, и одинаково на обеих базах: `null` в Postgres сортируется
+     * последним, в SQLite — первым, поэтому пустота вынесена в отдельный ключ.
+     *
+     * Читается пачками по тысяче строк: остатки при этом подгружаются одним запросом
+     * на пачку, чего `cursor()` не умеет — там связь осталась бы незагруженной и
+     * `stock` уехал бы на устройство пустым.
      *
      * @return LazyCollection<int, Product>
      */
@@ -81,7 +86,10 @@ class ProductRepository
             ->select(['id', 'main_code', 'sku', 'barcode', 'name', 'kind', 'price', 'wholesale_price', 'discount', 'discount_price', 'status'])
             ->where('status', ProductStatus::Active->value)
             ->when($withStock, fn (Builder $query) => $query->with('stocks:id,product_id,point_id,qty'))
-            ->lazyById(1000);
+            ->orderByRaw('main_code is null')
+            ->orderBy('main_code')
+            ->orderBy('id')
+            ->lazy(1000);
     }
 
     /**
@@ -329,13 +337,16 @@ class ProductRepository
     }
 
     /**
+     * Порядок по умолчанию — основной код: и когда сортировку не просили вовсе, и когда
+     * в `?sort=` пришло то, чего в списке разрешённых колонок нет.
+     *
      * @param  Builder<Product>  $query
      */
     private function applySort(Builder $query, ?string $sort): void
     {
-        $sort ??= 'name';
+        $sort ??= 'main_code';
         $descending = str_starts_with($sort, '-');
-        $column = self::SORTABLE[ltrim($sort, '-')] ?? 'name';
+        $column = self::SORTABLE[ltrim($sort, '-')] ?? 'main_code';
 
         $query->orderBy($column, $descending ? 'desc' : 'asc')->orderBy('id');
     }
