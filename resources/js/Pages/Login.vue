@@ -81,6 +81,8 @@ const form = useForm({ login: props.defaultLogin, password: '', portal: 'staff' 
 /** Empty fields are reported next to the field itself, not as a failed sign-in. */
 const blanks = ref({ login: false, password: false })
 
+const showPassword = ref(false)
+
 const failure = computed(() => (['invalid', 'blocked', 'wrong_portal'].includes(form.errors.login) ? form.errors.login : null))
 const errorTitle = computed(() => {
     if (failure.value === 'blocked') return t.value.blkTitle
@@ -196,16 +198,35 @@ const tapVersion = () => {
 
                 <div class="row">
                     <FieldLabel>{{ t.password }}</FieldLabel>
-                    <TextField
-                        v-model="form.password"
-                        type="password"
-                        name="password"
-                        autocomplete="current-password"
-                        :placeholder="t.passwordHint"
-                        :invalid="!! passwordError"
-                        style="letter-spacing: 0.14em"
-                        @keyup.enter="submit"
-                    />
+                    <div class="field-wrap">
+                        <TextField
+                            v-model="form.password"
+                            :type="showPassword ? 'text' : 'password'"
+                            name="password"
+                            autocomplete="current-password"
+                            :placeholder="t.passwordHint"
+                            :invalid="!! passwordError"
+                            style="letter-spacing: 0.14em; padding-right: 40px"
+                            @keyup.enter="submit"
+                        />
+                        <button
+                            type="button"
+                            class="field-eye"
+                            :aria-pressed="showPassword"
+                            :aria-label="showPassword ? 'Скрыть пароль' : 'Показать пароль'"
+                            @click="showPassword = ! showPassword"
+                        >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path v-if="! showPassword" d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
+                                <circle v-if="! showPassword" cx="12" cy="12" r="3" />
+                                <template v-else>
+                                    <path d="M3 3l18 18" />
+                                    <path d="M10.6 5.2A10.6 10.6 0 0 1 12 5c6.4 0 10 7 10 7a17.9 17.9 0 0 1-3.6 4.6M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7c1.3 0 2.5-.2 3.6-.6" />
+                                    <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+                                </template>
+                            </svg>
+                        </button>
+                    </div>
                     <p v-if="passwordError" class="error">{{ passwordError }}</p>
                 </div>
 
@@ -376,6 +397,36 @@ const tapVersion = () => {
 
 .row {
     margin-bottom: 16px;
+}
+
+.field-wrap {
+    position: relative;
+}
+
+.field-eye {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    transform: translateY(-50%);
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 0;
+    border-radius: 2px;
+    color: var(--ink-3);
+    cursor: pointer;
+}
+
+.field-eye:hover {
+    color: var(--ink);
+}
+
+.field-eye svg {
+    width: 18px;
+    height: 18px;
 }
 
 .error {
