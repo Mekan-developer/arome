@@ -62,6 +62,11 @@ class User extends Authenticatable
         return $this->role === UserRole::Superadmin;
     }
 
+    public function isSeller(): bool
+    {
+        return $this->role === UserRole::Seller;
+    }
+
     /**
      * Корневой администратор — учётка из ADMIN_LOGIN, с которой начинается установка.
      * Флаг не входит в Fillable: его ставит только сидер, из панели его не выдать.

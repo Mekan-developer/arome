@@ -8,6 +8,7 @@ use App\Http\Controllers\LessonController;
 use App\Http\Controllers\PointController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\RightsController;
+use App\Http\Controllers\SellerSearchController;
 use App\Http\Controllers\SuperadminController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -21,8 +22,25 @@ Route::middleware('guest')->group(function (): void {
 
 Route::post('logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
 
+/*
+ * Поиск товара и штрихкода — веб-версия мобильного приложения, периметр продавца.
+ * Панель ниже — периметр администратора и менеджера, они разведены серединой ролей.
+ */
+Route::middleware(['auth', 'seller-only'])->group(function (): void {
+    Route::get('search', [SellerSearchController::class, 'show'])->name('search.index');
+    Route::get('search/products', [SellerSearchController::class, 'products'])->name('search.products');
+    Route::get('search/barcode/{barcode}', [SellerSearchController::class, 'barcode'])
+        ->where('barcode', '[0-9]{6,13}')
+        ->name('search.barcode');
+});
+
 Route::middleware('auth')->group(function (): void {
-    Route::get('products', [ProductController::class, 'index'])->name('products.index');
+    /*
+     * Список карточек без фильтра — единственное действие каталога без своего Gate
+     * (правки и экспорт его уже проверяют), поэтому продавца сюда возвращает
+     * middleware, а не Policy.
+     */
+    Route::get('products', [ProductController::class, 'index'])->middleware('not-seller')->name('products.index');
     Route::get('products/export', [ProductController::class, 'export'])->name('products.export');
     Route::post('products', [ProductController::class, 'store'])->name('products.store');
     Route::put('products/{product}', [ProductController::class, 'update'])->name('products.update');
@@ -32,7 +50,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('products/barcode', [ProductController::class, 'barcode'])->name('products.barcode');
 
     Route::middleware('module:import')->group(function (): void {
-        Route::get('import', [ImportController::class, 'index'])->name('import.index');
+        Route::get('import', [ImportController::class, 'index'])->middleware('not-seller')->name('import.index');
         Route::post('import', [ImportController::class, 'store'])->name('import.store');
         Route::post('import/confirm', [ImportController::class, 'confirm'])->name('import.confirm');
         Route::get('import/template', [ImportController::class, 'template'])->name('import.template');
@@ -45,15 +63,19 @@ Route::middleware('auth')->group(function (): void {
     Route::patch('users/{user}/access', [UserController::class, 'toggleAccess'])->name('users.access');
     Route::put('users/{user}/password', [UserController::class, 'changePassword'])->name('users.password');
 
-    Route::get('rights', [RightsController::class, 'index'])->name('rights.index');
+    Route::get('rights', [RightsController::class, 'index'])->middleware('not-seller')->name('rights.index');
     Route::put('rights', [RightsController::class, 'update'])->name('rights.update');
 
+    /*
+     * База знаний открыта каждой роли — она нужна прежде всего продавцу, который в
+     * панели ничего не настраивает.
+     */
     Route::get('lessons', [LessonController::class, 'index'])->name('lessons.index');
     Route::get('lessons/{path}', [LessonController::class, 'show'])->where('path', '.*')->name('lessons.show');
 
-    Route::get('points', [PointController::class, 'index'])->middleware('module:points')->name('points.index');
-    Route::get('devices', [DeviceController::class, 'index'])->middleware('module:devices')->name('devices.index');
-    Route::get('audit', [AuditController::class, 'index'])->middleware('module:audit')->name('audit.index');
+    Route::get('points', [PointController::class, 'index'])->middleware(['module:points', 'not-seller'])->name('points.index');
+    Route::get('devices', [DeviceController::class, 'index'])->middleware(['module:devices', 'not-seller'])->name('devices.index');
+    Route::get('audit', [AuditController::class, 'index'])->middleware(['module:audit', 'not-seller'])->name('audit.index');
 
     Route::post('su/leave', [SuperadminController::class, 'leaveImpersonation'])->name('su.leave');
 });

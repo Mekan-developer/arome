@@ -44,7 +44,7 @@ class RightsService
     public const ROLES = [
         ['key' => 'admin', 'title' => 'Администратор', 'note' => 'Веб-панель: каталог, цены, импорт, доступы. Менять нельзя', 'editable' => false],
         ['key' => 'manager', 'title' => 'Менеджер', 'note' => 'Мобильное приложение, как у продавца, но с оптовой ценой', 'editable' => true],
-        ['key' => 'seller', 'title' => 'Продавец', 'note' => 'Только мобильное приложение — данные из этой панели по API', 'editable' => true],
+        ['key' => 'seller', 'title' => 'Продавец', 'note' => 'Мобильное приложение и веб-поиск — данные из этой панели по API', 'editable' => true],
     ];
 
     /**

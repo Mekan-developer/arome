@@ -220,6 +220,62 @@ class UserTest extends TestCase
     }
 
     /**
+     * Продавец, у которого уже открыта вкладка панели (роль сменили не выходя из
+     * системы), возвращается в свой поиск, а не выкидывается из системы: аккаунт
+     * валиден, просто не тот раздел.
+     */
+    public function test_a_seller_is_redirected_to_search_from_an_open_panel_session(): void
+    {
+        $seller = User::factory()->create(['role' => 'seller']);
+
+        $this->actingAs($seller)
+            ->get('/products')
+            ->assertRedirect('/search');
+    }
+
+    public function test_a_seller_cannot_log_into_the_staff_portal(): void
+    {
+        $seller = User::factory()->create([
+            'login' => 'gozel',
+            'role' => 'seller',
+            'password' => Hash::make('parol123'),
+            'last_login_at' => null,
+        ]);
+
+        $this->post('/login', ['login' => 'gozel', 'password' => 'parol123', 'portal' => 'staff'])
+            ->assertSessionHasErrors(['login' => 'wrong_portal']);
+
+        $this->assertGuest();
+        $this->assertNull($seller->fresh()->last_login_at);
+    }
+
+    public function test_a_seller_logs_into_the_seller_portal_and_lands_on_search(): void
+    {
+        $seller = User::factory()->create([
+            'login' => 'gozel',
+            'role' => 'seller',
+            'password' => Hash::make('parol123'),
+        ]);
+
+        $this->post('/login', ['login' => 'gozel', 'password' => 'parol123', 'portal' => 'seller'])
+            ->assertRedirect('/search');
+
+        $this->assertAuthenticatedAs($seller);
+        $this->assertNotNull($seller->fresh()->last_login_at);
+    }
+
+    public function test_an_admin_cannot_log_into_the_seller_portal(): void
+    {
+        $admin = $this->admin();
+        $admin->forceFill(['password' => Hash::make('parol123')])->save();
+
+        $this->post('/login', ['login' => $admin->login, 'password' => 'parol123', 'portal' => 'seller'])
+            ->assertSessionHasErrors(['login' => 'wrong_portal']);
+
+        $this->assertGuest();
+    }
+
+    /**
      * «Завершить активные сессии»: старый токен продавца перестаёт работать сразу, а его
      * устройство приходит за каталогом заново.
      */

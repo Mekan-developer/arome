@@ -123,12 +123,13 @@ class LessonTest extends TestCase
 
     /**
      * Раздел не спрятан ни за флагом модуля, ни за ролью: инструкция нужна прежде
-     * всего продавцу, который в панели ничего не настраивает.
+     * всего продавцу, который в панели ничего не настраивает и в неё не заходит —
+     * поэтому вкладка проверяется со страницы поиска, а не из панели.
      */
     public function test_the_tab_is_shown_to_every_role(): void
     {
         $this->actingAs($this->seller())
-            ->get('/products')
+            ->get('/search')
             ->assertInertia(fn ($page) => $page
                 ->where('sections.7.key', 'lessons')
                 ->where('sections.7.href', '/lessons')

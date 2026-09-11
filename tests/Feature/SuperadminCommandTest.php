@@ -86,7 +86,7 @@ class SuperadminCommandTest extends TestCase
         $this->configureCredentials();
         $this->artisan('aroma:superadmin')->assertSuccessful();
 
-        $this->post('/login', ['login' => 'chief', 'password' => 'oченьДлинныйПароль1'])
+        $this->post('/login', ['login' => 'chief', 'password' => 'oченьДлинныйПароль1', 'portal' => 'staff'])
             ->assertRedirect('/su');
 
         $this->get('/su')->assertOk();

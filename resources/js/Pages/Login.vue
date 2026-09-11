@@ -4,6 +4,7 @@ import { useForm, usePage } from '@inertiajs/vue3'
 import AuthLayout from '@/Layouts/AuthLayout.vue'
 import AppButton from '@/Components/AppButton.vue'
 import FieldLabel from '@/Components/FieldLabel.vue'
+import SegmentedTabs from '@/Components/SegmentedTabs.vue'
 import TextField from '@/Components/TextField.vue'
 
 const props = defineProps({
@@ -14,9 +15,16 @@ const page = usePage()
 
 const COPY = {
     ru: {
-        heroTitle: 'Каталог, остатки и права — в одном месте, за прилавком.',
-        heroSub: 'Панель для администратора магазина. Продавцы работают в мобильном приложении со сканером — сюда они не заходят.',
-        panel: 'Панель управления',
+        tabs: { staff: 'Админ и менеджер', seller: 'Продавец' },
+        heroTitle: {
+            staff: 'Каталог, остатки и права — в одном месте, за прилавком.',
+            seller: 'Товар и штрихкод — под рукой, прямо из браузера.',
+        },
+        heroSub: {
+            staff: 'Панель для администратора и менеджера магазина: прайс, остатки, права доступа.',
+            seller: 'Поиск по названию и штрихкоду — веб-версия мобильного приложения продавца.',
+        },
+        panel: { staff: 'Панель управления', seller: 'Поиск товара' },
         signin: 'Вход в систему',
         login: 'Логин',
         loginHint: 'mekan.developer@gmail.com',
@@ -30,11 +38,20 @@ const COPY = {
         errText: 'Проверьте раскладку клавиатуры. После пяти неудачных попыток вход блокируется на 15 минут.',
         blkTitle: 'Учётная запись заблокирована',
         blkText: 'Доступ закрыт администратором 24.07.2026. Обратитесь к администратору сети.',
+        wrongPortalTitle: 'Не та вкладка входа',
+        wrongPortalText: 'Этот логин принадлежит другой роли. Переключите вкладку выше и попробуйте снова.',
     },
     tm: {
-        heroTitle: 'Katalog, galyndylar we hukuklar — bir ýerde, satuw nokadynyň arkasynda.',
-        heroSub: 'Dükan administratory üçin dolandyryş paneli. Satyjylar skaner bilen ykjam goşundyda işleýärler — bu ýere girmeýärler.',
-        panel: 'Dolandyryş paneli',
+        tabs: { staff: 'Admin we dolandyryjy', seller: 'Satyjy' },
+        heroTitle: {
+            staff: 'Katalog, galyndylar we hukuklar — bir ýerde, satuw nokadynyň arkasynda.',
+            seller: 'Haryt we ştrih-kod — elýeterde, göni brauzerden.',
+        },
+        heroSub: {
+            staff: 'Dükan administratory we dolandyryjysy üçin panel: baha sanawy, galyndylar, hukuklar.',
+            seller: 'At we ştrih-kod boýunça gözleg — satyjynyň ykjam goşundysynyň web-nusgasy.',
+        },
+        panel: { staff: 'Dolandyryş paneli', seller: 'Haryt gözlegi' },
         signin: 'Ulgama girmek',
         login: 'Ulanyjy ady',
         loginHint: 'mekan.developer@gmail.com',
@@ -48,6 +65,8 @@ const COPY = {
         errText: 'Klawiatura düzülişini barlaň. Bäş şowsuz synanyşykdan soň giriş 15 minutlyk petiklenýär.',
         blkTitle: 'Hasap petiklendi',
         blkText: 'Girişi administrator 24.07.2026-da ýapdy. Ulgamyň administratoryna ýüz tutuň.',
+        wrongPortalTitle: 'Giriş tabы nädogry',
+        wrongPortalText: 'Bu ulanyjy ady başga rola degişli. Ýokardaky taby çalşyň we gaýtadan synanyň.',
     },
 }
 
@@ -57,20 +76,31 @@ const lang = ref('ru')
 const t = computed(() => COPY[lang.value])
 const showPoints = computed(() => page.props.modules?.points ?? false)
 
-const form = useForm({ login: props.defaultLogin, password: '' })
+const form = useForm({ login: props.defaultLogin, password: '', portal: 'staff' })
 
 /** Empty fields are reported next to the field itself, not as a failed sign-in. */
 const blanks = ref({ login: false, password: false })
 
-const failure = computed(() => (['invalid', 'blocked'].includes(form.errors.login) ? form.errors.login : null))
-const errorTitle = computed(() => (failure.value === 'blocked' ? t.value.blkTitle : t.value.errTitle))
-const errorText = computed(() => (failure.value === 'blocked' ? t.value.blkText : t.value.errText))
+const failure = computed(() => (['invalid', 'blocked', 'wrong_portal'].includes(form.errors.login) ? form.errors.login : null))
+const errorTitle = computed(() => {
+    if (failure.value === 'blocked') return t.value.blkTitle
+    if (failure.value === 'wrong_portal') return t.value.wrongPortalTitle
+
+    return t.value.errTitle
+})
+const errorText = computed(() => {
+    if (failure.value === 'blocked') return t.value.blkText
+    if (failure.value === 'wrong_portal') return t.value.wrongPortalText
+
+    return t.value.errText
+})
 
 const loginError = computed(() => (blanks.value.login || (form.errors.login && ! failure.value) ? t.value.needLogin : null))
 const passwordError = computed(() => (blanks.value.password || form.errors.password ? t.value.needPassword : null))
 
 watch(() => form.login, () => (blanks.value.login = false))
 watch(() => form.password, () => (blanks.value.password = false))
+watch(() => form.portal, () => form.clearErrors())
 
 const submit = () => {
     blanks.value = { login: form.login.trim() === '', password: form.password === '' }
@@ -111,8 +141,8 @@ const tapVersion = () => {
 
         <div class="hero">
             <div class="hero__rule" />
-            <h1 class="hero__title">{{ t.heroTitle }}</h1>
-            <p class="hero__sub">{{ t.heroSub }}</p>
+            <h1 class="hero__title">{{ t.heroTitle[form.portal] }}</h1>
+            <p class="hero__sub">{{ t.heroSub[form.portal] }}</p>
         </div>
 
         <div class="facts">
@@ -130,7 +160,17 @@ const tapVersion = () => {
 
         <div class="middle">
             <form class="card" @submit.prevent="submit">
-                <div class="card__kicker">{{ t.panel }}</div>
+                <SegmentedTabs
+                    v-model="form.portal"
+                    stretch
+                    class="card__portal"
+                    :options="[
+                        { value: 'staff', label: t.tabs.staff },
+                        { value: 'seller', label: t.tabs.seller },
+                    ]"
+                />
+
+                <div class="card__kicker">{{ t.panel[form.portal] }}</div>
                 <h2 class="card__title">{{ t.signin }}</h2>
 
                 <div v-if="failure" class="alert">
@@ -282,6 +322,10 @@ const tapVersion = () => {
     outline: 1px solid var(--rule-soft);
     outline-offset: 5px;
     background: var(--sheet);
+}
+
+.card__portal {
+    margin-bottom: 20px;
 }
 
 .card__kicker {
