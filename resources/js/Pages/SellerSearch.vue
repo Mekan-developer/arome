@@ -87,37 +87,54 @@ const onDetected = async (barcode) => {
 
 <template>
     <div class="shell">
-        <header class="top">
-            <div class="top__brand">
-                <img src="/img/arome-logo.png" alt="ARÔME" class="top__logo" />
-                <span class="top__kicker">ПОИСК ТОВАРА</span>
+        <div class="toolbar">
+            <header class="top">
+                <div class="top__brand">
+                    <img src="/img/arome-logo.png" alt="ARÔME" class="top__logo" />
+                    <span class="top__kicker">ПОИСК ТОВАРА</span>
+                </div>
+
+                <div class="top__spacer" />
+
+                <div class="top__user">
+                    <span class="top__initials">{{ user.initials }}</span>
+                    <span class="top__name">{{ user.shortName }}</span>
+                </div>
+
+                <Link href="/logout" method="post" as="button" class="top__exit">Выход</Link>
+            </header>
+
+            <div class="searchbar-wrap">
+                <div class="searchbar">
+                    <input
+                        v-model="query"
+                        type="search"
+                        class="searchbar__input"
+                        placeholder="Название, артикул, код или штрихкод"
+                        aria-label="Поиск товара"
+                        autofocus
+                    />
+                    <button type="button" class="searchbar__scan" @click="scanning = true">
+                        <svg
+                            class="searchbar__scan-icon"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            aria-hidden="true"
+                        >
+                            <path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
+                            <circle cx="12" cy="13" r="3.2" />
+                        </svg>
+                        Сканировать
+                    </button>
+                </div>
             </div>
-
-            <div class="top__spacer" />
-
-            <div class="top__user">
-                <span class="top__initials">{{ user.initials }}</span>
-                <span class="top__name">{{ user.shortName }}</span>
-            </div>
-
-            <Link href="/logout" method="post" as="button" class="top__exit">Выход</Link>
-        </header>
+        </div>
 
         <main class="body">
-            <div class="searchbar">
-                <input
-                    v-model="query"
-                    type="search"
-                    class="searchbar__input"
-                    placeholder="Название, артикул, код или штрихкод"
-                    aria-label="Поиск товара"
-                    autofocus
-                />
-                <button type="button" class="searchbar__scan" @click="scanning = true">
-                    <span aria-hidden="true">▤</span> Сканировать
-                </button>
-            </div>
-
             <div v-if="scanLoading" class="notice">Ищем товар…</div>
 
             <div v-if="scanNotFound" class="notice notice--warn">
@@ -164,8 +181,14 @@ const onDetected = async (barcode) => {
     font-size: 14px;
 }
 
-.top {
+.toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
     flex: none;
+}
+
+.top {
     background: var(--ink);
     color: var(--ink-inv);
     height: 56px;
@@ -248,12 +271,20 @@ const onDetected = async (barcode) => {
     max-width: 720px;
     width: 100%;
     margin: 0 auto;
-    padding: 24px 20px 60px;
+    padding: 16px 20px 60px;
+}
+
+.searchbar-wrap {
+    background: var(--paper);
+    border-bottom: 1px solid var(--rule);
+    padding: 14px 20px;
 }
 
 .searchbar {
     display: flex;
     gap: 10px;
+    max-width: 720px;
+    margin: 0 auto;
 }
 
 .searchbar__input {
@@ -281,6 +312,12 @@ const onDetected = async (barcode) => {
 
 .searchbar__scan:hover {
     background: var(--brass-dark);
+}
+
+.searchbar__scan-icon {
+    width: 17px;
+    height: 17px;
+    flex: none;
 }
 
 .hint {
@@ -376,7 +413,11 @@ const onDetected = async (barcode) => {
     }
 
     .body {
-        padding: 18px 14px 48px;
+        padding: 14px 14px 48px;
+    }
+
+    .searchbar-wrap {
+        padding: 12px 14px;
     }
 
     .searchbar {

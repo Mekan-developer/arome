@@ -1,7 +1,6 @@
 <script setup>
 import { computed } from 'vue'
 import PriceCell from '@/Components/PriceCell.vue'
-import StatusTag from '@/Components/StatusTag.vue'
 import { formatInt } from '@/Composables/useFormat.js'
 
 const props = defineProps({
@@ -13,9 +12,11 @@ const props = defineProps({
 const toAmount = (money) => (money ? money.amount / 100 : null)
 
 const retail = computed(() => toAmount(props.product.retail))
-const final = computed(() => toAmount(props.product.final))
 const wholesale = computed(() => toAmount(props.product.wholesale))
 const discountPercent = computed(() => Math.round((props.product.discount ?? 0) * 100))
+
+/** Без процента скидочная цена не показывается — доверять ей не на что: он и есть скидка. */
+const final = computed(() => (discountPercent.value > 0 ? toAmount(props.product.final) : null))
 </script>
 
 <template>
@@ -37,15 +38,16 @@ const discountPercent = computed(() => Math.round((props.product.discount ?? 0) 
         </div>
 
         <div class="row__side">
-            <StatusTag v-if="product.status" :status="product.status" />
-
             <div v-if="retail !== null" class="row__prices">
                 <PriceCell variant="retail" :price="retail" :final="final" />
                 <PriceCell v-if="final !== null" variant="final" :price="retail" :final="final" />
+                <span class="row__currency">{{ product.retail.currency }}</span>
                 <span v-if="discountPercent > 0" class="row__discount">−{{ discountPercent }}%</span>
             </div>
 
-            <div v-if="wholesale !== null" class="row__wholesale">Опт: {{ formatInt(wholesale) }} TMT</div>
+            <div v-if="wholesale !== null" class="row__wholesale">
+                Опт: {{ formatInt(wholesale) }} {{ product.wholesale.currency }}
+            </div>
         </div>
     </article>
 </template>
@@ -104,6 +106,12 @@ const discountPercent = computed(() => Math.round((props.product.discount ?? 0) 
     justify-content: flex-end;
     gap: 8px;
     margin-top: 6px;
+}
+
+.row__currency {
+    font-family: var(--f-data);
+    font-size: 10.5px;
+    color: var(--ink-3);
 }
 
 .row__discount {
