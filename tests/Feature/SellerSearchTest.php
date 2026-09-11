@@ -85,4 +85,30 @@ class SellerSearchTest extends TestCase
             ->getJson('/search/products?q=xx')
             ->assertRedirect('/products');
     }
+
+    public function test_a_manager_reaches_the_search_page(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'manager']))
+            ->get('/search')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('SellerSearch'));
+    }
+
+    /**
+     * Единственное, чем поиск менеджера отличается от поиска продавца, — оптовая цена.
+     */
+    public function test_only_the_manager_sees_the_wholesale_price(): void
+    {
+        Product::factory()->create(['name' => 'LATTAFA KHAMRAH EDP 100ML', 'wholesale_price' => 920]);
+
+        $this->actingAs(User::factory()->create(['role' => 'manager']))
+            ->getJson('/search/products?q=KHAMRAH')
+            ->assertOk()
+            ->assertJsonPath('data.0.wholesale', ['amount' => 92000, 'currency' => 'TMT']);
+
+        $this->actingAs($this->seller())
+            ->getJson('/search/products?q=KHAMRAH')
+            ->assertOk()
+            ->assertJsonMissingPath('data.0.wholesale');
+    }
 }

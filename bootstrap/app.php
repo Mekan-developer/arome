@@ -2,7 +2,7 @@
 
 use App\Http\Middleware\EnsureModuleEnabled;
 use App\Http\Middleware\EnsureNotSeller;
-use App\Http\Middleware\EnsureSeller;
+use App\Http\Middleware\EnsureSellerPortal;
 use App\Http\Middleware\EnsureSuperadmin;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -40,7 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'module' => EnsureModuleEnabled::class,
             'superadmin' => EnsureSuperadmin::class,
             'not-seller' => EnsureNotSeller::class,
-            'seller-only' => EnsureSeller::class,
+            'seller-portal' => EnsureSellerPortal::class,
         ]);
 
         $middleware->trustProxies(

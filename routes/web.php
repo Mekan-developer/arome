@@ -23,10 +23,10 @@ Route::middleware('guest')->group(function (): void {
 Route::post('logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
 
 /*
- * Поиск товара и штрихкода — веб-версия мобильного приложения, периметр продавца.
- * Панель ниже — периметр администратора и менеджера, они разведены серединой ролей.
+ * Поиск товара и штрихкода — веб-версия мобильного приложения, периметр продавца и
+ * менеджера. Панель ниже — периметр администратора и менеджера: менеджер ходит в оба.
  */
-Route::middleware(['auth', 'seller-only'])->group(function (): void {
+Route::middleware(['auth', 'seller-portal'])->group(function (): void {
     Route::get('search', [SellerSearchController::class, 'show'])->name('search.index');
     Route::get('search/products', [SellerSearchController::class, 'products'])->name('search.products');
     Route::get('search/barcode/{barcode}', [SellerSearchController::class, 'barcode'])

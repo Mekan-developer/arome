@@ -68,6 +68,15 @@ class User extends Authenticatable
     }
 
     /**
+     * Кто работает в поиске товара: продавец и менеджер. Менеджеру открыта ещё и панель,
+     * а от продавца его отличает оптовая цена — её решает матрица прав, не этот метод.
+     */
+    public function usesSellerPortal(): bool
+    {
+        return in_array($this->role, [UserRole::Seller, UserRole::Manager], true);
+    }
+
+    /**
      * Корневой администратор — учётка из ADMIN_LOGIN, с которой начинается установка.
      * Флаг не входит в Fillable: его ставит только сидер, из панели его не выдать.
      */

@@ -28,9 +28,9 @@ class AuthController extends Controller
 
     /**
      * There is no self-registration: the account is issued by the network administrator.
-     * The login page has two tabs — «staff» (admin/manager) and «seller» — and a login
-     * that belongs to the other tab is refused, same as a blocked account, before the
-     * password is even checked: it is not a way to browse for logins by role either,
+     * The login page has two tabs — «staff» (admin/manager) and «seller» (seller/manager)
+     * — and a login that belongs to neither is refused, same as a blocked account, before
+     * the password is even checked: it is not a way to browse for logins by role either,
      * since which tab is «wrong» is exactly what the visitor just picked themselves.
      */
     public function login(LoginRequest $request): RedirectResponse
@@ -59,19 +59,22 @@ class AuthController extends Controller
 
         $this->audit->record($this->actor(), 'Вход в систему', '—', null, null, 'auth');
 
-        return redirect($this->redirectPath($user));
+        return redirect($this->redirectPath($user, $portal));
     }
 
     private function matchesPortal(User $user, string $portal): bool
     {
-        return $portal === 'seller' ? $user->isSeller() : ! $user->isSeller();
+        return $portal === 'seller' ? $user->usesSellerPortal() : ! $user->isSeller();
     }
 
-    private function redirectPath(User $user): string
+    /**
+     * Менеджеру открыты обе вкладки, поэтому куда вести — решает вкладка, а не роль.
+     */
+    private function redirectPath(User $user, string $portal): string
     {
         return match (true) {
+            $portal === 'seller' => '/search',
             $user->isSuperadmin() => '/su',
-            $user->isSeller() => '/search',
             default => '/products',
         };
     }

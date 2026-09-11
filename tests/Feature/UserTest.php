@@ -276,6 +276,28 @@ class UserTest extends TestCase
     }
 
     /**
+     * Менеджеру открыты обе вкладки: куда он попадёт, решает вкладка, а не роль.
+     */
+    public function test_a_manager_logs_into_either_portal(): void
+    {
+        $manager = User::factory()->create([
+            'login' => 'menejer',
+            'role' => 'manager',
+            'password' => Hash::make('parol123'),
+        ]);
+
+        $this->post('/login', ['login' => 'menejer', 'password' => 'parol123', 'portal' => 'seller'])
+            ->assertRedirect('/search');
+        $this->assertAuthenticatedAs($manager);
+
+        $this->post('/logout');
+
+        $this->post('/login', ['login' => 'menejer', 'password' => 'parol123', 'portal' => 'staff'])
+            ->assertRedirect('/products');
+        $this->assertAuthenticatedAs($manager);
+    }
+
+    /**
      * «Завершить активные сессии»: старый токен продавца перестаёт работать сразу, а его
      * устройство приходит за каталогом заново.
      */
