@@ -1,22 +1,19 @@
 <script setup>
 import { computed } from 'vue'
 import PriceCell from '@/Components/PriceCell.vue'
-import { formatInt } from '@/Composables/useFormat.js'
+import { CURRENCY, formatInt } from '@/Composables/useFormat.js'
 
 const props = defineProps({
     product: { type: Object, required: true },
     pointName: { type: Function, required: true },
 })
 
-/** Сервер шлёт деньги целыми копейками — здесь их обратно переводят в цену. */
-const toAmount = (money) => (money ? money.amount / 100 : null)
+const asPrice = (value) => (value === null || value === undefined ? null : Number(value))
 
-const retail = computed(() => toAmount(props.product.retail))
-const wholesale = computed(() => toAmount(props.product.wholesale))
+const retail = computed(() => asPrice(props.product.retail))
+const wholesale = computed(() => asPrice(props.product.wholesale))
 const discountPercent = computed(() => Math.round((props.product.discount ?? 0) * 100))
-
-/** Без процента скидочная цена не показывается — доверять ей не на что: он и есть скидка. */
-const final = computed(() => (discountPercent.value > 0 ? toAmount(props.product.final) : null))
+const final = computed(() => (discountPercent.value > 0 ? asPrice(props.product.final) : null))
 </script>
 
 <template>
@@ -41,12 +38,12 @@ const final = computed(() => (discountPercent.value > 0 ? toAmount(props.product
             <div v-if="retail !== null" class="row__prices">
                 <PriceCell variant="retail" :price="retail" :final="final" />
                 <PriceCell v-if="final !== null" variant="final" :price="retail" :final="final" />
-                <span class="row__currency">{{ product.retail.currency }}</span>
+                <span class="row__currency">{{ CURRENCY }}</span>
                 <span v-if="discountPercent > 0" class="row__discount">−{{ discountPercent }}%</span>
             </div>
 
             <div v-if="wholesale !== null" class="row__wholesale">
-                Опт: {{ formatInt(wholesale) }} {{ product.wholesale.currency }}
+                Опт: {{ formatInt(wholesale) }} {{ CURRENCY }}
             </div>
         </div>
     </article>

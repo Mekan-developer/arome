@@ -14,7 +14,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Строка каталога, какой её получает приложение.
  *
  * Закрытое роли поле не обнуляется — ключа в ответе нет вовсе, поэтому его нельзя
- * достать, перехватив трафик.
+ * достать, перехватив трафик. Цены — целые манаты (как в прайсе и панели), валюта
+ * всегда TMT и в каждую строку не дублируется. Статус не отдаётся: в каталог API
+ * попадают только активные товары.
  *
  * @mixin Product
  */
@@ -62,7 +64,6 @@ class ProductResource extends JsonResource
             $payload['retail'] = $this->money((float) $this->price);
         }
 
-        /* Оптовую цену видит менеджер. У товара её может не быть — тогда ключ не приходит. */
         if ($this->access->sees('wholesale') && $this->wholesale_price !== null) {
             $payload['wholesale'] = $this->money((float) $this->wholesale_price);
         }
@@ -72,11 +73,6 @@ class ProductResource extends JsonResource
             $payload['final'] = $this->money($this->finalPrice());
         }
 
-        /*
-         * Остаток спрашивается у прав целиком (`withStock`), а не по одному ключу
-         * матрицы: пока остатки не разбиты по точкам, «остаток по точкам» — это не
-         * пустой список, а отсутствующая величина, и ключа в ответе быть не должно.
-         */
         if ($this->access->withStock) {
             $payload['stock'] = $this->whenLoaded('stocks', fn (): array => $this->stocks
                 ->map(fn (ProductStock $stock): array => [
@@ -84,8 +80,6 @@ class ProductResource extends JsonResource
                     'qty' => $stock->qty,
                 ])->values()->all(), []);
         }
-
-        $payload['status'] = $this->status;
 
         return $payload;
     }
@@ -99,12 +93,10 @@ class ProductResource extends JsonResource
     }
 
     /**
-     * Деньги уходят целыми копейками: `float` на телефоне однажды покажет 1415.8799.
-     *
-     * @return array{amount: int, currency: string}
+     * Целое число манат — как после импорта прайса. Копейки и код валюты в v2 не едут.
      */
-    private function money(float $amount): array
+    private function money(float $amount): int
     {
-        return ['amount' => (int) round($amount * 100), 'currency' => 'TMT'];
+        return (int) round($amount);
     }
 }

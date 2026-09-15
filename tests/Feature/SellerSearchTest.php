@@ -128,7 +128,7 @@ class SellerSearchTest extends TestCase
         $this->actingAs(User::factory()->create(['role' => 'representative']))
             ->getJson('/search/products?q=KHAMRAH')
             ->assertOk()
-            ->assertJsonPath('data.0.wholesale', ['amount' => 92000, 'currency' => 'TMT'])
+            ->assertJsonPath('data.0.wholesale', 920)
             ->assertJsonMissingPath('data.0.retail');
 
         $this->actingAs(User::factory()->create(['role' => 'manager']))

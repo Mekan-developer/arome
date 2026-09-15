@@ -42,7 +42,8 @@ class ProductApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.name', 'LATTAFA KHAMRAH EDP 100ML')
             ->assertJsonPath('data.barcode', '8011003993802')
-            ->assertJsonStructure(['data' => ['id', 'status'], 'meta' => ['server_time']]);
+            ->assertJsonStructure(['data' => ['id', 'name', 'barcode'], 'meta' => ['server_time']])
+            ->assertJsonMissingPath('data.status');
     }
 
     public function test_the_list_does_not_carry_hidden_products(): void
@@ -392,11 +393,28 @@ class ProductApiTest extends TestCase
         $rep = User::factory()->create(['role' => 'representative']);
 
         $forRep = $this->asDevice($rep)->getJson('/api/v2/products')->assertOk()->json('data.0');
-        $this->assertSame(92000, $forRep['wholesale']['amount']);
+        $this->assertSame(920, $forRep['wholesale']);
         $this->assertArrayNotHasKey('retail', $forRep);
 
         $this->forgetAuthenticatedUser();
         $forSeller = $this->asDevice($this->seller())->getJson('/api/v2/products')->assertOk()->json('data.0');
         $this->assertArrayNotHasKey('wholesale', $forSeller);
+    }
+
+    /**
+     * В v2 цены — целые манаты, без объекта {amount, currency} и без статуса.
+     */
+    public function test_money_is_an_integer_in_manats_and_status_is_omitted(): void
+    {
+        Product::factory()->create(['price' => 1415.88, 'discount' => 0.5]);
+        Cache::flush();
+
+        $row = $this->asDevice($this->seller())->getJson('/api/v2/products')->assertOk()->json('data.0');
+
+        $this->assertSame(1416, $row['retail']);
+        $this->assertSame(708, $row['final']);
+        $this->assertArrayNotHasKey('status', $row);
+        $this->assertIsInt($row['retail']);
+        $this->assertIsInt($row['final']);
     }
 }

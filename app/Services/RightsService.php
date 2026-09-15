@@ -25,9 +25,9 @@ class RightsService
         ['key' => 'sku', 'title' => 'Артикул', 'sample' => '510028'],
         ['key' => 'barcode', 'title' => 'Штрихкод', 'sample' => '8011003993802'],
         ['key' => 'stock', 'title' => 'Остаток', 'sample' => 'БРК 12 · ГЛС 4 · М30 0'],
-        ['key' => 'retail', 'title' => 'Розничная цена', 'sample' => '1 415,88 TMT'],
-        ['key' => 'wholesale', 'title' => 'Оптовая цена', 'sample' => '920,00 TMT'],
-        ['key' => 'discount', 'title' => 'Скидка и цена со скидкой', 'sample' => '50 % · 757,62 TMT'],
+        ['key' => 'retail', 'title' => 'Розничная цена', 'sample' => '1 416 TMT'],
+        ['key' => 'wholesale', 'title' => 'Оптовая цена', 'sample' => '920 TMT'],
+        ['key' => 'discount', 'title' => 'Скидка и цена со скидкой', 'sample' => '50 % · 708 TMT'],
     ];
 
     /**
