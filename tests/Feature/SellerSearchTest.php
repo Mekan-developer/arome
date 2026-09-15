@@ -119,7 +119,7 @@ class SellerSearchTest extends TestCase
     }
 
     /**
-     * Опт по умолчанию — у торгового представителя; менеджер и продавец его не видят.
+     * Опт по умолчанию — у торгового представителя и у менеджера; у продавца ключа нет.
      */
     public function test_only_the_representative_sees_the_wholesale_price_by_default(): void
     {
@@ -131,10 +131,14 @@ class SellerSearchTest extends TestCase
             ->assertJsonPath('data.0.wholesale', 920)
             ->assertJsonMissingPath('data.0.retail');
 
-        $this->actingAs(User::factory()->create(['role' => 'manager']))
+        $managerRow = $this->actingAs(User::factory()->create(['role' => 'manager']))
             ->getJson('/search/products?q=KHAMRAH')
             ->assertOk()
-            ->assertJsonMissingPath('data.0.wholesale');
+            ->json('data.0');
+
+        $this->assertSame(920, $managerRow['wholesale']);
+        $this->assertArrayHasKey('retail', $managerRow);
+        $this->assertIsInt($managerRow['retail']);
 
         $this->actingAs($this->seller())
             ->getJson('/search/products?q=KHAMRAH')
