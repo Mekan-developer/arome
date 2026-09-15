@@ -130,6 +130,30 @@ class TokenApiTest extends TestCase
     }
 
     /**
+     * Блокировка рвёт уже выданный токен: следующий запрос в каталог — 403, не данные.
+     */
+    public function test_blocking_revokes_an_open_api_session(): void
+    {
+        $user = $this->seller();
+
+        $token = $this->postJson('/api/v2/tokens', [
+            'login' => 'gozel',
+            'password' => 'arome2026',
+            'device' => 'Redmi 12',
+        ])->json('data.token');
+
+        $user->update(['is_active' => false]);
+
+        $this->forgetAuthenticatedUser();
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/v2/products')
+            ->assertForbidden()
+            ->assertJsonPath('error.code', 'account_blocked');
+
+        $this->assertSame(0, $user->tokens()->count());
+    }
+
+    /**
      * Один токен на устройство: повторный вход с того же телефона заменяет старый,
      * а не плодит их.
      */

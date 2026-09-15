@@ -22,12 +22,11 @@ class RightsController extends Controller
             'fields' => RightsService::panelFields(),
             'roles' => RightsService::ROLES,
             'matrix' => $this->rights->matrix(),
-            'savedAt' => '24.07.2026, Айнур Д.',
         ]);
     }
 
     /**
-     * Only the seller and manager rows are writable — the administrator role is immutable.
+     * Строки продавца, менеджера и представителя правятся; администратор неизменяем.
      */
     public function update(UpdateRightsRequest $request): RedirectResponse
     {

@@ -20,9 +20,9 @@ class PasswordTest extends TestCase
     {
         for ($i = 0; $i < 50; $i++) {
             $this->assertMatchesRegularExpression(
-                '/^[a-z]{4}-[a-z]{4}-\d{3}$/',
+                '/^[a-z]{10}\d{4}$/',
                 $this->passwords->generate(),
-                'Expected the слог+слог-слог+слог-NNN shape, e.g. sani-tule-482.',
+                'Expected five syllables and four digits, e.g. sanitulebako4821.',
             );
         }
     }
@@ -53,8 +53,8 @@ class PasswordTest extends TestCase
             'no digit' => ['abcdefgh', false],
             'no letter' => ['12345678', false],
             'has a space' => ['abcd 1234', false],
-            'all three rules pass' => ['sanitule482', true],
-            'generated shape' => ['sani-tule-482', true],
+            'all three rules pass' => ['sanitulebako4821', true],
+            'generated shape' => ['sanitulebako4821', true],
         ];
     }
 

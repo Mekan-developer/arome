@@ -54,4 +54,13 @@ class AdminSeederTest extends TestCase
 
         $this->assertSame(0, User::count());
     }
+
+    public function test_it_stops_short_when_the_password_is_too_short(): void
+    {
+        config(['aroma.admin' => ['login' => 'admin', 'password' => 'short', 'name' => 'Администратор']]);
+
+        $this->seed(AdminSeeder::class);
+
+        $this->assertSame(0, User::count());
+    }
 }

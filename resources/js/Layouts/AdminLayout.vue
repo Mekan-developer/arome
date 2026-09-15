@@ -1,57 +1,13 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { Link, router, usePage } from '@inertiajs/vue3'
+import { computed } from 'vue'
+import { Link, usePage } from '@inertiajs/vue3'
 
 const page = usePage()
-
-/** Seeded from the URL so the field still shows the query after a reload or a back. */
-const search = ref(page.props.filters?.q ?? '')
-
-watch(
-    () => page.props.filters?.q,
-    (value) => {
-        if ((value ?? '') !== search.value) {
-            search.value = value ?? ''
-        }
-    },
-)
 
 const user = computed(() => page.props.auth?.user ?? {})
 const sections = computed(() => page.props.sections?.filter((section) => section.visible) ?? [])
 const enabledCount = computed(() => Object.values(page.props.modules ?? {}).filter(Boolean).length)
 const current = computed(() => new URL(page.url, 'http://x').pathname)
-
-/**
- * Search runs on the server; the field only debounces what the operator types. The
- * other filters ride along, otherwise typing in the header would silently widen a
- * list the operator had narrowed down.
- */
-let timer = null
-const runSearch = () => {
-    clearTimeout(timer)
-    timer = setTimeout(() => {
-        router.get(
-            '/products',
-            { ...(page.props.filters ?? {}), q: search.value, page: 1 },
-            { preserveState: true, preserveScroll: true, replace: true },
-        )
-    }, 300)
-}
-
-/** ⌘K / Ctrl+K focuses the search — the hint is written in the field itself. */
-const searchField = ref(null)
-const onKey = (event) => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault()
-        searchField.value?.focus()
-    }
-}
-
-onMounted(() => document.addEventListener('keydown', onKey))
-onBeforeUnmount(() => {
-    document.removeEventListener('keydown', onKey)
-    clearTimeout(timer)
-})
 </script>
 
 <template>
@@ -67,19 +23,6 @@ onBeforeUnmount(() => {
             <div class="top__brand">
                 <img src="/img/arome-logo.png" alt="ARÔME" class="top__logo" />
                 <span class="top__kicker">КАТАЛОГ</span>
-            </div>
-
-            <div class="top__search">
-                <span class="top__scanner" aria-hidden="true">‖|‖</span>
-                <input
-                    ref="searchField"
-                    v-model="search"
-                    class="top__input"
-                    type="search"
-                    placeholder="Штрихкод, артикул или название"
-                    aria-label="Поиск по каталогу"
-                    @input="runSearch"
-                />
             </div>
 
             <div class="top__spacer" />
@@ -124,7 +67,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .shell {
     height: 100vh;
-    /* dvh — иначе на iOS нижний край панели уезжает под адресную строку Safari. */
     height: 100dvh;
     overflow: hidden;
     display: flex;
@@ -196,39 +138,6 @@ onBeforeUnmount(() => {
     font-size: 9.5px;
     letter-spacing: 0.14em;
     color: var(--brass);
-}
-
-.top__search {
-    flex: 1;
-    max-width: 520px;
-    position: relative;
-}
-
-.top__scanner {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-family: var(--f-data);
-    font-size: 11px;
-    color: var(--brass);
-    pointer-events: none;
-}
-
-.top__input {
-    width: 100%;
-    padding: 9px 12px 9px 34px;
-    background: var(--dark-field);
-    border: 1px solid var(--dark-rule);
-    border-radius: 2px;
-    color: var(--ink-inv);
-    font-size: 13px;
-    -webkit-appearance: none;
-    appearance: none;
-}
-
-.top__input::placeholder {
-    color: var(--dark-ink-3);
 }
 
 .top__spacer {
@@ -342,17 +251,11 @@ onBeforeUnmount(() => {
     overflow: hidden;
 }
 
-/*
- * Телефон. Шапка разворачивается в две строки: сверху марка и учётная запись, снизу
- * во всю ширину поле сканера — оно здесь главное, за прилавком в него бьют штрихкод.
- * Часы, подпись роли и кикер «КАТАЛОГ» уходят: на 390px их место дороже их пользы.
- */
 @media (max-width: 767px) {
     .top {
         height: auto;
         min-height: 52px;
         padding: 8px max(14px, env(safe-area-inset-right)) 10px max(14px, env(safe-area-inset-left));
-        flex-wrap: wrap;
         gap: 10px;
     }
 
@@ -365,12 +268,6 @@ onBeforeUnmount(() => {
     .top__clock,
     .top__role {
         display: none;
-    }
-
-    .top__search {
-        order: 1;
-        flex-basis: 100%;
-        max-width: none;
     }
 
     .top__user {
@@ -395,7 +292,6 @@ onBeforeUnmount(() => {
         gap: 8px;
     }
 
-    /* Разделов больше, чем влезает в строку: полоса скроллится пальцем, без полосы прокрутки. */
     .tabs {
         height: auto;
         padding: 0 max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));

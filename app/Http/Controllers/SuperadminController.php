@@ -10,26 +10,6 @@ use Inertia\Response;
 
 class SuperadminController extends Controller
 {
-    /**
-     * The service journal always starts from this entry.
-     */
-    private const JOURNAL_SEED = [
-        'time' => '28.07.2026 · 09:41',
-        'text' => 'Модули «Точки продаж», «Склады» и «Остатки товара по точкам» выключены по заявке заказчика. Данные сохранены.',
-    ];
-
-    /**
-     * What stays in the database while a module is off.
-     *
-     * @var list<array{title: string, value: string}>
-     */
-    private const KEPT_DATA = [
-        ['title' => 'Точки и склады', 'value' => '4 записи'],
-        ['title' => 'Остатки по точкам', 'value' => '12 480 строк'],
-        ['title' => 'Привязки сотрудников', 'value' => '9 связей'],
-        ['title' => 'История перемещений', 'value' => '1 204 документа'],
-    ];
-
     public function __construct(private readonly ModuleService $modules) {}
 
     public function index(Request $request): Response
@@ -37,13 +17,12 @@ class SuperadminController extends Controller
         return Inertia::render('Su/Index', [
             'cards' => fn () => $this->modules->cards(),
             'sections' => fn () => $this->modules->sections($request->user()),
-            'keptData' => self::KEPT_DATA,
             'journal' => $this->journal($request),
         ]);
     }
 
     /**
-     * Flipping a flag adds an entry on top of the service journal.
+     * Переключение флага добавляет запись в служебный журнал сессии.
      */
     public function toggle(Request $request, string $key): RedirectResponse
     {
@@ -54,7 +33,7 @@ class SuperadminController extends Controller
 
         $journal = $this->journal($request);
         array_unshift($journal, [
-            'time' => '28.07.2026 · 14:'.str_pad((string) (13 + count($journal) - 1), 2, '0', STR_PAD_LEFT),
+            'time' => now()->format('d.m.Y · H:i'),
             'text' => $enabled
                 ? 'Модуль «'.$title.'» включён — разделы и поля вернулись в панель администратора'
                 : 'Модуль «'.$title.'» выключен — администратор больше не видит эти разделы, данные остались в базе',
@@ -66,8 +45,8 @@ class SuperadminController extends Controller
     }
 
     /**
-     * "Открыть панель администратора" — the superadmin looks through the administrator's
-     * eyes, and the panel shows the red impersonation strip until they come back.
+     * «Открыть панель администратора» — суперадмин смотрит глазами администратора,
+     * пока не вернётся; в панели висит красная полоса impersonation.
      */
     public function impersonate(Request $request): RedirectResponse
     {
@@ -88,6 +67,6 @@ class SuperadminController extends Controller
      */
     private function journal(Request $request): array
     {
-        return $request->session()->get('su.journal', [self::JOURNAL_SEED]);
+        return $request->session()->get('su.journal', []);
     }
 }

@@ -6,6 +6,7 @@ enum UserRole: string
 {
     case Admin = 'admin';
     case Manager = 'manager';
+    case Representative = 'representative';
     case Seller = 'seller';
     case Superadmin = 'superadmin';
 
@@ -14,6 +15,7 @@ enum UserRole: string
         return match ($this) {
             self::Admin => 'Администратор',
             self::Manager => 'Менеджер',
+            self::Representative => 'Торговый представитель',
             self::Seller => 'Продавец',
             self::Superadmin => 'Суперадмин',
         };
@@ -27,7 +29,7 @@ enum UserRole: string
      */
     public static function assignable(): array
     {
-        return [self::Admin, self::Manager, self::Seller];
+        return [self::Admin, self::Manager, self::Representative, self::Seller];
     }
 
     /**

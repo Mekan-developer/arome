@@ -15,67 +15,61 @@ class ModuleService
     private const CACHE_KEY = 'aroma.modules';
 
     /**
-     * Copy shown in the service console, dictated word for word by the specification.
+     * Copy shown in the service console.
      *
-     * @var array<string, array{title: string, description: string, affects: list<string>, kept: string}>
+     * @var array<string, array{title: string, description: string, affects: list<string>}>
      */
     public const CATALOG = [
         'points' => [
             'title' => 'Точки продаж',
             'description' => 'Сеть ведётся как несколько торговых точек: свой адрес, свой персонал, свой остаток. Выключено — администратор работает с одним общим каталогом.',
             'affects' => ['Раздел «Точки и склады»', 'Фильтр «Точка» в товарах', 'Колонка «Точки» у сотрудников', 'Выбор точек в карточке сотрудника', 'Точка в синхронизации'],
-            'kept' => '4 точки, 9 привязок сотрудников',
         ],
         'warehouses' => [
             'title' => 'Склады',
             'description' => 'Склад — точка без продаж: участвует в остатках, но не в кассе. Выключено — в списках остаются только торговые точки.',
-            'affects' => ['Строка «Склад Чоганлы»', 'Колонка СКЛ в остатках', 'Статус «СКЛАД»'],
-            'kept' => '1 склад, 3 760 SKU на остатке',
+            'affects' => ['Строки складов в списке точек', 'Колонки складов в остатках', 'Статус «СКЛАД»'],
         ],
         'productPoints' => [
             'title' => 'Остатки товара по точкам',
             'description' => 'Карточка товара хранит остаток отдельно по каждой точке. Выключено — у товара один общий остаток по сети.',
-            'affects' => ['Колонки БРК / ГЛС / М30 в таблице', 'Блок «Остаток по точкам» в карточке', 'Стартовые остатки в новом товаре', 'Действие «Перевести на точку»'],
-            'kept' => '12 480 записей остатков',
+            'affects' => ['Колонки остатков по точкам в таблице', 'Блок «Остаток по точкам» в карточке', 'Стартовые остатки в новом товаре', 'Действие «Перевести на точку»'],
         ],
         'import' => [
             'title' => 'Импорт из Excel',
             'description' => 'Загрузка прайса файлом с сопоставлением колонок и проверкой строк.',
             'affects' => ['Раздел «Импорт»', 'Кнопка «Импорт из Excel» в товарах'],
-            'kept' => '18 загрузок в истории',
         ],
         'devices' => [
             'title' => 'Синхронизация устройств',
             'description' => 'Контроль того, какие телефоны продавцов давно не получали актуальный каталог.',
             'affects' => ['Раздел «Синхронизация»'],
-            'kept' => '6 устройств',
         ],
         'audit' => [
             'title' => 'Журнал действий',
             'description' => 'Неизменяемая история действий в панели. Запись ведётся в любом случае — флаг скрывает только раздел.',
             'affects' => ['Раздел «Журнал действий»'],
-            'kept' => '24 месяца записей',
         ],
     ];
 
     /**
-     * Panel sections in tab order. `module` names the flag that hides the section,
-     * `staffOnly` marks the one section closed by role instead of by a flag,
-     * `external` — the tab that leaves the SPA and is followed by a plain link.
+     * Разделы панели. `access` — кто видит пункт после входа:
+     * search — веб-поиск/сканер, panel — каталог и настройки, staff — сотрудники, any — всем.
      *
-     * @var list<array{key: string, title: string, href: string, module: string|null, staffOnly: bool, external: bool}>
+     * @var list<array{key: string, title: string, href: string, module: string|null, access: string, external: bool}>
      */
     public const SECTIONS = [
-        ['key' => 'products', 'title' => 'Товары', 'href' => '/products', 'module' => null, 'staffOnly' => false, 'external' => false],
-        ['key' => 'import', 'title' => 'Импорт', 'href' => '/import', 'module' => 'import', 'staffOnly' => false, 'external' => false],
-        ['key' => 'users', 'title' => 'Пользователи', 'href' => '/users', 'module' => null, 'staffOnly' => true, 'external' => false],
-        ['key' => 'rights', 'title' => 'Матрица прав', 'href' => '/rights', 'module' => null, 'staffOnly' => false, 'external' => false],
-        ['key' => 'points', 'title' => 'Точки и склады', 'href' => '/points', 'module' => 'points', 'staffOnly' => false, 'external' => false],
-        ['key' => 'devices', 'title' => 'Синхронизация', 'href' => '/devices', 'module' => 'devices', 'staffOnly' => false, 'external' => false],
-        ['key' => 'audit', 'title' => 'Журнал действий', 'href' => '/audit', 'module' => 'audit', 'staffOnly' => false, 'external' => false],
+        ['key' => 'search', 'title' => 'Поиск', 'href' => '/search', 'module' => null, 'access' => 'search', 'external' => false],
+        ['key' => 'products', 'title' => 'Товары', 'href' => '/products', 'module' => null, 'access' => 'panel', 'external' => false],
+        ['key' => 'import', 'title' => 'Импорт', 'href' => '/import', 'module' => 'import', 'access' => 'panel', 'external' => false],
+        ['key' => 'users', 'title' => 'Пользователи', 'href' => '/users', 'module' => null, 'access' => 'staff', 'external' => false],
+        ['key' => 'rights', 'title' => 'Матрица прав', 'href' => '/rights', 'module' => null, 'access' => 'panel', 'external' => false],
+        ['key' => 'points', 'title' => 'Точки и склады', 'href' => '/points', 'module' => 'points', 'access' => 'panel', 'external' => false],
+        ['key' => 'devices', 'title' => 'Синхронизация', 'href' => '/devices', 'module' => 'devices', 'access' => 'panel', 'external' => false],
+        ['key' => 'audit', 'title' => 'Журнал действий', 'href' => '/audit', 'module' => 'audit', 'access' => 'panel', 'external' => false],
         // База знаний — отдельный статический сайт со своей шапкой и кнопкой
         // возврата, а не страница Inertia: вкладка уводит из SPA целиком.
-        ['key' => 'lessons', 'title' => 'Обучение', 'href' => '/lessons', 'module' => null, 'staffOnly' => false, 'external' => true],
+        ['key' => 'lessons', 'title' => 'Обучение', 'href' => '/lessons', 'module' => null, 'access' => 'any', 'external' => true],
     ];
 
     /**
@@ -139,25 +133,42 @@ class ModuleService
     }
 
     /**
-     * Sections the viewer can actually reach right now: the flags decide most of the
-     * strip, the role decides «Пользователи».
+     * Разделы, которые зритель реально видит: модули режут флаги, роль — access.
      *
-     * @return list<array{key: string, title: string, href: string, module: string|null, staffOnly: bool, external: bool, visible: bool}>
+     * @return list<array{key: string, title: string, href: string, module: string|null, access: string, external: bool, visible: bool}>
      */
     public function sections(?User $viewer): array
     {
         $effective = $this->effective();
 
         return array_map(fn (array $section): array => $section + [
-            'visible' => ($section['module'] === null || ($effective[$section['module']] ?? false))
-                && (! $section['staffOnly'] || (bool) $viewer?->managesStaff()),
+            'visible' => $this->sectionVisible($section, $viewer, $effective),
         ], self::SECTIONS);
+    }
+
+    /**
+     * @param  array{key: string, title: string, href: string, module: string|null, access: string, external: bool}  $section
+     * @param  array<string, bool>  $effective
+     */
+    private function sectionVisible(array $section, ?User $viewer, array $effective): bool
+    {
+        if ($section['module'] !== null && ! ($effective[$section['module']] ?? false)) {
+            return false;
+        }
+
+        return match ($section['access']) {
+            'search' => (bool) $viewer?->usesSearch(),
+            'panel' => (bool) $viewer?->usesPanel(),
+            'staff' => (bool) $viewer?->managesStaff(),
+            'any' => $viewer !== null,
+            default => false,
+        };
     }
 
     /**
      * Module cards for the service console, with dependency state resolved.
      *
-     * @return list<array{key: string, title: string, description: string, affects: list<string>, kept: string, isEnabled: bool, effective: bool, blockedBy: string|null}>
+     * @return list<array{key: string, title: string, description: string, affects: list<string>, isEnabled: bool, effective: bool, blockedBy: string|null}>
      */
     public function cards(): array
     {
@@ -173,7 +184,6 @@ class ModuleService
                 'title' => $copy['title'],
                 'description' => $copy['description'],
                 'affects' => $copy['affects'],
-                'kept' => $copy['kept'],
                 'isEnabled' => $meta[$key]['enabled'] ?? false,
                 'effective' => $this->resolve($key, $meta),
                 'blockedBy' => $blocked ? self::CATALOG[$parent]['title'] : null,

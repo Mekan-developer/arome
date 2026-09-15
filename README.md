@@ -50,7 +50,7 @@ docker compose run --rm artisan key:generate
 Контейнер `php` на каждом старте сам прогоняет `migrate --force` и `db:seed --force`
 (`RUN_MIGRATIONS=true` в `docker-compose.yml`), поэтому база готова к первому входу
 без ручных команд. Сидер создаёт единственную учётку — главного администратора по
-`ADMIN_LOGIN` / `ADMIN_PASSWORD` из `.env` (по умолчанию `admin` / `admin12345`), и
+`ADMIN_LOGIN` / `ADMIN_PASSWORD` из `.env` (оба обязательны, без слабых дефолтов), и
 при перезапуске освежает её пароль из `.env`. Служебная консоль `/su` —
 `docker compose run --rm artisan aroma:superadmin`.
 

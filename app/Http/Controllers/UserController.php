@@ -86,6 +86,9 @@ class UserController extends Controller
         return back();
     }
 
+    /**
+     * Меняет пароль; plaintext в flash не кладётся.
+     */
     public function changePassword(ChangePasswordRequest $request, User $user): RedirectResponse
     {
         Gate::authorize('changePassword', $user);
@@ -99,6 +102,6 @@ class UserController extends Controller
             $this->actor(),
         );
 
-        return back()->with('password', $validated['password']);
+        return back();
     }
 }

@@ -41,11 +41,24 @@ class SellerSearchTest extends TestCase
             ->assertInertia(fn ($page) => $page->component('SellerSearch'));
     }
 
-    public function test_staff_is_sent_back_to_the_panel(): void
+    public function test_an_admin_reaches_the_search_page(): void
     {
         $this->actingAs($this->admin())
             ->get('/search')
-            ->assertRedirect('/products');
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('SellerSearch'));
+    }
+
+    public function test_the_catalog_lists_products_without_a_query(): void
+    {
+        Product::factory()->create(['name' => 'LATTAFA KHAMRAH EDP 100ML']);
+
+        $rows = $this->actingAs($this->seller())
+            ->getJson('/search/products')
+            ->assertOk()
+            ->json('data');
+
+        $this->assertSame(['LATTAFA KHAMRAH EDP 100ML'], array_column($rows, 'name'));
     }
 
     public function test_a_seller_finds_a_product_by_name(): void
@@ -79,11 +92,14 @@ class SellerSearchTest extends TestCase
             ->assertJsonPath('error.code', 'product_not_found');
     }
 
-    public function test_staff_cannot_reach_the_seller_search_endpoints(): void
+    public function test_an_admin_reaches_the_seller_search_endpoints(): void
     {
+        Product::factory()->create(['name' => 'LATTAFA KHAMRAH EDP 100ML']);
+
         $this->actingAs($this->admin())
-            ->getJson('/search/products?q=xx')
-            ->assertRedirect('/products');
+            ->getJson('/search/products?q=KHAMRAH')
+            ->assertOk()
+            ->assertJsonPath('data.0.name', 'LATTAFA KHAMRAH EDP 100ML');
     }
 
     public function test_a_manager_reaches_the_search_page(): void
@@ -94,17 +110,31 @@ class SellerSearchTest extends TestCase
             ->assertInertia(fn ($page) => $page->component('SellerSearch'));
     }
 
+    public function test_a_representative_reaches_the_search_page(): void
+    {
+        $this->actingAs(User::factory()->create(['role' => 'representative']))
+            ->get('/search')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('SellerSearch'));
+    }
+
     /**
-     * Единственное, чем поиск менеджера отличается от поиска продавца, — оптовая цена.
+     * Опт по умолчанию — у торгового представителя; менеджер и продавец его не видят.
      */
-    public function test_only_the_manager_sees_the_wholesale_price(): void
+    public function test_only_the_representative_sees_the_wholesale_price_by_default(): void
     {
         Product::factory()->create(['name' => 'LATTAFA KHAMRAH EDP 100ML', 'wholesale_price' => 920]);
+
+        $this->actingAs(User::factory()->create(['role' => 'representative']))
+            ->getJson('/search/products?q=KHAMRAH')
+            ->assertOk()
+            ->assertJsonPath('data.0.wholesale', ['amount' => 92000, 'currency' => 'TMT'])
+            ->assertJsonMissingPath('data.0.retail');
 
         $this->actingAs(User::factory()->create(['role' => 'manager']))
             ->getJson('/search/products?q=KHAMRAH')
             ->assertOk()
-            ->assertJsonPath('data.0.wholesale', ['amount' => 92000, 'currency' => 'TMT']);
+            ->assertJsonMissingPath('data.0.wholesale');
 
         $this->actingAs($this->seller())
             ->getJson('/search/products?q=KHAMRAH')

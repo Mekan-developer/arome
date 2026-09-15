@@ -28,7 +28,9 @@ class SuperadminCommand extends Command
         }
 
         if (mb_strlen((string) $password) < 8) {
-            $this->components->warn('SUPERADMIN_PASSWORD короче 8 символов — смените его перед боевым запуском.');
+            $this->components->error('SUPERADMIN_PASSWORD короче 8 символов.');
+
+            return self::FAILURE;
         }
 
         $existing = User::where('login', $login)->first();

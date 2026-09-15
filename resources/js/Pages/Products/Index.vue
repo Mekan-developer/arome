@@ -5,7 +5,7 @@ export default { layout: AdminLayout }
 </script>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { router, useForm, usePage } from '@inertiajs/vue3'
 import DataTable from '@/Components/DataTable.vue'
 import AppButton from '@/Components/AppButton.vue'
@@ -90,6 +90,37 @@ const hasFilters = computed(
 )
 
 const resetFilters = () => go({ q: '', status: 'all', point: 'all', page: 1 })
+
+const search = ref(props.filters.q ?? '')
+const searchField = ref(null)
+let searchTimer = null
+
+watch(
+    () => props.filters.q,
+    (value) => {
+        if ((value ?? '') !== search.value) {
+            search.value = value ?? ''
+        }
+    },
+)
+
+const runSearch = () => {
+    clearTimeout(searchTimer)
+    searchTimer = setTimeout(() => go({ q: search.value, page: 1 }), 300)
+}
+
+const onSearchKey = (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        searchField.value?.focus()
+    }
+}
+
+onMounted(() => document.addEventListener('keydown', onSearchKey))
+onBeforeUnmount(() => {
+    document.removeEventListener('keydown', onSearchKey)
+    clearTimeout(searchTimer)
+})
 
 const openCard = (id) => {
     router.get(
@@ -176,7 +207,7 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
     <div class="page">
         <div class="filters">
             <div class="filters__left">
-                <div v-if="withPoints">
+                <div v-if="withPoints" class="filters__field">
                     <FieldLabel tracking=".16em">Точка</FieldLabel>
                     <SelectField
                         :model-value="filters.point"
@@ -189,7 +220,7 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
                     </SelectField>
                 </div>
 
-                <div>
+                <div class="filters__field">
                     <FieldLabel tracking=".16em">Статус</FieldLabel>
                     <SelectField
                         :model-value="filters.status"
@@ -199,6 +230,22 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
                         <option value="active">В продаже</option>
                         <option value="hidden">Скрыт</option>
                     </SelectField>
+                </div>
+
+                <div class="filters__search">
+                    <FieldLabel tracking=".16em">Поиск</FieldLabel>
+                    <div class="search">
+                        <span class="search__mark" aria-hidden="true">‖|‖</span>
+                        <input
+                            ref="searchField"
+                            v-model="search"
+                            class="search__input"
+                            type="search"
+                            placeholder="Штрихкод, артикул или название"
+                            aria-label="Поиск по каталогу"
+                            @input="runSearch"
+                        />
+                    </div>
                 </div>
 
                 <AppButton v-if="hasFilters" variant="ghost" @click="resetFilters">Сбросить фильтры</AppButton>
@@ -385,7 +432,7 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
     flex: none;
     padding: 16px 20px 12px;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 14px;
     align-items: flex-end;
     justify-content: space-between;
@@ -394,9 +441,55 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
 .filters__left,
 .filters__right {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 14px;
     align-items: flex-end;
+}
+
+.filters__left {
+    flex: 1;
+    min-width: 0;
+}
+
+.filters__field {
+    flex: none;
+}
+
+.filters__search {
+    flex: 1;
+    min-width: 200px;
+    max-width: 420px;
+}
+
+.search {
+    position: relative;
+}
+
+.search__mark {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--f-data);
+    font-size: 11px;
+    color: var(--brass-dark);
+    pointer-events: none;
+}
+
+.search__input {
+    width: 100%;
+    padding: 9px 12px 9px 34px;
+    background: var(--sheet);
+    border: 1px solid var(--rule-strong);
+    border-radius: 2px;
+    color: var(--ink);
+    font-size: 13px;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.search__input::placeholder {
+    color: var(--ink-3);
 }
 
 .toast {
@@ -611,17 +704,24 @@ const changePerPage = (value) => go({ per_page: Number(value), page: 1 })
     .filters {
         padding: 12px 14px 10px;
         gap: 10px;
+        flex-wrap: wrap;
     }
 
     .filters__left,
     .filters__right {
         width: 100%;
         gap: 10px;
+        flex-wrap: wrap;
     }
 
-    .filters__left > div {
-        flex: 1;
-        min-width: 140px;
+    .filters__field {
+        flex: 1 1 140px;
+    }
+
+    .filters__search {
+        flex: 1 1 100%;
+        max-width: none;
+        min-width: 0;
     }
 
     .filters__left :deep(.select) {

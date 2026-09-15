@@ -68,12 +68,34 @@ class User extends Authenticatable
     }
 
     /**
-     * Кто работает в поиске товара: продавец и менеджер. Менеджеру открыта ещё и панель,
-     * а от продавца его отличает оптовая цена — её решает матрица прав, не этот метод.
+     * Зал: продавец и торговый представитель. Им панель каталога закрыта — только поиск
+     * и обучение; какие цены видят, решает матрица прав.
      */
-    public function usesSellerPortal(): bool
+    public function isFloorStaff(): bool
     {
-        return in_array($this->role, [UserRole::Seller, UserRole::Manager], true);
+        return in_array($this->role, [UserRole::Seller, UserRole::Representative], true);
+    }
+
+    /**
+     * Кто открывает веб-поиск и сканер: админ, менеджер, представитель и продавец.
+     * Суперадмин ходит в служебную консоль, не сюда.
+     */
+    public function usesSearch(): bool
+    {
+        return in_array($this->role, [
+            UserRole::Admin,
+            UserRole::Manager,
+            UserRole::Representative,
+            UserRole::Seller,
+        ], true);
+    }
+
+    /**
+     * Кто ведёт веб-панель каталога: администратор, менеджер и суперадмин.
+     */
+    public function usesPanel(): bool
+    {
+        return $this->isAdmin() || $this->isSuperadmin() || $this->role === UserRole::Manager;
     }
 
     /**

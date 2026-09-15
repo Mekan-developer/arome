@@ -73,8 +73,7 @@ class UserTest extends TestCase
     }
 
     /**
-     * Менеджер — третья выдаваемая роль: то же мобильное приложение, что у продавца,
-     * но с оптовой ценой. Панель ему, как и продавцу, не принадлежит.
+     * Менеджер — панель и поиск: розница со скидкой. Опт по умолчанию не его.
      */
     public function test_the_root_administrator_issues_managers(): void
     {
@@ -92,6 +91,8 @@ class UserTest extends TestCase
 
         $this->assertSame('manager', $created->role->value);
         $this->assertSame('Менеджер', $created->role->label());
+        $this->assertTrue($created->usesPanel());
+        $this->assertTrue($created->usesSearch());
         $this->assertFalse($created->managesCatalog());
         $this->assertFalse($created->managesStaff());
     }
@@ -220,9 +221,8 @@ class UserTest extends TestCase
     }
 
     /**
-     * Продавец, у которого уже открыта вкладка панели (роль сменили не выходя из
-     * системы), возвращается в свой поиск, а не выкидывается из системы: аккаунт
-     * валиден, просто не тот раздел.
+     * Продавец из открытой сессии панели возвращается в поиск, а не выкидывается:
+     * аккаунт валиден, просто не тот раздел.
      */
     public function test_a_seller_is_redirected_to_search_from_an_open_panel_session(): void
     {
@@ -233,23 +233,14 @@ class UserTest extends TestCase
             ->assertRedirect('/search');
     }
 
-    public function test_a_seller_cannot_log_into_the_staff_portal(): void
+    public function test_a_representative_is_redirected_to_search_from_the_panel(): void
     {
-        $seller = User::factory()->create([
-            'login' => 'gozel',
-            'role' => 'seller',
-            'password' => Hash::make('parol123'),
-            'last_login_at' => null,
-        ]);
-
-        $this->post('/login', ['login' => 'gozel', 'password' => 'parol123', 'portal' => 'staff'])
-            ->assertSessionHasErrors(['login' => 'wrong_portal']);
-
-        $this->assertGuest();
-        $this->assertNull($seller->fresh()->last_login_at);
+        $this->actingAs(User::factory()->create(['role' => 'representative']))
+            ->get('/products')
+            ->assertRedirect('/search');
     }
 
-    public function test_a_seller_logs_into_the_seller_portal_and_lands_on_search(): void
+    public function test_a_seller_logs_in_and_lands_on_search(): void
     {
         $seller = User::factory()->create([
             'login' => 'gozel',
@@ -257,28 +248,25 @@ class UserTest extends TestCase
             'password' => Hash::make('parol123'),
         ]);
 
-        $this->post('/login', ['login' => 'gozel', 'password' => 'parol123', 'portal' => 'seller'])
+        $this->post('/login', ['login' => 'gozel', 'password' => 'parol123'])
             ->assertRedirect('/search');
 
         $this->assertAuthenticatedAs($seller);
         $this->assertNotNull($seller->fresh()->last_login_at);
     }
 
-    public function test_an_admin_cannot_log_into_the_seller_portal(): void
+    public function test_an_admin_logs_in_and_lands_on_the_panel(): void
     {
         $admin = $this->admin();
         $admin->forceFill(['password' => Hash::make('parol123')])->save();
 
-        $this->post('/login', ['login' => $admin->login, 'password' => 'parol123', 'portal' => 'seller'])
-            ->assertSessionHasErrors(['login' => 'wrong_portal']);
+        $this->post('/login', ['login' => $admin->login, 'password' => 'parol123'])
+            ->assertRedirect('/products');
 
-        $this->assertGuest();
+        $this->assertAuthenticatedAs($admin);
     }
 
-    /**
-     * Менеджеру открыты обе вкладки: куда он попадёт, решает вкладка, а не роль.
-     */
-    public function test_a_manager_logs_into_either_portal(): void
+    public function test_a_manager_logs_in_and_lands_on_the_panel(): void
     {
         $manager = User::factory()->create([
             'login' => 'menejer',
@@ -286,15 +274,44 @@ class UserTest extends TestCase
             'password' => Hash::make('parol123'),
         ]);
 
-        $this->post('/login', ['login' => 'menejer', 'password' => 'parol123', 'portal' => 'seller'])
-            ->assertRedirect('/search');
-        $this->assertAuthenticatedAs($manager);
-
-        $this->post('/logout');
-
-        $this->post('/login', ['login' => 'menejer', 'password' => 'parol123', 'portal' => 'staff'])
+        $this->post('/login', ['login' => 'menejer', 'password' => 'parol123'])
             ->assertRedirect('/products');
+
         $this->assertAuthenticatedAs($manager);
+    }
+
+    public function test_a_representative_logs_in_and_lands_on_search(): void
+    {
+        $rep = User::factory()->create([
+            'login' => 'rep',
+            'role' => 'representative',
+            'password' => Hash::make('parol123'),
+        ]);
+
+        $this->post('/login', ['login' => 'rep', 'password' => 'parol123'])
+            ->assertRedirect('/search');
+
+        $this->assertAuthenticatedAs($rep);
+    }
+
+    public function test_the_root_administrator_issues_representatives(): void
+    {
+        $this->actingAs($this->admin())
+            ->post('/users', [
+                'name' => 'Батыр Овезов',
+                'login' => 'batyr',
+                'role' => 'representative',
+                'password' => 'parol123',
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $created = User::where('login', 'batyr')->firstOrFail();
+
+        $this->assertSame('representative', $created->role->value);
+        $this->assertSame('Торговый представитель', $created->role->label());
+        $this->assertTrue($created->usesSearch());
+        $this->assertFalse($created->usesPanel());
     }
 
     /**

@@ -90,24 +90,20 @@ class UserService
     }
 
     /**
-     * @return array{password: string}
+     * Меняет пароль. Сам plaintext на клиент не возвращается — его уже знает форма.
      */
-    public function changePassword(User $user, string $password, bool $endSessions, string $actor): array
+    public function changePassword(User $user, string $password, bool $endSessions, string $actor): void
     {
-        return DB::transaction(function () use ($user, $password, $endSessions, $actor): array {
+        DB::transaction(function () use ($user, $password, $endSessions, $actor): void {
             $user->update(['password' => Hash::make($password)]);
 
             if ($endSessions) {
-                // «Завершить активные сессии»: старый токен перестаёт работать сразу,
-                // каталог скачается заново при первом входе.
                 $user->tokens()->delete();
                 $this->endWebSessions($user);
                 $user->deviceRecord?->update(['data_version' => 0, 'lag' => 0]);
             }
 
             $this->audit->record($actor, 'Смена пароля', $user->login.' · '.$user->name, null, null, 'user');
-
-            return ['password' => $password];
         });
     }
 

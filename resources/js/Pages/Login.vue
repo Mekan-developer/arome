@@ -1,35 +1,22 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { useForm, usePage } from '@inertiajs/vue3'
+import { useForm } from '@inertiajs/vue3'
 import AuthLayout from '@/Layouts/AuthLayout.vue'
 import AppButton from '@/Components/AppButton.vue'
 import FieldLabel from '@/Components/FieldLabel.vue'
-import SegmentedTabs from '@/Components/SegmentedTabs.vue'
 import TextField from '@/Components/TextField.vue'
 
 const props = defineProps({
     defaultLogin: { type: String, default: '' },
 })
 
-const page = usePage()
-
 const COPY = {
     ru: {
-        tabs: { staff: 'Админ и менеджер', seller: 'Продавец' },
-        heroTitle: {
-            staff: 'Каталог, остатки и права — в одном месте, за прилавком.',
-            seller: 'Товар и штрихкод — под рукой, прямо из браузера.',
-        },
-        heroSub: {
-            staff: 'Панель для администратора и менеджера магазина: прайс, остатки, права доступа.',
-            seller: 'Поиск по названию и штрихкоду — веб-версия мобильного приложения продавца.',
-        },
-        panel: { staff: 'Панель управления', seller: 'Поиск товара' },
+        heroTitle: 'Каталог, поиск и права — после входа по вашей роли.',
+        heroSub: 'Войдите логином, который выдал администратор сети.',
         signin: 'Вход в систему',
         login: 'Логин',
-        loginHint: 'mekan.developer@gmail.com',
         password: 'Пароль',
-        passwordHint: 'password',
         enter: 'Войти',
         needLogin: 'Введите логин',
         needPassword: 'Введите пароль',
@@ -37,26 +24,14 @@ const COPY = {
         errTitle: 'Неверный логин или пароль',
         errText: 'Проверьте раскладку клавиатуры. После пяти неудачных попыток вход блокируется на 15 минут.',
         blkTitle: 'Учётная запись заблокирована',
-        blkText: 'Доступ закрыт администратором 24.07.2026. Обратитесь к администратору сети.',
-        wrongPortalTitle: 'Не та вкладка входа',
-        wrongPortalText: 'Этот логин принадлежит другой роли. Переключите вкладку выше и попробуйте снова.',
+        blkText: 'Доступ закрыт администратором. Обратитесь к администратору сети.',
     },
     tm: {
-        tabs: { staff: 'Admin we dolandyryjy', seller: 'Satyjy' },
-        heroTitle: {
-            staff: 'Katalog, galyndylar we hukuklar — bir ýerde, satuw nokadynyň arkasynda.',
-            seller: 'Haryt we ştrih-kod — elýeterde, göni brauzerden.',
-        },
-        heroSub: {
-            staff: 'Dükan administratory we dolandyryjysy üçin panel: baha sanawy, galyndylar, hukuklar.',
-            seller: 'At we ştrih-kod boýunça gözleg — satyjynyň ykjam goşundysynyň web-nusgasy.',
-        },
-        panel: { staff: 'Dolandyryş paneli', seller: 'Haryt gözlegi' },
+        heroTitle: 'Katalog, gözleg we hukuklar — girenden soň siziň rolüňiz boýunça.',
+        heroSub: 'Ulgamyň administratory beren ulanyjy ady bilen giriň.',
         signin: 'Ulgama girmek',
         login: 'Ulanyjy ady',
-        loginHint: 'mekan.developer@gmail.com',
         password: 'Parol',
-        passwordHint: 'password',
         enter: 'Girmek',
         needLogin: 'Ulanyjy adyny giriziň',
         needPassword: 'Paroly giriziň',
@@ -64,45 +39,27 @@ const COPY = {
         errTitle: 'Ulanyjy ady ýa-da parol nädogry',
         errText: 'Klawiatura düzülişini barlaň. Bäş şowsuz synanyşykdan soň giriş 15 minutlyk petiklenýär.',
         blkTitle: 'Hasap petiklendi',
-        blkText: 'Girişi administrator 24.07.2026-da ýapdy. Ulgamyň administratoryna ýüz tutuň.',
-        wrongPortalTitle: 'Giriş tabы nädogry',
-        wrongPortalText: 'Bu ulanyjy ady başga rola degişli. Ýokardaky taby çalşyň we gaýtadan synanyň.',
+        blkText: 'Girişi administrator ýapdy. Ulgamyň administratoryna ýüz tutuň.',
     },
 }
 
-const SERVICE_PASSWORD = 'arome2026'
-
 const lang = ref('ru')
 const t = computed(() => COPY[lang.value])
-const showPoints = computed(() => page.props.modules?.points ?? false)
 
-const form = useForm({ login: props.defaultLogin, password: '', portal: 'staff' })
+const form = useForm({ login: props.defaultLogin, password: '' })
 
-/** Empty fields are reported next to the field itself, not as a failed sign-in. */
 const blanks = ref({ login: false, password: false })
-
 const showPassword = ref(false)
 
-const failure = computed(() => (['invalid', 'blocked', 'wrong_portal'].includes(form.errors.login) ? form.errors.login : null))
-const errorTitle = computed(() => {
-    if (failure.value === 'blocked') return t.value.blkTitle
-    if (failure.value === 'wrong_portal') return t.value.wrongPortalTitle
-
-    return t.value.errTitle
-})
-const errorText = computed(() => {
-    if (failure.value === 'blocked') return t.value.blkText
-    if (failure.value === 'wrong_portal') return t.value.wrongPortalText
-
-    return t.value.errText
-})
+const failure = computed(() => (['invalid', 'blocked'].includes(form.errors.login) ? form.errors.login : null))
+const errorTitle = computed(() => (failure.value === 'blocked' ? t.value.blkTitle : t.value.errTitle))
+const errorText = computed(() => (failure.value === 'blocked' ? t.value.blkText : t.value.errText))
 
 const loginError = computed(() => (blanks.value.login || (form.errors.login && ! failure.value) ? t.value.needLogin : null))
 const passwordError = computed(() => (blanks.value.password || form.errors.password ? t.value.needPassword : null))
 
 watch(() => form.login, () => (blanks.value.login = false))
 watch(() => form.password, () => (blanks.value.password = false))
-watch(() => form.portal, () => form.clearErrors())
 
 const submit = () => {
     blanks.value = { login: form.login.trim() === '', password: form.password === '' }
@@ -115,22 +72,6 @@ const submit = () => {
 
     form.post('/login', { preserveScroll: true })
 }
-
-/** Three clicks on «v1.0» open the service console. */
-let clicks = 0
-let resetTimer = null
-const tapVersion = () => {
-    clicks += 1
-    clearTimeout(resetTimer)
-    resetTimer = setTimeout(() => (clicks = 0), 700)
-
-    if (clicks >= 3) {
-        clicks = 0
-        form.login = 'root'
-        form.password = SERVICE_PASSWORD
-        submit()
-    }
-}
 </script>
 
 <template>
@@ -138,19 +79,12 @@ const tapVersion = () => {
         <template #dark>
         <div class="mark">
             <img src="/img/arome-logo.png" alt="ARÔME" class="mark__logo" />
-            <button type="button" class="mark__version" @click="tapVersion">v1.0</button>
         </div>
 
         <div class="hero">
             <div class="hero__rule" />
-            <h1 class="hero__title">{{ t.heroTitle[form.portal] }}</h1>
-            <p class="hero__sub">{{ t.heroSub[form.portal] }}</p>
-        </div>
-
-        <div class="facts">
-            <span v-if="showPoints">4 ТОЧКИ</span>
-            <span>5 000 SKU</span>
-            <span>TMT</span>
+            <h1 class="hero__title">{{ t.heroTitle }}</h1>
+            <p class="hero__sub">{{ t.heroSub }}</p>
         </div>
     </template>
 
@@ -162,17 +96,6 @@ const tapVersion = () => {
 
         <div class="middle">
             <form class="card" @submit.prevent="submit">
-                <SegmentedTabs
-                    v-model="form.portal"
-                    stretch
-                    class="card__portal"
-                    :options="[
-                        { value: 'staff', label: t.tabs.staff },
-                        { value: 'seller', label: t.tabs.seller },
-                    ]"
-                />
-
-                <div class="card__kicker">{{ t.panel[form.portal] }}</div>
                 <h2 class="card__title">{{ t.signin }}</h2>
 
                 <div v-if="failure" class="alert">
@@ -190,7 +113,6 @@ const tapVersion = () => {
                         mono
                         autocomplete="username"
                         name="login"
-                        :placeholder="t.loginHint"
                         :invalid="!! loginError"
                     />
                     <p v-if="loginError" class="error">{{ loginError }}</p>
@@ -204,7 +126,6 @@ const tapVersion = () => {
                             :type="showPassword ? 'text' : 'password'"
                             name="password"
                             autocomplete="current-password"
-                            :placeholder="t.passwordHint"
                             :invalid="!! passwordError"
                             style="letter-spacing: 0.14em; padding-right: 40px"
                             @keyup.enter="submit"
@@ -253,18 +174,6 @@ const tapVersion = () => {
     filter: invert(1);
 }
 
-.mark__version {
-    background: transparent;
-    border: 0;
-    padding: 0;
-    font-family: var(--f-data);
-    font-size: 10px;
-    letter-spacing: 0.18em;
-    color: var(--brass);
-    user-select: none;
-    cursor: pointer;
-}
-
 .hero {
     max-width: 34ch;
 }
@@ -290,15 +199,6 @@ const tapVersion = () => {
     color: var(--dark-ink-2);
     margin: 18px 0 0;
     text-wrap: pretty;
-}
-
-.facts {
-    display: flex;
-    gap: 26px;
-    font-family: var(--f-data);
-    font-size: 10.5px;
-    letter-spacing: 0.13em;
-    color: var(--ink-3);
 }
 
 .lang {
@@ -345,23 +245,11 @@ const tapVersion = () => {
     background: var(--sheet);
 }
 
-.card__portal {
-    margin-bottom: 20px;
-}
-
-.card__kicker {
-    font-family: var(--f-data);
-    font-size: 10px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--brass-dark);
-}
-
 .card__title {
     font-family: var(--f-display);
     font-size: 25px;
     font-weight: 500;
-    margin: 8px 0 26px;
+    margin: 0 0 26px;
 }
 
 .alert {
@@ -474,12 +362,6 @@ const tapVersion = () => {
         margin-top: 14px;
     }
 
-    .facts {
-        gap: 18px;
-        font-size: 10px;
-    }
-
-    /* Рамка с отступом-каймой на телефоне только съедает ширину — форма садится на лист. */
     .card {
         max-width: none;
         padding: 26px 20px 24px;

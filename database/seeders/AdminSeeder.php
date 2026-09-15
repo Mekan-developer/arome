@@ -23,6 +23,12 @@ class AdminSeeder extends Seeder
             return;
         }
 
+        if (mb_strlen((string) $password) < 8) {
+            $this->command?->error('ADMIN_PASSWORD короче 8 символов — администратор не создан.');
+
+            return;
+        }
+
         $admin = User::firstOrNew(['login' => $login]);
         $existed = $admin->exists;
 

@@ -1,13 +1,18 @@
-const SYLLABLES = ['ba', 'ru', 'me', 'ko', 'sa', 'ni', 'tu', 'le', 'da', 'vi', 'no', 'ze']
+const SYLLABLES = [
+    'ba', 'ru', 'me', 'ko', 'sa', 'ni', 'tu', 'le', 'da', 'vi', 'no', 'ze',
+    'ka', 'li', 'mo', 'pa', 're', 'su', 'ti', 'vo', 'xa', 'yu', 'za', 'be',
+    'ci', 'fo', 'gu', 'hi', 'jo', 'lu', 'na', 'pe', 'qi', 'ro', 'se', 'wa',
+]
 
 const pick = () => SYLLABLES[Math.floor(Math.random() * SYLLABLES.length)]
 
 /**
- * `слог+слог-слог+слог-NNN`, e.g. `sani-tule-482`. Mirrors PasswordService on the
- * server so a password suggested here passes the same validation there.
+ * Пять слогов и четыре цифры, например `sanitulebako4821`. Как PasswordService.
  */
 export function generatePassword() {
-    return `${pick()}${pick()}-${pick()}${pick()}-${Math.floor(100 + Math.random() * 900)}`
+    const digits = String(Math.floor(Math.random() * 10000)).padStart(4, '0')
+
+    return `${pick()}${pick()}${pick()}${pick()}${pick()}${digits}`
 }
 
 export function passwordIsAcceptable(password) {

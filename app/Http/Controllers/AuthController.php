@@ -27,25 +27,17 @@ class AuthController extends Controller
     }
 
     /**
-     * There is no self-registration: the account is issued by the network administrator.
-     * The login page has two tabs — «staff» (admin/manager) and «seller» (seller/manager)
-     * — and a login that belongs to neither is refused, same as a blocked account, before
-     * the password is even checked: it is not a way to browse for logins by role either,
-     * since which tab is «wrong» is exactly what the visitor just picked themselves.
+     * Самостоятельной регистрации нет: учётку выдаёт администратор сети. Вход один —
+     * логин и пароль; куда вести и какие пункты показать, решает роль на учётке.
      */
     public function login(LoginRequest $request): RedirectResponse
     {
         $credentials = $request->credentials();
-        $portal = $request->portal();
 
         $user = $this->users->findByLogin($credentials['login']);
 
         if ($user && ! $user->is_active) {
             return back()->withErrors(['login' => 'blocked']);
-        }
-
-        if ($user && ! $this->matchesPortal($user, $portal)) {
-            return back()->withErrors(['login' => 'wrong_portal']);
         }
 
         if (! Auth::attempt(['login' => $credentials['login'], 'password' => $credentials['password']])) {
@@ -59,23 +51,18 @@ class AuthController extends Controller
 
         $this->audit->record($this->actor(), 'Вход в систему', '—', null, null, 'auth');
 
-        return redirect($this->redirectPath($user, $portal));
-    }
-
-    private function matchesPortal(User $user, string $portal): bool
-    {
-        return $portal === 'seller' ? $user->usesSellerPortal() : ! $user->isSeller();
+        return redirect($this->homePath($user));
     }
 
     /**
-     * Менеджеру открыты обе вкладки, поэтому куда вести — решает вкладка, а не роль.
+     * Суперадмин — в консоль, у кого есть панель — в каталог, остальным — поиск.
      */
-    private function redirectPath(User $user, string $portal): string
+    private function homePath(User $user): string
     {
         return match (true) {
-            $portal === 'seller' => '/search',
             $user->isSuperadmin() => '/su',
-            default => '/products',
+            $user->usesPanel() => '/products',
+            default => '/search',
         };
     }
 

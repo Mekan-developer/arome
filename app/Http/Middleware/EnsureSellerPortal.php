@@ -8,10 +8,8 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Поиск товара — периметр продавца и менеджера: менеджер работает и в панели, и в
- * поиске, а от продавца его отличает только оптовая цена, которую решает матрица прав.
- * Администратора возвращаем в панель без разлогина — аккаунт валиден, просто не тот
- * раздел, как {@see EnsureNotSeller} делает в обратную сторону.
+ * Поиск товара и сканер. Кого пускать — {@see User::usesSearch()}. Остальных
+ * мягко возвращаем в свой домашний раздел без разлогина.
  */
 class EnsureSellerPortal
 {
@@ -19,8 +17,8 @@ class EnsureSellerPortal
     {
         $user = $request->user();
 
-        if ($user instanceof User && ! $user->usesSellerPortal()) {
-            return redirect('/products');
+        if ($user instanceof User && ! $user->usesSearch()) {
+            return redirect($user->usesPanel() ? '/products' : '/login');
         }
 
         return $next($request);

@@ -74,6 +74,7 @@ const submit = () =>
             <FieldLabel>Роль</FieldLabel>
             <SelectField v-model="form.role" class="wide">
                 <option value="seller">Продавец</option>
+                <option value="representative">Торговый представитель</option>
                 <option value="manager">Менеджер</option>
                 <option value="admin">Администратор</option>
             </SelectField>

@@ -14,7 +14,6 @@ const props = defineProps({
     fields: { type: Array, required: true },
     roles: { type: Array, required: true },
     matrix: { type: Object, required: true },
-    savedAt: { type: String, default: '' },
 })
 
 const editableRoles = computed(() => props.roles.filter((role) => role.editable).map((role) => role.key))
@@ -97,9 +96,9 @@ const previewNote = computed(() =>
                     <h1 class="head__title">Кто какие поля карточки видит</h1>
                     <p class="head__lead">
                         Администратор ведёт данные в этой панели, менеджер и продавец только заходят в мобильное
-                        приложение и получают их по API. Настраивается одно: какие поля карточки уходят каждой из этих
-                        двух ролей. Отличие менеджера — оптовая цена товара: продавцу эта колонка закрыта. Скрытое
-                        поле не приходит в приложение вообще, а не прячется на экране.
+                        приложение и получают их по API. Настраивается одно: какие поля карточки уходят каждой роли.
+                        Торговый представитель по умолчанию видит опт вместо розницы; у менеджера — розница, скидка и
+                        сумма. Скрытое поле не приходит в приложение вообще, а не прячется на экране.
                     </p>
                 </div>
                 <span class="head__count">РОЛЕЙ В СИСТЕМЕ: {{ roles.length }}</span>
@@ -186,7 +185,7 @@ const previewNote = computed(() =>
                         Есть несохранённые изменения. После сохранения приложения продавцов получат новую политику при
                         следующей синхронизации.
                     </template>
-                    <template v-else>Политика сохранена {{ savedAt }}</template>
+                    <template v-else>Политика сохранена</template>
                 </span>
                 <span class="foot__acts">
                     <AppButton variant="ghost" :disabled="!dirty" @click="revert">Вернуть как было</AppButton>

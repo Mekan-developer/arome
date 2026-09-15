@@ -8,12 +8,8 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Периметр продавца — поиск товара и штрихкода, не эта панель. На маршрутах, которые
- * Policy и так закрывает 403-м (мутации, `/import/backup`), эта проверка не висит —
- * только на «голых» разделах без Gate: список карточек, права, точки, устройства,
- * журнал. Аккаунт валиден (иначе вход уже отклонён на своей вкладке логина), поэтому
- * здесь не разлогиниваем — просто возвращаем туда, где ему место, как
- * {@see EnsureSellerPortal} делает в обратную сторону.
+ * Периметр зала — поиск, не каталог панели. На маршрутах без своего Gate (список
+ * карточек, права, точки, устройства, журнал) зал мягко уводим в /search.
  */
 class EnsureNotSeller
 {
@@ -21,7 +17,7 @@ class EnsureNotSeller
     {
         $user = $request->user();
 
-        if ($user instanceof User && $user->isSeller()) {
+        if ($user instanceof User && $user->isFloorStaff()) {
             return redirect('/search');
         }
 

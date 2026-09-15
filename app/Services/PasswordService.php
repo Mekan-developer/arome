@@ -7,20 +7,25 @@ class PasswordService
     /**
      * @var list<string>
      */
-    private const SYLLABLES = ['ba', 'ru', 'me', 'ko', 'sa', 'ni', 'tu', 'le', 'da', 'vi', 'no', 'ze'];
+    private const SYLLABLES = [
+        'ba', 'ru', 'me', 'ko', 'sa', 'ni', 'tu', 'le', 'da', 'vi', 'no', 'ze',
+        'ka', 'li', 'mo', 'pa', 're', 'su', 'ti', 'vo', 'xa', 'yu', 'za', 'be',
+        'ci', 'fo', 'gu', 'hi', 'jo', 'lu', 'na', 'pe', 'qi', 'ro', 'se', 'wa',
+    ];
 
     /**
-     * A handed-out password in the `слог+слог-слог+слог-NNN` shape, e.g. `sani-tule-482`.
+     * Пароль из пяти слогов и четырёх цифр, например `sanitulebako4821`.
      */
     public function generate(): string
     {
         return sprintf(
-            '%s%s-%s%s-%d',
+            '%s%s%s%s%s%04d',
             $this->syllable(),
             $this->syllable(),
             $this->syllable(),
             $this->syllable(),
-            random_int(100, 999),
+            $this->syllable(),
+            random_int(0, 9999),
         );
     }
 

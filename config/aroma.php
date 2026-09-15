@@ -36,22 +36,22 @@ return [
     ],
 
     /*
-     * The service account for the console at /su. Nothing reads these at runtime —
-     * the account only appears when `php artisan aroma:superadmin` is run.
+     * Учётка консоли /su. Читается только `php artisan aroma:superadmin`.
+     * Пароль без дефолта: пустой .env не должен поднимать слабый вход.
      */
     'superadmin' => [
-        'login' => env('SUPERADMIN_LOGIN', 'superadmin'),
-        'password' => env('SUPERADMIN_PASSWORD', 'secret'),
+        'login' => env('SUPERADMIN_LOGIN'),
+        'password' => env('SUPERADMIN_PASSWORD'),
         'name' => env('SUPERADMIN_NAME', 'Суперадмин'),
     ],
 
     /*
-     * The first administrator of a fresh install. Only `php artisan db:seed` reads
-     * these — nothing looks them up at runtime.
+     * Первый администратор панели. Читается только `php artisan db:seed`.
+     * Пароль без дефолта — иначе пустой .env создал бы admin/admin12345.
      */
     'admin' => [
-        'login' => env('ADMIN_LOGIN', 'admin'),
-        'password' => env('ADMIN_PASSWORD', 'admin12345'),
+        'login' => env('ADMIN_LOGIN'),
+        'password' => env('ADMIN_PASSWORD'),
         'name' => env('ADMIN_NAME', 'Администратор'),
     ],
 

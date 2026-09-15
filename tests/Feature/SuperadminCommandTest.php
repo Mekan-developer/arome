@@ -58,6 +58,15 @@ class SuperadminCommandTest extends TestCase
         $this->assertSame(0, User::where('role', UserRole::Superadmin)->count());
     }
 
+    public function test_it_refuses_a_short_password(): void
+    {
+        $this->configureCredentials(['password' => 'short']);
+
+        $this->artisan('aroma:superadmin')->assertFailed();
+
+        $this->assertSame(0, User::where('role', UserRole::Superadmin)->count());
+    }
+
     public function test_it_refuses_to_take_over_a_staff_login_without_force(): void
     {
         $seller = User::factory()->create(['login' => 'chief']);
@@ -86,7 +95,7 @@ class SuperadminCommandTest extends TestCase
         $this->configureCredentials();
         $this->artisan('aroma:superadmin')->assertSuccessful();
 
-        $this->post('/login', ['login' => 'chief', 'password' => 'oченьДлинныйПароль1', 'portal' => 'staff'])
+        $this->post('/login', ['login' => 'chief', 'password' => 'oченьДлинныйПароль1'])
             ->assertRedirect('/su');
 
         $this->get('/su')->assertOk();

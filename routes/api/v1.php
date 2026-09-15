@@ -19,11 +19,11 @@ Route::post('tokens', [TokenApiController::class, 'store'])
     ->middleware('throttle:60,1')
     ->name('api.v1.tokens.store');
 
-Route::middleware(['auth:sanctum'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
     Route::get('products', [ProductApiController::class, 'index'])->name('api.v1.products.index');
 
 });
-Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'active', 'throttle:60,1'])->group(function (): void {
     Route::delete('tokens', [TokenApiController::class, 'destroy'])->name('api.v1.tokens.destroy');
     /*
      * Выгрузка каталога целиком — отдельным путём, а не режимом `products`: у списка

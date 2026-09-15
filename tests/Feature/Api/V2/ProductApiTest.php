@@ -383,17 +383,17 @@ class ProductApiTest extends TestCase
     }
 
     /**
-     * Оптовая цена — граница между менеджером и продавцом: она проходит той же
-     * матрицей прав, что и остальные поля.
+     * Оптовая цена по умолчанию — у торгового представителя; у продавца ключа нет.
      */
-    public function test_the_wholesale_price_reaches_the_manager_but_not_the_seller(): void
+    public function test_the_wholesale_price_reaches_the_representative_but_not_the_seller(): void
     {
         Product::factory()->create(['wholesale_price' => 920]);
 
-        $manager = User::factory()->create(['role' => 'manager']);
+        $rep = User::factory()->create(['role' => 'representative']);
 
-        $forManager = $this->asDevice($manager)->getJson('/api/v2/products')->assertOk()->json('data.0');
-        $this->assertSame(92000, $forManager['wholesale']['amount']);
+        $forRep = $this->asDevice($rep)->getJson('/api/v2/products')->assertOk()->json('data.0');
+        $this->assertSame(92000, $forRep['wholesale']['amount']);
+        $this->assertArrayNotHasKey('retail', $forRep);
 
         $this->forgetAuthenticatedUser();
         $forSeller = $this->asDevice($this->seller())->getJson('/api/v2/products')->assertOk()->json('data.0');

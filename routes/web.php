@@ -17,14 +17,15 @@ Route::redirect('/', '/products');
 
 Route::middleware('guest')->group(function (): void {
     Route::get('login', [AuthController::class, 'show'])->name('login');
-    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:50,15');
+    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:5,1');
 });
 
 Route::post('logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
 
 /*
- * Поиск товара и штрихкода — веб-версия мобильного приложения, периметр продавца и
- * менеджера. Панель ниже — периметр администратора и менеджера: менеджер ходит в оба.
+ * Поиск и сканер — общий веб-периметр для ролей с usesSearch(). Панель каталога
+ * ниже — для usesPanel(); зал (продавец / представитель) с голых разделов уходит
+ * обратно в /search.
  */
 Route::middleware(['auth', 'seller-portal'])->group(function (): void {
     Route::get('search', [SellerSearchController::class, 'show'])->name('search.index');
@@ -81,8 +82,8 @@ Route::middleware('auth')->group(function (): void {
 });
 
 /*
- * The service console. There is no link to it from the admin panel — entry is by the
- * root login, the triple click on «v1.0» or the «СЛУЖЕБНЫЙ ВХОД» demo button.
+ * The service console. There is no link to it from the admin panel — entry is by
+ * the superadmin account login.
  */
 Route::middleware(['auth', 'superadmin'])->group(function (): void {
     Route::get('su', [SuperadminController::class, 'index'])->name('su.index');

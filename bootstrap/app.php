@@ -41,10 +41,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'superadmin' => EnsureSuperadmin::class,
             'not-seller' => EnsureNotSeller::class,
             'seller-portal' => EnsureSellerPortal::class,
+            'active' => EnsureUserIsActive::class,
         ]);
 
+        $trusted = env('TRUSTED_PROXIES', '*');
+
         $middleware->trustProxies(
-            at: '*',
+            at: $trusted === '*' ? '*' : array_values(array_filter(array_map('trim', explode(',', (string) $trusted)))),
             headers: Request::HEADER_X_FORWARDED_FOR
                 | Request::HEADER_X_FORWARDED_HOST
                 | Request::HEADER_X_FORWARDED_PORT

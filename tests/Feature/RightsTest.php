@@ -73,19 +73,19 @@ class RightsTest extends TestCase
     }
 
     /**
-     * Оптовая цена — то, чем менеджер отличается от продавца. Без единой строки в базе
-     * она уже уходит менеджеру и уже не уходит продавцу.
+     * Оптовая цена по умолчанию — у торгового представителя, не у менеджера и не у продавца.
      */
-    public function test_the_wholesale_price_reaches_the_manager_and_not_the_seller(): void
+    public function test_the_wholesale_price_reaches_the_representative_and_not_the_seller(): void
     {
         Product::factory()->create(['price' => 1415.88, 'wholesale_price' => 920]);
 
-        $manager = User::factory()->create(['role' => 'manager']);
+        $rep = User::factory()->create(['role' => 'representative']);
 
-        $row = $this->asDevice($manager)->getJson('/api/v1/products')->assertOk()->json('data.0');
+        $row = $this->asDevice($rep)->getJson('/api/v1/products')->assertOk()->json('data.0');
 
         $this->assertSame(92000, $row['wholesale']['amount']);
         $this->assertSame('TMT', $row['wholesale']['currency']);
+        $this->assertArrayNotHasKey('retail', $row);
 
         $sellerRow = $this->forgetAuthenticatedUser()
             ->asDevice($this->seller())
@@ -100,9 +100,9 @@ class RightsTest extends TestCase
     {
         Product::factory()->create(['wholesale_price' => null]);
 
-        $manager = User::factory()->create(['role' => 'manager']);
+        $rep = User::factory()->create(['role' => 'representative']);
 
-        $row = $this->asDevice($manager)->getJson('/api/v1/products')->assertOk()->json('data.0');
+        $row = $this->asDevice($rep)->getJson('/api/v1/products')->assertOk()->json('data.0');
 
         $this->assertArrayNotHasKey('wholesale', $row);
     }
@@ -153,7 +153,10 @@ class RightsTest extends TestCase
                     fn (array $role): bool => $role['key'] === 'manager' && $role['editable'] === true,
                 ))
                 ->where('fields', fn ($fields): bool => in_array('wholesale', collect($fields)->pluck('key')->all(), true))
-                ->where('matrix', fn ($matrix): bool => $matrix['manager']['wholesale'] === true && $matrix['seller']['wholesale'] === false)
+                ->where('matrix', fn ($matrix): bool => $matrix['manager']['wholesale'] === false
+                    && $matrix['seller']['wholesale'] === false
+                    && $matrix['representative']['wholesale'] === true
+                    && $matrix['representative']['retail'] === false)
                 ->etc(),
             );
     }

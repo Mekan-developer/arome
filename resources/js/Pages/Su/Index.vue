@@ -13,7 +13,6 @@ import StatusTag from '@/Components/StatusTag.vue'
 const props = defineProps({
     cards: { type: Array, required: true },
     sections: { type: Array, required: true },
-    keptData: { type: Array, required: true },
     journal: { type: Array, required: true },
 })
 
@@ -22,7 +21,7 @@ const hiddenSections = computed(() => props.sections.filter((section) => !sectio
 const sectionsNote = computed(() =>
     hiddenSections.value === 0
         ? 'Администратор видит все разделы панели.'
-        : `Скрыто разделов: ${hiddenSections.value} из 7. Скрытые разделы недоступны и по прямой ссылке, API их тоже не отдаёт.`,
+        : `Скрыто разделов: ${hiddenSections.value} из ${props.sections.length}. Скрытые разделы недоступны и по прямой ссылке, API их тоже не отдаёт.`,
 )
 
 const tagFor = (card) => {
@@ -76,9 +75,8 @@ const openPanel = () => router.post('/su/impersonate')
                     </span>
                 </div>
 
-                <footer class="card__foot">
-                    <span class="card__kept">В базе сохранено: {{ card.kept }}</span>
-                    <span v-if="card.blockedBy" class="card__blocked">
+                <footer v-if="card.blockedBy" class="card__foot">
+                    <span class="card__blocked">
                         Неактивен, пока выключен модуль «{{ card.blockedBy }}».
                     </span>
                 </footer>
@@ -88,8 +86,8 @@ const openPanel = () => router.post('/su/impersonate')
                 <div class="access__title">ДОСТУП К КОНСОЛИ</div>
                 <p class="access__text">
                     Роль «Суперадмин» не отображается в списке сотрудников, в матрице прав и в журнале выдачи доступов.
-                    Ссылки на консоль в панели администратора нет — вход только по логину <strong>root</strong> с
-                    отдельным ключом. Действия суперадмина пишутся в отдельный служебный журнал.
+                    Ссылки на консоль в панели администратора нет — вход логином суперадмина. Действия пишутся в
+                    служебный журнал ниже.
                 </p>
             </div>
         </section>
@@ -114,21 +112,10 @@ const openPanel = () => router.post('/su/impersonate')
                 </AppButton>
             </section>
 
-            <section class="panel">
-                <div class="panel__title">ДАННЫЕ ВЫКЛЮЧЕННЫХ МОДУЛЕЙ</div>
-
-                <div v-for="item in keptData" :key="item.title" class="panel__row">
-                    <span class="panel__name">{{ item.title }}</span>
-                    <span class="panel__value">{{ item.value }}</span>
-                </div>
-
-                <p class="panel__note">
-                    Ничего не удаляется и не архивируется: записи просто перестают отдаваться в API и в интерфейс.
-                </p>
-            </section>
-
             <section class="panel panel--last">
                 <div class="panel__title">СЛУЖЕБНЫЙ ЖУРНАЛ</div>
+
+                <p v-if="journal.length === 0" class="panel__note">Пока пусто — записи появятся при переключении модулей.</p>
 
                 <div v-for="(entry, index) in journal" :key="index" class="log">
                     <span class="log__time">{{ entry.time }}</span>
@@ -233,17 +220,6 @@ const openPanel = () => router.post('/su/impersonate')
     margin-top: 13px;
     padding-top: 10px;
     border-top: 1px solid var(--rule-soft);
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-}
-
-.card__kept {
-    font-family: var(--f-data);
-    font-size: 10.5px;
-    color: var(--ink-3);
 }
 
 .card__blocked {

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import BarcodeScannerModal from '@/Components/BarcodeScannerModal.vue'
+import SellerCatalogModal from '@/Components/SellerCatalogModal.vue'
 import SellerProductRow from '@/Components/SellerProductRow.vue'
 
 const props = defineProps({
@@ -10,6 +11,8 @@ const props = defineProps({
 
 const page = usePage()
 const user = computed(() => page.props.auth?.user ?? {})
+const sections = computed(() => page.props.sections?.filter((section) => section.visible) ?? [])
+const current = computed(() => new URL(page.url, 'http://x').pathname)
 const pointName = (id) => props.points.find((p) => String(p.id) === String(id))?.name ?? `Точка ${id}`
 
 const query = ref('')
@@ -57,6 +60,7 @@ onBeforeUnmount(() => clearTimeout(timer))
 
 const loadMore = () => runSearch(page_.value + 1)
 
+const catalogOpen = ref(false)
 const scanning = ref(false)
 const scanLoading = ref(false)
 const scanResult = ref(null)
@@ -104,6 +108,19 @@ const onDetected = async (barcode) => {
                 <Link href="/logout" method="post" as="button" class="top__exit">Выход</Link>
             </header>
 
+            <nav v-if="sections.length > 1" class="tabs">
+                <component
+                    :is="section.external ? 'a' : Link"
+                    v-for="section in sections"
+                    :key="section.key"
+                    :href="section.href"
+                    class="tabs__item"
+                    :class="{ 'tabs__item--on': current === section.href }"
+                >
+                    {{ section.title }}
+                </component>
+            </nav>
+
             <div class="searchbar-wrap">
                 <div class="searchbar">
                     <input
@@ -114,6 +131,9 @@ const onDetected = async (barcode) => {
                         aria-label="Поиск товара"
                         autofocus
                     />
+                    <button type="button" class="searchbar__catalog" @click="catalogOpen = true">
+                        Каталог
+                    </button>
                     <button type="button" class="searchbar__scan" @click="scanning = true">
                         <svg
                             class="searchbar__scan-icon"
@@ -167,6 +187,7 @@ const onDetected = async (barcode) => {
             </div>
         </main>
 
+        <SellerCatalogModal v-if="catalogOpen" :point-name="pointName" @close="catalogOpen = false" />
         <BarcodeScannerModal v-if="scanning" @detected="onDetected" @close="scanning = false" />
     </div>
 </template>
@@ -266,6 +287,30 @@ const onDetected = async (barcode) => {
     color: var(--ink-inv);
 }
 
+.tabs {
+    display: flex;
+    gap: 2px;
+    overflow-x: auto;
+    background: var(--ink);
+    padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+    border-bottom: 1px solid var(--dark-rule);
+}
+
+.tabs__item {
+    flex: none;
+    padding: 10px 14px;
+    font-size: 12.5px;
+    color: var(--dark-ink-2);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+}
+
+.tabs__item--on {
+    color: var(--ink-inv);
+    border-bottom-color: var(--brass);
+}
+
 .body {
     flex: 1;
     max-width: 720px;
@@ -294,6 +339,22 @@ const onDetected = async (barcode) => {
     border: 1px solid var(--rule-strong);
     border-radius: 2px;
     font-size: 15px;
+}
+
+.searchbar__catalog {
+    flex: none;
+    padding: 0 16px;
+    background: transparent;
+    color: var(--ink-2);
+    border: 1px solid var(--rule-strong);
+    border-radius: 2px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.searchbar__catalog:hover {
+    border-color: var(--brass);
+    color: var(--ink);
 }
 
 .searchbar__scan {
@@ -424,6 +485,7 @@ const onDetected = async (barcode) => {
         flex-direction: column;
     }
 
+    .searchbar__catalog,
     .searchbar__scan {
         padding: 12px;
         justify-content: center;

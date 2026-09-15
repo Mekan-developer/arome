@@ -19,7 +19,6 @@ class LoginRequest extends FormRequest
         return [
             'login' => ['required', 'string', 'max:64'],
             'password' => ['required', 'string', 'max:255'],
-            'portal' => ['required', 'string', 'in:staff,seller'],
         ];
     }
 
@@ -34,13 +33,5 @@ class LoginRequest extends FormRequest
             'login' => $validated['login'],
             'password' => $validated['password'],
         ];
-    }
-
-    /**
-     * Вкладка входа: «staff» — администратор и менеджер, «seller» — продавец.
-     */
-    public function portal(): string
-    {
-        return $this->validated()['portal'];
     }
 }

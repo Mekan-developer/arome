@@ -33,6 +33,9 @@ class SellerSearchController extends Controller
         ]);
     }
 
+    /**
+     * Список товаров для поиска и модалки каталога на той же странице.
+     */
     public function products(ProductIndexRequest $request): ProductCollection
     {
         return new ProductCollection(

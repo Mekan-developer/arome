@@ -58,7 +58,6 @@ class HandleInertiaRequests extends Middleware
             'impersonating' => fn (): bool => (bool) $request->session()->get('impersonating', false),
             'flash' => [
                 'toast' => fn () => $request->session()->get('toast'),
-                'password' => fn () => $request->session()->get('password'),
             ],
         ];
     }
