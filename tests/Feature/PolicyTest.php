@@ -97,40 +97,42 @@ class PolicyTest extends TestCase
     }
 
     /**
-     * Раздел «Пользователи» принадлежит корневой учётке из ADMIN_LOGIN. Созданный ею
-     * администратор ведёт каталог, но раздачу доступов не наследует.
+     * Раздел «Пользователи» открыт любому администратору и суперадмину.
+     * Менеджер и зал туда не попадают.
      */
-    public function test_only_the_root_administrator_reaches_the_staff_section(): void
+    public function test_any_administrator_reaches_the_staff_section(): void
     {
         $plain = User::factory()->admin()->create();
 
         $this->assertTrue(Gate::forUser($this->admin())->allows('viewAny', User::class));
+        $this->assertTrue(Gate::forUser($plain)->allows('viewAny', User::class));
         $this->assertTrue(Gate::forUser(User::factory()->superadmin()->create())->allows('viewAny', User::class));
-        $this->assertFalse(Gate::forUser($plain)->allows('viewAny', User::class));
         $this->assertFalse(Gate::forUser(User::factory()->create(['role' => 'seller']))->allows('viewAny', User::class));
 
-        $this->actingAs($plain)->get('/users')->assertForbidden();
+        $this->actingAs($plain)->get('/users')->assertOk();
     }
 
-    public function test_a_plain_administrator_cannot_issue_or_change_accounts(): void
+    public function test_a_plain_administrator_can_issue_and_change_accounts(): void
     {
         $plain = User::factory()->admin()->create();
         $target = User::factory()->create(['role' => 'seller', 'name' => 'Гөзел Сапарова']);
 
         $this->actingAs($plain)
             ->post('/users', ['name' => 'Новый Сотрудник', 'login' => 'novyi', 'role' => 'admin', 'password' => 'parol123'])
-            ->assertForbidden();
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
 
         $this->actingAs($plain)
             ->put("/users/{$target->id}", ['name' => 'Другое имя', 'login' => $target->login, 'role' => 'seller'])
-            ->assertForbidden();
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
 
-        $this->actingAs($plain)->patch("/users/{$target->id}/access")->assertForbidden();
-        $this->actingAs($plain)->put("/users/{$target->id}/password", ['password' => 'parol123'])->assertForbidden();
+        $this->actingAs($plain)->patch("/users/{$target->id}/access")->assertRedirect();
+        $this->actingAs($plain)->put("/users/{$target->id}/password", ['password' => 'parol123'])->assertRedirect();
 
-        $this->assertDatabaseMissing('users', ['login' => 'novyi']);
-        $this->assertSame('Гөзел Сапарова', $target->refresh()->name);
-        $this->assertTrue($target->is_active);
+        $this->assertDatabaseHas('users', ['login' => 'novyi', 'role' => 'admin']);
+        $this->assertSame('Другое имя', $target->refresh()->name);
+        $this->assertFalse($target->is_active);
     }
 
     /**

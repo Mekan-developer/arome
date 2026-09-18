@@ -50,9 +50,8 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
-     * Администратор панели — корневая учётка из ADMIN_LOGIN: та, что видит раздел
-     * «Пользователи». Обычный администратор без доступа к разделу — это
-     * `User::factory()->admin()->create()`.
+     * Корневая учётка из ADMIN_LOGIN (`is_root`). Обычный администратор —
+     * `User::factory()->admin()->create()`; оба видят раздел «Пользователи».
      */
     protected function admin(): User
     {

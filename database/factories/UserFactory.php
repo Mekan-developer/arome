@@ -42,8 +42,7 @@ class UserFactory extends Factory
     }
 
     /**
-     * Корневой администратор — учётка из ADMIN_LOGIN, единственная с разделом
-     * «Пользователи».
+     * Корневой администратор — учётка из ADMIN_LOGIN (`is_root`).
      */
     public function root(): static
     {

@@ -34,10 +34,10 @@ class UserTest extends TestCase
     }
 
     /**
-     * Вкладка «Пользователи» уходит из шапки у всех, кроме владельца раздела, —
-     * маршрут закрыт, но и ссылки на него взгляд не находит.
+     * Вкладка «Пользователи» видна любому администратору; у менеджера и зала
+     * ссылки на раздел в шапке нет.
      */
-    public function test_the_tab_strip_shows_the_staff_section_only_to_the_root_administrator(): void
+    public function test_the_tab_strip_shows_the_staff_section_to_any_administrator(): void
     {
         $this->actingAs($this->admin())
             ->get('/products')
@@ -50,11 +50,18 @@ class UserTest extends TestCase
             ->get('/products')
             ->assertInertia(fn ($page) => $page->where(
                 'sections',
+                fn ($sections) => collect($sections)->firstWhere('key', 'users')['visible'] === true,
+            ));
+
+        $this->actingAs(User::factory()->create(['role' => 'manager']))
+            ->get('/products')
+            ->assertInertia(fn ($page) => $page->where(
+                'sections',
                 fn ($sections) => collect($sections)->firstWhere('key', 'users')['visible'] === false,
             ));
     }
 
-    public function test_the_root_administrator_issues_administrators_who_do_not_inherit_the_section(): void
+    public function test_an_administrator_issues_administrators_who_also_manage_staff(): void
     {
         $this->actingAs($this->admin())
             ->post('/users', [
@@ -69,7 +76,7 @@ class UserTest extends TestCase
         $created = User::where('login', 'meret')->firstOrFail();
         $this->assertSame('admin', $created->role->value);
         $this->assertFalse($created->is_root);
-        $this->assertFalse($created->managesStaff());
+        $this->assertTrue($created->managesStaff());
     }
 
     /**

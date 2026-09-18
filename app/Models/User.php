@@ -108,12 +108,12 @@ class User extends Authenticatable
     }
 
     /**
-     * Кто раздаёт доступы: корневой администратор и суперадмин над ним. Обычный
-     * администратор ведёт каталог, но раздела «Пользователи» не видит.
+     * Кто раздаёт доступы: любой администратор и суперадмин. Менеджер и зал
+     * раздел «Пользователи» не видят.
      */
     public function managesStaff(): bool
     {
-        return $this->isRootAdmin() || $this->isSuperadmin();
+        return $this->isAdmin() || $this->isSuperadmin();
     }
 
     /**
