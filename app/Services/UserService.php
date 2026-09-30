@@ -107,6 +107,23 @@ class UserService
         });
     }
 
+    /**
+     * Безвозвратное удаление сотрудника. Точки, устройство и история сканов уезжают
+     * следом по внешним ключам. Токен и веб-сессии отзываются заранее — после удаления
+     * строки в них уже нечем будет их найти.
+     */
+    public function delete(User $user, string $actor): void
+    {
+        DB::transaction(function () use ($user, $actor): void {
+            $user->tokens()->delete();
+            $this->endWebSessions($user);
+
+            $this->audit->record($actor, 'Удалён сотрудник', $user->login.' · '.$user->name, $user->role->label(), null, 'user');
+
+            $user->delete();
+        });
+    }
+
     public function suggestPassword(): string
     {
         return $this->passwords->generate();

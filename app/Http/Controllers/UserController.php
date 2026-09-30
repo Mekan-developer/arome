@@ -40,6 +40,7 @@ class UserController extends Controller
                 'roleTitle' => $user->role->label(),
                 'isActive' => $user->is_active,
                 'isSelf' => $user->id === $viewerId,
+                'canDelete' => Gate::allows('delete', $user),
                 'lastLogin' => $user->last_login_at?->format('d.m.Y H:i'),
                 'device' => $user->device,
                 'points' => $withPoints
@@ -101,6 +102,15 @@ class UserController extends Controller
             (bool) ($validated['end_sessions'] ?? false),
             $this->actor(),
         );
+
+        return back();
+    }
+
+    public function destroy(User $user): RedirectResponse
+    {
+        Gate::authorize('delete', $user);
+
+        $this->service->delete($user, $this->actor());
 
         return back();
     }

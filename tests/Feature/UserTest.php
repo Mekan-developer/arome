@@ -371,6 +371,52 @@ class UserTest extends TestCase
         $this->assertSame(4193, $device->refresh()->data_version);
     }
 
+    public function test_an_admin_can_delete_a_colleague(): void
+    {
+        $target = User::factory()->create(['login' => 'gozel', 'name' => 'Гөзел Сапарова']);
+        $target->createToken('seller');
+
+        $this->actingAs($this->admin())
+            ->delete("/users/{$target->id}")
+            ->assertRedirect();
+
+        $this->assertModelMissing($target);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'Удалён сотрудник', 'kind' => 'user']);
+    }
+
+    public function test_a_superadmin_cannot_delete_a_staff_member(): void
+    {
+        $target = User::factory()->create(['login' => 'gozel']);
+
+        $this->actingAs(User::factory()->superadmin()->create())
+            ->delete("/users/{$target->id}")
+            ->assertForbidden();
+
+        $this->assertModelExists($target);
+    }
+
+    public function test_an_admin_cannot_delete_the_superadmin(): void
+    {
+        $superadmin = User::factory()->superadmin()->create();
+
+        $this->actingAs($this->admin())
+            ->delete("/users/{$superadmin->id}")
+            ->assertForbidden();
+
+        $this->assertModelExists($superadmin);
+    }
+
+    public function test_an_admin_cannot_delete_themselves(): void
+    {
+        $admin = $this->admin();
+
+        $this->actingAs($admin)
+            ->delete("/users/{$admin->id}")
+            ->assertForbidden();
+
+        $this->assertModelExists($admin);
+    }
+
     /**
      * Without the points module the edit modal has no points field at all — a request
      * carrying no points must not wipe assignments made while the module was on.

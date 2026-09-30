@@ -14,6 +14,7 @@ import NewStaffDrawer from './Partials/NewStaffDrawer.vue'
 import AccessModal from './Partials/AccessModal.vue'
 import PasswordModal from './Partials/PasswordModal.vue'
 import UserEditModal from './Partials/UserEditModal.vue'
+import UserDeleteModal from './Partials/UserDeleteModal.vue'
 
 defineProps({
     staff: { type: Array, required: true },
@@ -35,6 +36,7 @@ const creating = ref(false)
 const accessTarget = ref(null)
 const passwordTarget = ref(null)
 const editTarget = ref(null)
+const deleteTarget = ref(null)
 </script>
 
 <template>
@@ -97,6 +99,15 @@ const editTarget = ref(null)
                         @toggle="accessTarget = person"
                     />
                     <span v-else class="cell__self" title="Свой доступ не отзывают">это вы</span>
+                    <AppButton
+                        v-if="person.canDelete"
+                        variant="ghost"
+                        size="sm"
+                        class="cell__delete"
+                        @click="deleteTarget = person"
+                    >
+                        Удалить
+                    </AppButton>
                 </span>
             </div>
         </DataTable>
@@ -117,6 +128,7 @@ const editTarget = ref(null)
             :with-points="withPoints"
             @close="editTarget = null"
         />
+        <UserDeleteModal v-if="deleteTarget" :staff="deleteTarget" @close="deleteTarget = null" @deleted="deleteTarget = null" />
     </div>
 </template>
 
@@ -226,6 +238,10 @@ const editTarget = ref(null)
     align-items: center;
     justify-content: flex-end;
     gap: 8px;
+}
+
+.cell__delete {
+    color: var(--danger);
 }
 
 /* Своя строка: доступ у неё есть, кнопки отзыва — нет. */

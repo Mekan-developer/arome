@@ -39,4 +39,14 @@ class UserPolicy
     {
         return $user->managesStaff() && ! $target->isSuperadmin();
     }
+
+    /**
+     * Удаление — право строже прочих: его не дают даже суперадмину, только роли
+     * «Администратор». Суперадмина и себя самого удалить нельзя по тем же причинам,
+     * что и в manageAccess().
+     */
+    public function delete(User $user, User $target): bool
+    {
+        return $user->isAdmin() && ! $target->isSuperadmin() && $user->isNot($target);
+    }
 }

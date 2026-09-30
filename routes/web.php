@@ -63,6 +63,7 @@ Route::middleware('auth')->group(function (): void {
     Route::put('users/{user}', [UserController::class, 'update'])->name('users.update');
     Route::patch('users/{user}/access', [UserController::class, 'toggleAccess'])->name('users.access');
     Route::put('users/{user}/password', [UserController::class, 'changePassword'])->name('users.password');
+    Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
     Route::get('rights', [RightsController::class, 'index'])->middleware('not-seller')->name('rights.index');
     Route::put('rights', [RightsController::class, 'update'])->name('rights.update');
